@@ -32,6 +32,7 @@ html:has(> .cf-page), .cf-page { margin: 0; background: var(--cf-bg); color: var
 .cf-brand span { color: #0f1115; max-width: 0; overflow: hidden; transition: max-width .25s; white-space: nowrap; }
 .cf-brand:hover, .cf-brand:focus-visible { opacity: 1; }
 .cf-brand:hover span, .cf-brand:focus-visible span { max-width: 60px; }
+.cf-brand.cf-brand-bar { position: static; flex: none; }
 .cf-captions-overlay .cf-subs { bottom: calc(4% + 22px); } /* clear of the mark */
 .cf-play svg { width: 16px; height: 16px; display: block; }
 .cf-bar .cf-play { display: flex; align-items: center; justify-content: center; padding: 4px 8px; }

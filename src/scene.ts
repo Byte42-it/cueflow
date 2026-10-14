@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { parseHTML } from "linkedom";
 import type { Kit } from "./kit.ts";
@@ -13,10 +14,43 @@ const MIME: Record<string, string> = {
   ".webp": "image/webp",
   ".woff": "font/woff",
   ".woff2": "font/woff2",
-  ".ttf": "font/ttf"
+  ".ttf": "font/ttf",
+  ".otf": "font/otf"
 };
 
 const isLocal = (ref: string) => !/^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(ref);
+const exists = (file: string) => stat(file).then(() => true, () => false);
+const bare = (ref: string) => ref.split(/[?#]/)[0]!;
+
+/** Font formats in the order a current browser wants them; the rest exist only for old browsers. */
+const FONT_RANK = [".woff2", ".woff", ".ttf", ".otf"];
+const FONT_FORMAT = ["woff2", "woff", "truetype", "opentype"];
+
+/**
+ * Every @font-face keeps a single local source, the best format the kit has (woff2, else woff, else ttf/otf).
+ * Sites list eot/woff2/woff/ttf/svg for old browsers; inlined as data URIs they would multiply the weight of every
+ * scene for nothing. A face that uses a remote file, or has none of these formats on disk, is left as it is.
+ */
+export async function bestFontSources(css: string, baseDir: string): Promise<string> {
+  let out = css;
+  for (const [face] of css.matchAll(/@font-face\s*\{[^}]*\}/g)) {
+    const refs = [...face.matchAll(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g)].map((r) => r[2]!);
+    if (!refs.length || refs.some((r) => !isLocal(r))) continue;
+    let best: { ref: string; rank: number } | null = null;
+    for (const ref of refs) {
+      const rank = FONT_RANK.indexOf(path.extname(bare(ref)).toLowerCase());
+      if (rank < 0 || (best && best.rank <= rank)) continue;
+      if (await exists(path.resolve(baseDir, bare(ref)))) best = { ref, rank };
+    }
+    if (!best) continue;
+    // every src declaration goes, one comes back first with the chosen file (minified CSS has no ";" before "}")
+    const kept = face
+      .replace(/\bsrc\s*:[^;}]*;?/g, "")
+      .replace(/^@font-face\s*\{/, `@font-face{src: url("${bare(best.ref)}") format("${FONT_FORMAT[best.rank]}");`);
+    out = out.replace(face, kept);
+  }
+  return out;
+}
 
 export async function dataUri(file: string): Promise<string | null> {
   const mime = MIME[path.extname(file).toLowerCase()];
@@ -30,19 +64,40 @@ export async function dataUri(file: string): Promise<string | null> {
 
 /** url(...) references in CSS to local files become data URIs, so the output stays one self-contained file. */
 export async function inlineCssUrls(css: string, baseDir: string): Promise<string> {
+  css = await bestFontSources(css, baseDir);
   const found = [...css.matchAll(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g)];
   let out = css;
   for (const m of found) {
     const ref = m[2]!;
     if (!isLocal(ref)) continue;
-    const uri = await dataUri(path.resolve(baseDir, ref.split(/[?#]/)[0]!));
+    const uri = await dataUri(path.resolve(baseDir, bare(ref)));
     if (uri) out = out.replace(m[0], `url("${uri}")`);
   }
   return out;
 }
 
-/** The scene as one standalone HTML string: local stylesheets, scripts and images are inlined. */
-export async function inlineScene(kit: Kit, scene: string, lang?: string): Promise<string> {
+/**
+ * Stylesheets and images shared by the scenes of one guide, by content hash. Scenes of a site link the same big
+ * files (framework, theme, icon fonts, logo): kept here once, each scene carries only placeholders that the player
+ * fills when it loads the scene (`<style data-cf-style="hash">`, `src="cf-shared:hash"`), not a full copy per scene.
+ */
+export type Shared = Record<string, string>;
+const share = (shared: Shared, content: string) => {
+  const hash = createHash("sha256").update(content).digest("hex").slice(0, 16);
+  shared[hash] = content;
+  return hash;
+};
+/** The scene with its shared parts put back: what the browser must receive. */
+export const expandShared = (html: string, shared: Shared) =>
+  html
+    .replace(/<style data-cf-style="([0-9a-f]+)"><\/style>/g, (_, h: string) => `<style>${shared[h] ?? ""}</style>`)
+    .replace(/cf-shared:([0-9a-f]+)/g, (_, h: string) => shared[h] ?? "");
+
+/**
+ * The scene as one standalone HTML string: local stylesheets, scripts and images are inlined. With `shared`, the
+ * linked stylesheets and the images go there instead (once per content) and the scene keeps placeholders.
+ */
+export async function inlineScene(kit: Kit, scene: string, lang?: string, shared?: Shared): Promise<string> {
   const file = await sceneFileFor(kit, scene, lang);
   const baseDir = path.dirname(file);
   const { document } = parseHTML(await readFile(file, "utf8"));
@@ -50,9 +105,11 @@ export async function inlineScene(kit: Kit, scene: string, lang?: string): Promi
   for (const link of [...document.querySelectorAll('link[rel~="stylesheet"][href]')]) {
     const href = link.getAttribute("href")!;
     if (!isLocal(href)) continue;
-    const cssPath = path.resolve(baseDir, href);
+    const cssPath = path.resolve(baseDir, bare(href));
+    const css = (await inlineCssUrls(await readFile(cssPath, "utf8"), path.dirname(cssPath))).replace(/<\/style/gi, "<\\/style");
     const style = document.createElement("style");
-    style.textContent = await inlineCssUrls(await readFile(cssPath, "utf8"), path.dirname(cssPath));
+    if (shared) style.setAttribute("data-cf-style", share(shared, css));
+    else style.textContent = css;
     link.replaceWith(style);
   }
   for (const script of [...document.querySelectorAll("script[src]")]) {
@@ -65,8 +122,8 @@ export async function inlineScene(kit: Kit, scene: string, lang?: string): Promi
   for (const img of [...document.querySelectorAll("img[src]")]) {
     const src = img.getAttribute("src")!;
     if (!isLocal(src)) continue;
-    const uri = await dataUri(path.resolve(baseDir, src));
-    if (uri) img.setAttribute("src", uri);
+    const uri = await dataUri(path.resolve(baseDir, bare(src)));
+    if (uri) img.setAttribute("src", shared ? `cf-shared:${share(shared, uri)}` : uri);
   }
   for (const el of [...document.querySelectorAll("[style*='url(']")]) {
     el.setAttribute("style", await inlineCssUrls(el.getAttribute("style")!, baseDir));

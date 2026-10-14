@@ -42,7 +42,14 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
       if ("to" in a) refs.push({ label, selector: a.to });
       if (a.do === "scroll") refs.push({ label, selector: a.in });
       if (a.do === "camera" && typeof a.target === "string") refs.push({ label, selector: a.target });
-      for (const value of [a.do === "type" ? a.text : undefined, a.do === "set" ? a.text : undefined, a.do === "set" ? a.html : undefined]) {
+      const texts = [
+        a.do === "type" ? a.text : undefined,
+        a.do === "set" ? a.text : undefined,
+        a.do === "set" ? a.html : undefined,
+        a.do === "select" ? a.option : undefined,
+        a.do === "value" ? a.value : undefined
+      ];
+      for (const value of texts) {
         if (value == null || typeof value === "string") continue;
         for (const lang of guide.languages) if (value[lang] == null) warnings.push(`${where}, ${label}: no text in "${lang}" (the first one given is used)`);
       }
