@@ -98,3 +98,11 @@ export const Guide = z.object({
   steps: z.array(Step).default([])
 });
 export type Guide = z.infer<typeof Guide>;
+
+/** The words of the player's own interface, per language: theme/labels.json in the kit. Unknown keys are typos. */
+export const LABEL_KEYS = ["play", "pause", "replay", "speed", "captions", "voice", "steps", "step", "transcript", "download", "watch", "language"] as const;
+export const PlayerLabels = z.record(
+  z.string().min(2),
+  z.object(Object.fromEntries(LABEL_KEYS.map((k) => [k, z.string().min(1).optional()])) as Record<(typeof LABEL_KEYS)[number], z.ZodOptional<z.ZodString>>).strict()
+);
+export type PlayerLabels = z.infer<typeof PlayerLabels>;

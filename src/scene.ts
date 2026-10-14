@@ -29,7 +29,7 @@ async function dataUri(file: string): Promise<string | null> {
 }
 
 /** url(...) references in CSS to local files become data URIs, so the output stays one self-contained file. */
-async function inlineCssUrls(css: string, baseDir: string): Promise<string> {
+export async function inlineCssUrls(css: string, baseDir: string): Promise<string> {
   const found = [...css.matchAll(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g)];
   let out = css;
   for (const m of found) {

@@ -10,10 +10,19 @@
     en: { play: "Play", pause: "Pause", replay: "Replay this step", speed: "Speed", captions: "Captions", voice: "Voice", steps: "Steps", step: "Step",
       transcript: "Transcript", download: "Download (.txt)", watch: "Watch this step", language: "Language" },
     it: { play: "Avvia", pause: "Pausa", replay: "Ripeti il passo", speed: "Velocità", captions: "Sottotitoli", voice: "Voce", steps: "Passi", step: "Passo",
-      transcript: "Trascrizione", download: "Scarica (.txt)", watch: "Guarda questo passo", language: "Lingua" }
+      transcript: "Trascrizione", download: "Scarica (.txt)", watch: "Guarda questo passo", language: "Lingua" },
+    fr: { play: "Lire", pause: "Pause", replay: "Revoir l'étape", speed: "Vitesse", captions: "Sous-titres", voice: "Voix", steps: "Étapes", step: "Étape",
+      transcript: "Transcription", download: "Télécharger (.txt)", watch: "Voir cette étape", language: "Langue" },
+    de: { play: "Abspielen", pause: "Pause", replay: "Schritt wiederholen", speed: "Tempo", captions: "Untertitel", voice: "Stimme", steps: "Schritte", step: "Schritt",
+      transcript: "Transkript", download: "Herunterladen (.txt)", watch: "Diesen Schritt ansehen", language: "Sprache" }
   };
 
   function mount(root, DATA) {
+    // the kit's theme/labels.json: new languages, or other words for the built-in ones
+    Object.keys(DATA.labels || {}).forEach(function (l) {
+      var mine = LABELS[l] || (LABELS[l] = {});
+      Object.keys(DATA.labels[l]).forEach(function (k) { mine[k] = DATA.labels[l][k]; });
+    });
     var guide = DATA.guide;
     var steps = guide.steps;
     var opts = guide.player || {};

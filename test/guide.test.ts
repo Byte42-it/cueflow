@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
+import { appendFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -100,6 +100,41 @@ describe("build", () => {
     guide.steps[0]!.camera = { target: "#nope" };
     await saveGuide(kit, guide);
     await assert.rejects(buildGuide(kit, "broken", null), /not valid/);
+  });
+
+  it("adds the kit theme after the player's styles and passes its labels to the player", async () => {
+    const themed = openKit(await mkdtemp(path.join(tmpdir(), "cueflow-theme-")));
+    try {
+      await cp(dir, themed.root, { recursive: true });
+      await cp(path.join(import.meta.dirname, "..", "examples", "themes", "paper"), path.join(themed.root, "theme"), { recursive: true });
+      await writeFile(path.join(themed.root, "theme", "mark.svg"), "<svg xmlns='http://www.w3.org/2000/svg'/>");
+      await appendFile(path.join(themed.root, "theme", "theme.css"), '\n.cf-big { background-image: url("mark.svg"); }\n');
+      const html = await readFile((await buildGuide(themed, "upload", null)).file, "utf8");
+      const player = html.indexOf("--cf-bg: #0f1115"), theme = html.indexOf("--cf-bg: #f6f5f1");
+      assert.ok(player > 0 && theme > player, "the theme comes after the defaults, so it wins");
+      assert.match(html, /url\("data:image\/svg\+xml;base64,/, "files the theme points at are inlined");
+      assert.match(html, /"labels":\{"en":\{"steps":"Chapters"/);
+    } finally {
+      await rm(themed.root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a misspelt label instead of ignoring it", async () => {
+    const themed = openKit(await mkdtemp(path.join(tmpdir(), "cueflow-theme-")));
+    try {
+      await cp(dir, themed.root, { recursive: true });
+      await mkdir(path.join(themed.root, "theme"));
+      await writeFile(path.join(themed.root, "theme", "labels.json"), JSON.stringify({ en: { transcipt: "Text" } }));
+      await assert.rejects(buildGuide(themed, "upload", null), /labels\.json is not valid/);
+    } finally {
+      await rm(themed.root, { recursive: true, force: true });
+    }
+  });
+
+  it("builds with the player's own look when the kit has no theme", async () => {
+    const html = await readFile((await buildGuide(kit, "upload", null)).file, "utf8");
+    assert.ok(!html.includes("/* kit theme */"));
+    assert.match(html, /"labels":\{\}/);
   });
 
   it("keeps scene text from breaking out of the embedding script", async () => {

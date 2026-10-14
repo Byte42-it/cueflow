@@ -27,6 +27,7 @@ Decisions taken with the owner (Luca) — do not re-litigate:
 | `scene.ts` | `inlineScene` (inlines local CSS/JS/images/fonts → one standalone HTML), `describeScene` (targetable elements + best selector), `countMatches` |
 | `validate.ts` | checks selectors against the scene current at each step, duplicate ids, unknown scenes, missing narration per language |
 | `tts.ts` | `TtsProvider` interface + OpenAI provider; on-disk cache keyed by hash(provider, voice, lang, text); ported from `chess.ai/packages/server/src/tts.ts` |
+| `theme.ts` | optional kit `theme/`: `theme.css` appended after the player CSS (urls inlined), `labels.json` (player words per language, validated) |
 | `build.ts` | guide → `dist/<id>.html` (player + css + scenes + base64 audio, JSON embedded script-safe) |
 | `player/player.js`, `player.css` | browser runtime, plain JS inlined at build time (not bundled/compiled) |
 | `preview.ts` | Playwright renders the built HTML at (step, ms) → PNG; calls `window.__cueflow.seek` |
