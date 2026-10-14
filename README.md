@@ -1,4 +1,12 @@
+<p align="center">
+  <img src="assets/brand/cueflow-logo.png" alt="Cueflow" width="560">
+</p>
+
 # Cueflow
+
+**Turn UI walkthroughs into maintainable, multilingual guides.**
+
+[MIT license](LICENSE) · [Contributing](CONTRIBUTING.md) · [Built by Byte42](https://byte42.it/)
 
 Narrated, animated walkthroughs of a web interface — without recording a video.
 
@@ -10,6 +18,18 @@ is really the live page, shrunk to a window.
 
 Changing a text, translating a guide or following a UI change means editing a line and rebuilding, not re-shooting
 and re-dubbing.
+
+## Why Cueflow?
+
+Product onboarding, support tutorials and internal training often become outdated as soon as the interface changes. Cueflow describes a walkthrough as structured data: screens, actions, camera framing and narration. Developers can version and review those guides alongside their application, while AI assistants help author them through the Model Context Protocol (MCP).
+
+- **Use your real interface:** static scenes reuse your CSS, fonts and layout.
+- **Guide attention:** camera framing, cursor movements, clicks, typing and highlights show each action.
+- **Translate narration:** language-specific text and audio share the same timeline.
+- **Share one HTML file:** scenes, player and generated audio are packaged together.
+- **Review AI output:** validate selectors and inspect preview frames before sharing a guide.
+
+Cueflow is an early open-source prototype. Feedback, example kits, bug reports and contributions are welcome through this repository's issues and pull requests.
 
 ## The kit
 
@@ -28,12 +48,14 @@ Give elements an `id` or a `data-cue="…"` attribute: that is what guides point
 ## Use
 
 ```bash
+# Requires Node.js 22.18 or later; run from the repository checkout.
 npm install
 node src/cli.ts build upload --kit examples/demo-kit     # → examples/demo-kit/dist/upload.html
 node src/cli.ts validate upload --kit examples/demo-kit
 ```
 
 Open the generated HTML in a browser. Without a TTS key the guide is silent (captions only, timings estimated).
+To explicitly build without audio, set `CUEFLOW_TTS=none`.
 With `OPENAI_API_KEY` set, the narration is synthesised once per text and cached in `audio/`.
 
 ### With an AI assistant (MCP)
@@ -87,10 +109,41 @@ can carry small scripts of its own.
 
 `preview_frame` needs Chromium: `npm install playwright && npx playwright install chromium`.
 
+## Development
+
+```bash
+npm run typecheck
+npm test
+CUEFLOW_TTS=none npm run build:demo
+```
+
+Use synthetic data in scene kits. Narration is sent to the configured TTS provider when audio generation is enabled. Keep credentials and private customer data out of shared kits and contributions.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Every PR must disclose whether an AI agent was used, including the agent, model when known, scope of assistance and human verification. Contributions without AI assistance are equally welcome.
+
 ## Status
 
 Proof of concept. Not done yet: capturing scenes from a live site (Playwright), text-to-speech providers other than
 OpenAI (the `TtsProvider` interface in `src/tts.ts` is the extension point), exporting an mp4, word-level sync with
 the narration, a TypeScript build step for publishing to npm.
 
-MIT
+
+Actual TTS audio has not yet been verified end to end. The scene UI language is currently fixed; multilingual narration does not translate the underlying interface.
+
+## Producer and references
+
+Cueflow is produced and maintained by **Byte42 s.r.l.**, an Italian technology company working on software, artificial intelligence and next-generation payment systems.
+
+- Website and business enquiries: [byte42.it](https://byte42.it/).
+- Company information: [Corporate Disclosure](https://byte42.it/corporate-disclosure/).
+- Registered address: Via Anna Magnani 38/54, 58100 Grosseto (GR), Italy.
+- VAT number: **01762750535** · REA: **GR-232344**.
+- Project support and proposals: use this repository's issues and pull requests.
+
+The [full logo](assets/brand/cueflow-logo.png) is intended for light backgrounds. The [square symbol](assets/brand/cueflow-icon.png) is available for GitLab/GitHub project avatars. See [brand notes](assets/brand/design-notes.md).
+
+## License
+
+Cueflow is released under the [MIT License](LICENSE), permitting use, modification and redistribution, including commercial use, subject to retaining the copyright and license notice. Contributions are accepted under the same license; third-party dependencies and assets retain their respective licenses.
+
+Copyright © 2026 Byte42 s.r.l. and Cueflow contributors.
