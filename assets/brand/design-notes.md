@@ -15,3 +15,9 @@ Use case: logo-brand. Create a polished original logo for Cueflow, a developer t
 ### Avatar generation prompt
 
 Edit target: the supplied Cueflow logo. Create a square project avatar for GitLab and GitHub containing ONLY the existing coral C symbol with its right pointing play triangle. Remove the entire cueflow wordmark. Preserve the symbol's shape, rounded ends, proportions and coral color exactly as closely as possible; do not redesign. Center the complete symbol on a square transparent canvas with 12% clear margin on every side so circular avatar crops preserve the mark. Flat clean edges. No letters beyond the C-shaped symbol, no text, no background, no shadow. Save the resulting PNG asset.
+
+## Vector symbol
+
+`cueflow-symbol.svg`: the C and the play triangle redrawn as vectors (an arc with round caps, a triangle with round
+joins), traced on `cueflow-icon.png`. The player draws the same paths inline: its play icon is this triangle, and the
+mark in the corner of every player is this symbol, linking to the repository.

@@ -3,6 +3,13 @@
   "use strict";
 
   var CLICK_MS = 350;
+  var REPO = "https://github.com/Byte42-it/cueflow";
+
+  /* Icons drawn from the Cueflow mark. The play triangle has rounded corners like the logo's and sits with its
+     centroid (not its bounding box) on the center: a triangle centered by its box looks pushed to the left. */
+  var ICON_PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.33 7.4V16.6L17.33 12Z" fill="currentColor" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg>';
+  var ICON_PAUSE = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6" width="3.6" height="12" rx="1.6" fill="currentColor"/><rect x="13.9" y="6" width="3.6" height="12" rx="1.6" fill="currentColor"/></svg>';
+  var MARK = '<svg viewBox="160 150 925 960" aria-hidden="true"><path d="M894 365A366 366 0 1 0 894 891" fill="none" stroke="currentColor" stroke-width="208" stroke-linecap="round"/><path d="M830 525V755L1035 640Z" fill="currentColor" stroke="currentColor" stroke-width="80" stroke-linejoin="round"/></svg>';
   var MS_PER_CHAR = 65; // narration length estimate when there is no audio
 
   /* The player's own words. The interface follows the narration language; unknown languages fall back to English. */
@@ -48,9 +55,10 @@
       '<div class="cf-ring"></div><div class="cf-cursor"></div>' +
       "</div>" +
       '<p class="cf-subs" aria-live="polite" hidden><span></span></p>' +
-      '<button class="cf-big" aria-label="Play">▶</button></div>' +
+      '<button class="cf-big" aria-label="Play">' + ICON_PLAY + "</button>" +
+      '<a class="cf-brand" href="' + REPO + '" target="_blank" rel="noopener" title="Made with Cueflow">' + MARK + "<span>cueflow</span></a></div>" +
       '<div class="cf-caption" aria-live="polite"></div>' +
-      '<div class="cf-bar"><button class="cf-play" aria-label="Play/Pause">▶</button>' +
+      '<div class="cf-bar"><button class="cf-play" aria-label="Play/Pause">' + ICON_PLAY + "</button>" +
       '<button class="cf-restart" aria-label="Replay">↺</button>' +
       '<div class="cf-track"><div class="cf-fill"></div></div><div class="cf-chapters" role="group"></div>' +
       '<button class="cf-speed" hidden></button>' +
@@ -335,7 +343,7 @@
       playing = v;
       if (v) app.classList.add("cf-started"); // themes can style the untouched player (veil, poster) apart from a paused one
       app.classList.toggle("cf-playing", v);
-      playBtn.textContent = v ? "❚❚" : "▶";
+      playBtn.innerHTML = v ? ICON_PAUSE : ICON_PLAY;
       playBtn.setAttribute("aria-label", v ? L("pause") : L("play"));
       if (cur && cur.audio) { if (v) cur.audio.play().catch(function () {}); else cur.audio.pause(); }
       if (synth) {
