@@ -5,29 +5,53 @@
   var CLICK_MS = 350;
   var MS_PER_CHAR = 65; // narration length estimate when there is no audio
 
+  /* The player's own words. The interface follows the narration language; unknown languages fall back to English. */
+  var LABELS = {
+    en: { play: "Play", pause: "Pause", replay: "Replay this step", speed: "Speed", captions: "Captions", voice: "Voice", steps: "Steps", step: "Step",
+      transcript: "Transcript", download: "Download (.txt)", watch: "Watch this step", language: "Language" },
+    it: { play: "Avvia", pause: "Pausa", replay: "Ripeti il passo", speed: "Velocità", captions: "Sottotitoli", voice: "Voce", steps: "Passi", step: "Passo",
+      transcript: "Trascrizione", download: "Scarica (.txt)", watch: "Guarda questo passo", language: "Lingua" }
+  };
+
   function mount(root, DATA) {
     var guide = DATA.guide;
     var steps = guide.steps;
+    var opts = guide.player || {};
+    var speeds = opts.speeds && opts.speeds.length ? opts.speeds : [1];
+    var captionMode = opts.captions || "below";
+    var pronunciation = guide.pronunciation || {};
     var vw = guide.viewport.width;
     var vh = guide.viewport.height;
     var lang = guide.languages[0];
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    function L(k) { var d = LABELS[lang] || LABELS[String(lang).slice(0, 2)] || LABELS.en; return d[k] || LABELS.en[k]; }
+    function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
     root.innerHTML =
-      '<div class="cf-app">' +
+      '<div class="cf-app cf-captions-' + captionMode + '" tabindex="-1">' +
       '<div class="cf-stage"><div class="cf-world">' +
       '<iframe class="cf-frame" scrolling="no" tabindex="-1"></iframe>' +
       '<div class="cf-ring"></div><div class="cf-cursor"></div>' +
       "</div>" +
+      '<p class="cf-subs" aria-live="polite" hidden><span></span></p>' +
       '<button class="cf-big" aria-label="Play">▶</button></div>' +
-      '<div class="cf-caption"></div>' +
+      '<div class="cf-caption" aria-live="polite"></div>' +
       '<div class="cf-bar"><button class="cf-play" aria-label="Play/Pause">▶</button>' +
-      '<button class="cf-restart" aria-label="Restart">↺</button>' +
-      '<div class="cf-track"><div class="cf-fill"></div></div><select class="cf-lang"></select></div></div>';
+      '<button class="cf-restart" aria-label="Replay">↺</button>' +
+      '<div class="cf-track"><div class="cf-fill"></div></div><div class="cf-chapters" role="group"></div>' +
+      '<button class="cf-speed" hidden></button>' +
+      '<button class="cf-cc" aria-pressed="true">CC</button>' +
+      '<button class="cf-voice" aria-pressed="true" hidden></button>' +
+      '<select class="cf-lang"></select></div>' +
+      '<details class="cf-transcript" hidden><summary><span class="cf-tr-title"></span><button class="cf-download" type="button"></button></summary><ol></ol></details>' +
+      "</div>";
 
     var $ = function (s) { return root.querySelector(s); };
     var app = $(".cf-app"), stage = $(".cf-stage"), world = $(".cf-world"), frame = $(".cf-frame");
-    var ring = $(".cf-ring"), cursor = $(".cf-cursor"), caption = $(".cf-caption");
+    var ring = $(".cf-ring"), cursor = $(".cf-cursor"), caption = $(".cf-caption"), subs = $(".cf-subs");
     var big = $(".cf-big"), playBtn = $(".cf-play"), fill = $(".cf-fill"), langSel = $(".cf-lang");
+    var chapters = $(".cf-chapters"), speedBtn = $(".cf-speed"), ccBtn = $(".cf-cc"), voiceBtn = $(".cf-voice");
+    var transcript = $(".cf-transcript");
 
     stage.style.aspectRatio = guide.stage.width + " / " + guide.stage.height;
     app.style.maxWidth = guide.stage.width + "px";
@@ -47,11 +71,14 @@
     // ---- runtime state ----
     var curScene = null;
     var cam = null; // last camera spec
-    var cur = null; // { i, t, total, narrDur, actions[], audio }
+    var cur = null; // { i, t, total, narrDur, actions[], audio, speaking }
     var playing = false;
     var loading = false;
     var last = 0;
     var raf = 0;
+    var speed = speeds[0];
+    var captionsOn = captionMode !== "off";
+    var voiceOn = true;
     var sceneStepIndex = {}; // step index -> scene name
 
     (function () {
@@ -61,6 +88,7 @@
 
     function doc() { return frame.contentDocument; }
     function $el(sel) { try { return doc().querySelector(sel); } catch (e) { return null; } }
+    function ms(v) { return reduce ? 0 : v / speed; } // CSS transition time at the current speed
 
     function loadScene(name) {
       return new Promise(function (resolve) {
@@ -83,7 +111,7 @@
       }
       return target;
     }
-    function applyCamera(spec, ms) {
+    function applyCamera(spec, dur) {
       cam = spec || null;
       var SW = stage.clientWidth, SH = stage.clientHeight;
       var rect = spec ? rectOf(spec.target) : null;
@@ -95,7 +123,7 @@
       // never show the empty space outside the scene: keep the scene covering the stage (or centered when smaller)
       tx = vw * s <= SW ? (SW - vw * s) / 2 : Math.min(0, Math.max(SW - vw * s, tx));
       ty = vh * s <= SH ? (SH - vh * s) / 2 : Math.min(0, Math.max(SH - vh * s, ty));
-      world.style.transitionDuration = ms + "ms";
+      world.style.transitionDuration = ms(dur) + "ms";
       world.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + s + ")";
     }
     window.addEventListener("resize", function () { if (cam !== undefined) applyCamera(cam, 0); });
@@ -116,7 +144,7 @@
           if (!el) return;
           var c = center(el);
           cursor.style.opacity = "1";
-          cursor.style.transitionDuration = ctx.instant ? "0ms" : a.duration + "ms";
+          cursor.style.transitionDuration = ctx.instant ? "0ms" : ms(a.duration) + "ms";
           cursor.style.transform = "translate(" + c.x + "px," + c.y + "px)";
         }
       },
@@ -128,9 +156,8 @@
           cursor.style.opacity = "1";
           cursor.style.transitionDuration = "0ms";
           cursor.style.transform = "translate(" + c.x + "px," + c.y + "px)";
-          cursor.classList.add("cf-click");
+          if (!ctx.instant) cursor.classList.add("cf-click");
           el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: frame.contentWindow }));
-          void ctx;
         },
         finish: function () { cursor.classList.remove("cf-click"); }
       },
@@ -203,8 +230,17 @@
       });
     }
 
-    // ---- steps ----
+    // ---- voice ----
     function estimate(text) { return text ? Math.max(1500, text.length * MS_PER_CHAR) : 1500; }
+    function spoken(text) {
+      var out = text;
+      Object.keys(pronunciation).forEach(function (w) {
+        if (!w) return;
+        var re = new RegExp("(^|[^\\p{L}\\p{N}])" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\p{L}\\p{N}])", "gu");
+        out = out.replace(re, function (_, pre) { return pre + pronunciation[w]; });
+      });
+      return out;
+    }
 
     function audioUrl(i) {
       var m = DATA.audio[lang];
@@ -223,6 +259,31 @@
       });
     }
 
+    /* The browser's own voice, for silent builds that ask for it: a preview, it differs from machine to machine. */
+    var synth = opts.fallbackVoice === "browser" && "speechSynthesis" in window ? window.speechSynthesis : null;
+    var sysVoice = null;
+    function pickVoice() {
+      if (!synth) return;
+      var all = synth.getVoices(), base = String(lang).slice(0, 2).toLowerCase();
+      var mine = all.filter(function (v) { return String(v.lang).toLowerCase().indexOf(base) === 0; });
+      sysVoice = mine.filter(function (v) { return /Google|Natural|Online/i.test(v.name); })[0] || mine[0] || null;
+    }
+    if (synth) { pickVoice(); synth.onvoiceschanged = pickVoice; }
+    function speak(c, text) {
+      if (!synth || !voiceOn || !text) return;
+      synth.cancel();
+      var u = new SpeechSynthesisUtterance(spoken(text));
+      u.lang = lang;
+      if (sysVoice) u.voice = sysVoice;
+      u.rate = Math.min(speed, 2);
+      c.speaking = true;
+      c.utter = u;
+      u.onend = u.onerror = function () { if (c.utter === u) c.speaking = false; }; // a cancelled utterance ends late
+      synth.speak(u);
+    }
+    function stopVoice() { if (synth) synth.cancel(); if (cur) { cur.speaking = false; cur.utter = null; } }
+
+    // ---- steps ----
     async function enterStep(i, instant) {
       var st = steps[i];
       var sceneName = sceneStepIndex[i];
@@ -234,17 +295,35 @@
       var actions = st.actions.map(function (a) { return { a: a, at: atMs(a, narrDur), started: false, done: false }; });
       var lastEnd = 0;
       st.actions.forEach(function (a) { lastEnd = Math.max(lastEnd, endOf(a, narrDur)); });
-      cur = { i: i, t: 0, total: Math.max(narrDur, lastEnd) + (st.hold != null ? st.hold : 600), narrDur: narrDur, actions: actions, audio: info.audio && info.ms != null ? info.audio : null };
-      caption.textContent = text;
+      cur = { i: i, t: 0, total: Math.max(narrDur, lastEnd) + (st.hold != null ? st.hold : 600), narrDur: narrDur, actions: actions, text: text,
+        audio: info.audio && info.ms != null ? info.audio : null, speaking: false };
+      if (cur.audio) { cur.audio.playbackRate = speed; cur.audio.muted = !voiceOn; }
+      showCaption(text);
       applyCamera(st.camera || cam, instant ? 0 : 700);
-      if (!instant && cur.audio && playing) { cur.audio.currentTime = 0; cur.audio.play().catch(function () {}); }
+      if (!instant && playing) {
+        if (cur.audio) { cur.audio.currentTime = 0; cur.audio.play().catch(function () {}); }
+        else speak(cur, text);
+      }
+      paintChapters();
+    }
+
+    function showCaption(text) {
+      caption.textContent = captionMode === "below" && captionsOn ? text : "";
+      subs.firstChild.textContent = text;
+      subs.hidden = !(captionMode === "overlay" && captionsOn && text);
     }
 
     function setPlaying(v) {
       playing = v;
       app.classList.toggle("cf-playing", v);
       playBtn.textContent = v ? "❚❚" : "▶";
+      playBtn.setAttribute("aria-label", v ? L("pause") : L("play"));
       if (cur && cur.audio) { if (v) cur.audio.play().catch(function () {}); else cur.audio.pause(); }
+      if (synth) {
+        if (!v) synth.pause();
+        else if (cur && cur.speaking) synth.resume();
+        else if (cur && !cur.audio && cur.t < cur.narrDur) { synth.resume(); speak(cur, cur.text); }
+      }
       if (v) { last = performance.now(); raf = requestAnimationFrame(tick); } else cancelAnimationFrame(raf);
     }
 
@@ -253,41 +332,35 @@
       steps.forEach(function (_, i) { total += 1; if (cur && i < cur.i) done += 1; });
       var within = cur && cur.total ? Math.min(1, cur.t / cur.total) : 0;
       fill.style.width = ((done + within) / Math.max(total, 1)) * 100 + "%";
+      var seg = chapters.children[cur ? cur.i : 0];
+      if (seg) seg.firstChild.firstChild.style.width = within * 100 + "%";
     }
 
     function tick(ts) {
       if (!playing || loading) { if (playing) raf = requestAnimationFrame(tick); return; }
       var dt = ts - last;
       last = ts;
-      cur.t += dt;
+      cur.t += dt * speed;
       runDue(cur, cur.t, { instant: false });
       progressBar();
-      if (cur.t >= cur.total) {
+      // the browser voice has no known length: wait for it to finish, within a generous bound
+      var waitVoice = cur.speaking && cur.t < cur.total + 2 * cur.narrDur;
+      if (cur.t >= cur.total && !waitVoice) {
         if (cur.audio) cur.audio.pause();
         var next = cur.i + 1;
-        if (next >= steps.length) { setPlaying(false); app.classList.add("cf-ended"); return; }
+        if (next >= steps.length) { setPlaying(false); app.classList.add("cf-ended"); paintChapters(); return; }
         loading = true;
         enterStep(next, false).then(function () { loading = false; last = performance.now(); });
       }
       raf = requestAnimationFrame(tick);
     }
 
-    async function restart() {
+    /** Replays the steps before i instantly and stops at the start of step i (or at time t within it). */
+    async function goTo(i, t) {
+      stopVoice();
       if (cur && cur.audio) cur.audio.pause();
       loading = true;
       app.classList.remove("cf-ended");
-      await loadScene(guide.scene);
-      cam = null;
-      await enterStep(0, true);
-      loading = false;
-      progressBar();
-    }
-
-    /** Jumps to a point of the timeline (used by previews): replays everything before it instantly. */
-    async function seek(i, t, l) {
-      setPlaying(false);
-      if (l) { lang = l; langSel.value = l; }
-      loading = true;
       await loadScene(guide.scene);
       cam = null;
       for (var k = 0; k < i; k++) {
@@ -295,24 +368,155 @@
         runDue(cur, Infinity, { instant: true });
       }
       await enterStep(i, true);
-      runDue(cur, t, { instant: true });
-      cur.t = t;
+      runDue(cur, t || 0, { instant: true });
+      cur.t = t || 0;
       loading = false;
       progressBar();
+    }
+
+    async function restart() { await goTo(0, 0); }
+
+    /** Jumps to a step and plays from there (chapters, transcript links, keyboard). */
+    async function jump(i) {
+      i = Math.max(0, Math.min(steps.length - 1, i));
+      setPlaying(false);
+      await goTo(i, 0);
+      setPlaying(true);
+    }
+
+    /** Jumps to a point of the timeline (used by previews): replays everything before it instantly. */
+    async function seek(i, t, l) {
+      setPlaying(false);
+      if (l) { lang = l; langSel.value = l; }
+      await goTo(i, t);
       app.classList.add("cf-ready");
       return { total: cur.total, narration: cur.narrDur, steps: steps.length };
     }
+
+    // ---- chapters ----
+    function stepTitle(st, i) { return st.title || L("step") + " " + (i + 1); }
+    function buildChapters() {
+      chapters.innerHTML = "";
+      if (!opts.chapters) { app.classList.add("cf-no-chapters"); return; }
+      chapters.setAttribute("aria-label", L("steps"));
+      steps.forEach(function (st, i) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "cf-chap";
+        b.title = stepTitle(st, i);
+        b.innerHTML = "<i><b></b></i><small>" + (i + 1) + " · " + esc(stepTitle(st, i)) + "</small>";
+        b.setAttribute("aria-label", L("step") + " " + (i + 1) + ": " + stepTitle(st, i));
+        b.onclick = function () { jump(i); };
+        chapters.appendChild(b);
+      });
+    }
+    function paintChapters() {
+      var ended = app.classList.contains("cf-ended");
+      Array.prototype.forEach.call(chapters.children, function (c, i) {
+        var now = !ended && cur && i === cur.i;
+        c.classList.toggle("cf-past", ended || (cur && i < cur.i));
+        c.classList.toggle("cf-now", !!now);
+        if (now) c.setAttribute("aria-current", "step"); else c.removeAttribute("aria-current");
+        if (!now) c.firstChild.firstChild.style.width = "";
+      });
+    }
+
+    // ---- transcript ----
+    function transcriptText() {
+      var lines = [guide.title, ""];
+      steps.forEach(function (st, i) { lines.push((i + 1) + ". " + stepTitle(st, i), st.narration[lang] || "", ""); });
+      return lines.join("\n");
+    }
+    function buildTranscript() {
+      if (!opts.transcript) return;
+      transcript.hidden = false;
+      $(".cf-tr-title").textContent = L("transcript");
+      $(".cf-download").textContent = L("download");
+      $(".cf-transcript ol").innerHTML = steps.map(function (st, i) {
+        return "<li><b>" + esc(stepTitle(st, i)) + "</b> " + esc(st.narration[lang] || "") +
+          ' <a href="#step-' + (i + 1) + '" data-step="' + i + '">' + esc(L("watch")) + "</a></li>";
+      }).join("");
+    }
+    $(".cf-download").onclick = function (e) {
+      e.preventDefault(); // it sits in the summary: do not open/close the panel
+      var blob = new Blob([transcriptText()], { type: "text/plain;charset=utf-8" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = guide.id + "-" + lang + ".txt";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    };
+    transcript.addEventListener("click", function (e) {
+      var link = e.target.closest && e.target.closest("a[data-step]");
+      if (!link) return;
+      e.preventDefault();
+      root.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+      jump(+link.getAttribute("data-step"));
+    });
+
+    // ---- controls ----
+    function labels() {
+      $(".cf-restart").setAttribute("aria-label", L("replay"));
+      $(".cf-restart").title = L("replay");
+      ccBtn.title = L("captions");
+      speedBtn.title = L("speed");
+      voiceBtn.title = L("voice");
+      voiceBtn.textContent = L("voice");
+      langSel.title = L("language");
+      playBtn.setAttribute("aria-label", playing ? L("pause") : L("play"));
+      big.setAttribute("aria-label", L("play"));
+    }
+    if (speeds.length > 1) { speedBtn.hidden = false; speedBtn.textContent = speed + "×"; }
+    if (captionMode === "off") ccBtn.hidden = true;
+    voiceBtn.hidden = !(synth || Object.keys(DATA.audio || {}).length);
 
     big.onclick = playBtn.onclick = async function () {
       if (playing) return setPlaying(false);
       if (!cur || app.classList.contains("cf-ended")) await restart();
       setPlaying(true);
     };
-    $(".cf-restart").onclick = async function () { var was = playing; setPlaying(false); await restart(); setPlaying(was || true); };
-    langSel.onchange = async function () { lang = langSel.value; var was = playing; setPlaying(false); await restart(); if (was) setPlaying(true); };
+    $(".cf-restart").onclick = function () { jump(cur ? cur.i : 0); };
+    speedBtn.onclick = function () {
+      speed = speeds[(speeds.indexOf(speed) + 1) % speeds.length];
+      speedBtn.textContent = speed + "×";
+      if (cur && cur.audio) cur.audio.playbackRate = speed;
+    };
+    ccBtn.onclick = function () {
+      captionsOn = !captionsOn;
+      ccBtn.setAttribute("aria-pressed", String(captionsOn));
+      showCaption(cur ? cur.text : "");
+    };
+    voiceBtn.onclick = function () {
+      voiceOn = !voiceOn;
+      voiceBtn.setAttribute("aria-pressed", String(voiceOn));
+      if (cur && cur.audio) cur.audio.muted = !voiceOn;
+      if (!voiceOn) stopVoice();
+    };
+    langSel.onchange = async function () {
+      lang = langSel.value;
+      pickVoice();
+      labels(); buildChapters(); buildTranscript();
+      var was = playing;
+      setPlaying(false);
+      await goTo(cur ? cur.i : 0, 0);
+      if (was) setPlaying(true);
+    };
+    app.addEventListener("keydown", function (e) {
+      if (e.target.closest && e.target.closest("select, summary, a, input, textarea")) return;
+      if (e.key === " ") { e.preventDefault(); playBtn.click(); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); jump((cur ? cur.i : 0) + 1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); jump(cur ? cur.i : 0); }
+    });
 
-    restart();
-    return { seek: seek, restart: restart, setLang: function (l) { lang = l; langSel.value = l; } };
+    labels();
+    buildChapters();
+    buildTranscript();
+
+    /* a link to a step (#step-3, counted from 1) opens the player there, ready to play */
+    var m = /^#step-(\d+)$/.exec(location.hash);
+    var startAt = m ? Math.max(0, Math.min(steps.length - 1, +m[1] - 1)) : 0;
+    goTo(startAt, 0);
+    return { seek: seek, restart: restart, jump: jump, transcript: transcriptText, setLang: function (l) { lang = l; langSel.value = l; } };
   }
 
   window.Cueflow = { mount: mount };

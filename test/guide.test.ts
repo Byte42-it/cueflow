@@ -7,6 +7,7 @@ import { buildGuide } from "../src/build.ts";
 import { loadGuide, openKit, saveGuide, type Kit } from "../src/kit.ts";
 import { describeScene } from "../src/scene.ts";
 import { Guide } from "../src/schema.ts";
+import { spokenText } from "../src/tts.ts";
 import { validateGuide } from "../src/validate.ts";
 
 let dir: string;
@@ -55,6 +56,22 @@ describe("schema", () => {
     assert.deepEqual(g.stage, { width: 640, height: 360 });
     assert.equal(g.steps[0]!.hold, 600);
     assert.throws(() => Guide.parse({ id: "g", title: "G", scene: "s", steps: [{ id: "a", actions: [{ do: "teleport", to: "#x" }] }] }));
+  });
+
+  it("gives old guides the default player and no pronunciation", () => {
+    const g = Guide.parse({ id: "g", title: "G", scene: "upload" });
+    assert.deepEqual(g.player, { captions: "below", chapters: true, speeds: [1, 1.5], transcript: true, fallbackVoice: "none" });
+    assert.deepEqual(g.pronunciation, {});
+    assert.throws(() => Guide.parse({ id: "g", title: "G", scene: "s", player: { captions: "sideways" } }));
+    assert.throws(() => Guide.parse({ id: "g", title: "G", scene: "s", player: { speeds: [] } }));
+  });
+});
+
+describe("pronunciation", () => {
+  it("replaces whole words only, leaving captions to the written form", () => {
+    assert.equal(spokenText("Open SQL, not MySQL.", { SQL: "sequel" }), "Open sequel, not MySQL.");
+    assert.equal(spokenText("Città e CittàNuova", { Città: "Chitta" }), "Chitta e CittàNuova");
+    assert.equal(spokenText("a.b and axb", { "a.b": "A B" }), "A B and axb", "entries are literal, not patterns");
   });
 });
 
