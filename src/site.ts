@@ -72,6 +72,7 @@ export async function validateSite(kit: Kit, site: Site): Promise<{ errors: stri
     else if (f.status === "soon") errors.push(`featured "${site.featured}" has no page yet (status soon)`);
   }
   if (site.brand?.logo && !(await exists(inKit(kit, site.brand.logo)))) errors.push(`brand logo "${site.brand.logo}" not found in the kit`);
+  if (site.favicon && !(await exists(inKit(kit, site.favicon)))) errors.push(`favicon "${site.favicon}" not found in the kit`);
   return { errors, warnings };
 }
 
@@ -190,13 +191,17 @@ export async function buildSite(kit: Kit, opts: { provider: TtsProvider | null; 
     )
   };
 
+  const favicon = site.favicon ? await dataUri(inKit(kit, site.favicon)) : null;
+  const head =
+    (favicon ? `<link rel="icon" href="${favicon}">\n` : "") +
+    site.stylesheets.map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}">\n`).join("");
   const page = (title: string, root: string, body: string, data: unknown) => `<!doctype html>
 <html lang="${escapeHtml(site.lang)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
-<link rel="stylesheet" href="${root}assets/cueflow.css">
+${head}<link rel="stylesheet" href="${root}assets/cueflow.css">
 </head>
 <body class="cf-site">
 ${body}

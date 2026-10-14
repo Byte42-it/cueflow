@@ -101,6 +101,7 @@ guide as its cover (needs Playwright).
 }
 ```
 
+`favicon` and `stylesheets` (remote stylesheets such as web fonts, linked from every page) are optional.
 `pages/<id>.html` holds `<section id="…" data-title="…">` blocks with `h2`/`h3[id]`: the sections become the index
 and the printable units. The site is styled with `--cf-site-*` variables (top of `src/site/site.css`), set in the
 same `theme/theme.css` as the player; its interface is in English or Italian (`lang`), and `site.json` `labels`

@@ -41,8 +41,8 @@
 .cf-shell { padding-left: var(--cf-site-rail-w); }
 .cf-bar-left { position: fixed; left: 0; top: 0; bottom: 0; z-index: 60; width: var(--cf-site-rail-w); background: var(--cf-site-rail-bg); border-right: 1px solid var(--cf-site-line);
   display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 0 18px; }
-.cf-logo { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: var(--cf-site-accent); margin-bottom: 14px; }
-.cf-logo svg { width: 28px; height: 28px; }
+.cf-bar-left .cf-logo { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: var(--cf-site-accent); margin-bottom: 14px; }
+.cf-bar-left .cf-logo svg { width: 28px; height: 28px; }
 .cf-rail-btn { position: relative; width: 48px; height: 48px; border: 0; border-radius: 12px; background: transparent; color: var(--cf-site-rail-fg) !important;
   display: flex; align-items: center; justify-content: center; cursor: pointer; text-decoration: none; transition: background .15s, color .15s; }
 .cf-rail-btn:hover { background: var(--cf-site-panel); color: var(--cf-site-primary) !important; }
@@ -156,7 +156,7 @@ a.cf-ask:hover .cf-tile-media { border-color: var(--cf-site-accent); }
   background: linear-gradient(90deg, var(--cf-site-hero) 30%, color-mix(in srgb, var(--cf-site-hero) 86%, transparent) 42%, transparent 62%), linear-gradient(0deg, var(--cf-site-hero), transparent 22%); }
 .cf-billboard.cf-no-poster { min-height: 0; }
 .cf-billboard.cf-no-poster::after { display: none; }
-.cf-bb-text { position: relative; z-index: 1; max-width: 560px; padding-block: 48px; box-sizing: content-box; }
+.cf-bb-text { position: relative; z-index: 1; max-width: 560px; padding-block: 48px; }
 .cf-bb-text h1 { font-weight: 600; font-size: clamp(38px, 3.4vw + 14px, 68px); line-height: 1.04; letter-spacing: -.01em; margin: 0 0 18px; text-wrap: balance; }
 .cf-bb-desc { color: var(--cf-site-muted); font-size: clamp(15px, .4vw + 13px, 18px); line-height: 1.55; margin: 0 0 30px; max-width: 46ch; }
 .cf-sec { padding-block: 10px 30px; }
@@ -216,6 +216,7 @@ a.cf-ask:hover .cf-tile-media { border-color: var(--cf-site-accent); }
 
 .cf-main { flex: 1; min-width: 0; padding: 28px clamp(20px, 3vw, 48px) 90px; }
 .cf-video-zone { margin: 0 0 56px; }
+.cf-video-zone:not(:has(#cf-player)) { margin-bottom: 24px; } /* a written guide: the title opens the article */
 .cf-video-zone h1 { font-size: clamp(26px, 1.4vw + 14px, 36px); letter-spacing: -.01em; margin: 0 0 18px; }
 #cf-player, .cf-section { scroll-margin-top: 18px; }
 #cf-player .cf-stage { max-height: calc(100vh - 150px); }
@@ -224,11 +225,11 @@ a.cf-ask:hover .cf-tile-media { border-color: var(--cf-site-accent); }
 .cf-deep-head { margin: 0 0 36px; padding-top: 30px; border-top: 1px solid var(--cf-site-line); }
 .cf-deep-title { font-family: var(--cf-site-heading-font); font-size: 24px; font-weight: 600; color: var(--cf-site-primary); margin: 0 0 8px; }
 .cf-deep-lede { color: var(--cf-site-muted); max-width: 62ch; margin: 0; }
-.cf-article { max-width: 860px; }
+.cf-article { max-width: 860px; overflow-wrap: break-word; }
 .cf-article .cf-section + .cf-section { margin-top: 30px; padding-top: 48px; border-top: 1px solid var(--cf-site-line); }
 .cf-article h2 { font-size: 20px; margin: 0; }
 .cf-article h3 { font-size: 15.5px; margin: 1.7em 0 .5em; color: var(--cf-site-primary-hover); }
-.cf-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.cf-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .cf-print-one { display: inline-flex; align-items: center; gap: 6px; background: none; border: 1px solid var(--cf-site-line); border-radius: 6px; padding: 5px 10px; font: inherit; font-size: 11.5px; color: var(--cf-site-muted); cursor: pointer; white-space: nowrap; }
 .cf-print-one:hover { border-color: var(--cf-site-primary-hover); color: var(--cf-site-primary-hover); }
 .cf-pager { display: flex; gap: 12px; margin-top: 36px; }

@@ -143,6 +143,8 @@ export const Site = z.object({
   lang: z.string().min(2).default("en").describe("language of the site's interface and of the players (when the guide has it)"),
   brand: z.object({ name: z.string(), logo: z.string().optional().describe("SVG file in the kit") }).optional(),
   footer: z.string().optional(),
+  favicon: z.string().optional().describe("icon file in the kit (svg, png)"),
+  stylesheets: z.array(z.string().url()).default([]).describe("remote stylesheets linked from every page, e.g. web fonts used by the theme"),
   requestEndpoint: z.string().url().optional().describe("POST endpoint for tutorial requests; without it the request form is not shown"),
   featured: z.string().optional().describe("id of the item shown big at the top of the home"),
   quickAccess: z.boolean().default(true),
