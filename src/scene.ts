@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parseHTML } from "linkedom";
 import type { Kit } from "./kit.ts";
-import { sceneFile } from "./kit.ts";
+import { sceneFileFor } from "./kit.ts";
 
 const MIME: Record<string, string> = {
   ".png": "image/png",
@@ -42,8 +42,8 @@ export async function inlineCssUrls(css: string, baseDir: string): Promise<strin
 }
 
 /** The scene as one standalone HTML string: local stylesheets, scripts and images are inlined. */
-export async function inlineScene(kit: Kit, scene: string): Promise<string> {
-  const file = sceneFile(kit, scene);
+export async function inlineScene(kit: Kit, scene: string, lang?: string): Promise<string> {
+  const file = await sceneFileFor(kit, scene, lang);
   const baseDir = path.dirname(file);
   const { document } = parseHTML(await readFile(file, "utf8"));
 

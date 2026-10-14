@@ -38,10 +38,10 @@ export function createServer(kit: Kit): McpServer {
     "inspect_scene",
     {
       description:
-        "List the elements of a scene that a guide can target, with the best CSS selector, tag, visible text and whether they start hidden. Use these selectors in actions and cameras.",
-      inputSchema: { scene: z.string() }
+        "List the elements of a scene that a guide can target, with the best CSS selector, tag, visible text and whether they start hidden. Use these selectors in actions and cameras. `lang` reads the translated version of the screen (scenes/<lang>/<scene>.html) when the kit has one: it must keep the same ids.",
+      inputSchema: { scene: z.string(), lang: z.string().optional() }
     },
-    safe(async ({ scene }) => text(describeScene(await readScene(kit, scene))))
+    safe(async ({ scene, lang }) => text(describeScene(await readScene(kit, scene, lang))))
   );
 
   server.registerTool(

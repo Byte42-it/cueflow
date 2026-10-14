@@ -1,6 +1,6 @@
 import type { Guide } from "./schema.ts";
 import type { Kit } from "./kit.ts";
-import { listScenes, readScene } from "./kit.ts";
+import { listScenes, readScene, sceneFile, sceneFileFor } from "./kit.ts";
 import { countMatches } from "./scene.ts";
 
 export type Report = { errors: string[]; warnings: string[] };
@@ -38,15 +38,29 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
     const refs: { label: string; selector: string }[] = [];
     if (typeof step.camera?.target === "string") refs.push({ label: "camera", selector: step.camera.target });
     for (const [j, a] of step.actions.entries()) {
-      if ("to" in a) refs.push({ label: `action ${j + 1} (${a.do})`, selector: a.to });
-      if (a.do === "camera" && typeof a.target === "string") refs.push({ label: `action ${j + 1} (camera)`, selector: a.target });
+      const label = `action ${j + 1} (${a.do})`;
+      if ("to" in a) refs.push({ label, selector: a.to });
+      if (a.do === "scroll") refs.push({ label, selector: a.in });
+      if (a.do === "camera" && typeof a.target === "string") refs.push({ label, selector: a.target });
+      for (const value of [a.do === "type" ? a.text : undefined, a.do === "set" ? a.text : undefined, a.do === "set" ? a.html : undefined]) {
+        if (value == null || typeof value === "string") continue;
+        for (const lang of guide.languages) if (value[lang] == null) warnings.push(`${where}, ${label}: no text in "${lang}" (the first one given is used)`);
+      }
     }
-    const counts = countMatches(await readScene(kit, scene), refs.map((r) => r.selector));
-    for (const r of refs) {
-      const n = counts.get(r.selector);
-      if (n === "invalid") errors.push(`${where}, ${r.label}: "${r.selector}" is not a valid CSS selector`);
-      else if (n === 0) errors.push(`${where}, ${r.label}: "${r.selector}" matches nothing in scene "${scene}"`);
-      else if (n !== undefined && n > 1) warnings.push(`${where}, ${r.label}: "${r.selector}" matches ${n} elements, the first one is used`);
+    // every language plays its own version of the screen (scenes/<lang>/<scene>.html) when the kit has one
+    const checked = new Set<string>();
+    for (const lang of guide.languages) {
+      const file = await sceneFileFor(kit, scene, lang);
+      if (checked.has(file)) continue;
+      checked.add(file);
+      const variant = file === sceneFile(kit, scene) ? `scene "${scene}"` : `scene "${scene}" (${lang})`;
+      const counts = countMatches(await readScene(kit, scene, lang), refs.map((r) => r.selector));
+      for (const r of refs) {
+        const n = counts.get(r.selector);
+        if (n === "invalid") errors.push(`${where}, ${r.label}: "${r.selector}" is not a valid CSS selector`);
+        else if (n === 0) errors.push(`${where}, ${r.label}: "${r.selector}" matches nothing in ${variant}`);
+        else if (n !== undefined && n > 1) warnings.push(`${where}, ${r.label}: "${r.selector}" matches ${n} elements in ${variant}, the first one is used`);
+      }
     }
   }
   return { errors, warnings };

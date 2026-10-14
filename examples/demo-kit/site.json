@@ -1,28 +1,134 @@
 {
-  "title": "Acme Portal Help",
+  "title": {
+    "en": "Acme Portal Help",
+    "it": "Guida di Acme Portal"
+  },
   "lang": "en",
-  "brand": { "name": "Acme Portal" },
-  "footer": "Acme Portal — example docs site built with Cueflow",
+  "brand": {
+    "name": "Acme Portal"
+  },
+  "footer": {
+    "en": "Acme Portal — example docs site built with Cueflow",
+    "it": "Acme Portal — sito di esempio costruito con Cueflow"
+  },
   "requestEndpoint": "https://example.com/api/tutorial-requests",
   "featured": "upload",
   "rows": [
-    { "id": "ready", "title": "Watch and read", "note": "start here" },
-    { "id": "soon", "title": "Coming soon", "band": true, "askTile": true }
+    {
+      "id": "ready",
+      "title": {
+        "en": "Watch and read",
+        "it": "Da guardare e da leggere"
+      },
+      "note": {
+        "en": "start here",
+        "it": "inizia da qui"
+      }
+    },
+    {
+      "id": "soon",
+      "title": {
+        "en": "Coming soon",
+        "it": "In arrivo"
+      },
+      "band": true,
+      "askTile": true
+    }
   ],
   "items": [
     {
-      "id": "upload", "row": "ready", "status": "video", "guide": "upload",
-      "title": "How to upload a document", "kicker": "Documents",
-      "desc": "From the Documents section to a file in your archive: choose it, give it a title, upload it.",
-      "duration": "about 30 s",
-      "contents": ["Short video with captions", "Transcript to read or download", "Guide: file types, titles, what happens after the upload"]
+      "id": "upload",
+      "row": "ready",
+      "status": "video",
+      "guide": "upload",
+      "title": {
+        "en": "How to upload a document",
+        "it": "Come caricare un documento"
+      },
+      "kicker": {
+        "en": "Documents",
+        "it": "Documenti"
+      },
+      "desc": {
+        "en": "From the Documents section to a file in your archive: choose it, give it a title, upload it.",
+        "it": "Dalla sezione Documenti a un file nel tuo archivio: sceglilo, dagli un titolo, caricalo."
+      },
+      "duration": {
+        "en": "about 30 s",
+        "it": "circa 30 s"
+      },
+      "contents": {
+        "en": [
+          "Short video with captions",
+          "Transcript to read or download",
+          "Guide: file types, titles, what happens after the upload"
+        ],
+        "it": [
+          "Video breve con sottotitoli",
+          "Trascrizione da leggere o scaricare",
+          "Guida: tipi di file, titoli, cosa succede dopo il caricamento"
+        ]
+      }
     },
     {
-      "id": "sharing", "row": "ready", "status": "guide", "title": "Sharing with your team", "kicker": "Teamwork",
-      "desc": "Who can see a document, how to share it with a colleague and how to stop sharing.",
-      "contents": ["Guide in 2 sections", "Printable as PDF"]
+      "id": "sharing",
+      "row": "ready",
+      "status": "guide",
+      "title": {
+        "en": "Sharing with your team",
+        "it": "Condividere con il team"
+      },
+      "kicker": {
+        "en": "Teamwork",
+        "it": "Lavoro di squadra"
+      },
+      "desc": {
+        "en": "Who can see a document, how to share it with a colleague and how to stop sharing.",
+        "it": "Chi vede un documento, come condividerlo con un collega e come smettere di condividerlo."
+      },
+      "contents": [
+        "Guide in 2 sections",
+        "Printable as PDF"
+      ]
     },
-    { "id": "search", "row": "soon", "status": "soon", "title": "Finding a document", "kicker": "Documents", "desc": "Search by title, date and type." },
-    { "id": "settings", "row": "soon", "status": "soon", "title": "Your settings", "kicker": "Account", "desc": "Language, notifications and password." }
-  ]
+    {
+      "id": "search",
+      "row": "soon",
+      "status": "soon",
+      "title": {
+        "en": "Finding a document",
+        "it": "Trovare un documento"
+      },
+      "kicker": {
+        "en": "Documents",
+        "it": "Documenti"
+      },
+      "desc": {
+        "en": "Search by title, date and type.",
+        "it": "Ricerca per titolo, data e tipo."
+      }
+    },
+    {
+      "id": "settings",
+      "row": "soon",
+      "status": "soon",
+      "title": {
+        "en": "Your settings",
+        "it": "Le tue impostazioni"
+      },
+      "kicker": {
+        "en": "Account",
+        "it": "Account"
+      },
+      "desc": {
+        "en": "Language, notifications and password.",
+        "it": "Lingua, notifiche e password."
+      }
+    }
+  ],
+  "languages": [
+    "en",
+    "it"
+  ],
+  "fallback": "en"
 }

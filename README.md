@@ -107,6 +107,18 @@ and the printable units. The site is styled with `--cf-site-*` variables (top of
 same `theme/theme.css` as the player; its interface is in English or Italian (`lang`), and `site.json` `labels`
 overrides any word. See `examples/demo-kit`.
 
+### Languages
+
+A guide lists its `languages`; every text in it can be one string or one per language: narration, step titles,
+and the text that `type` and `set` actions write. When a screen itself must change language, put its translation in
+`scenes/<lang>/<scene>.html`, with the same ids: the player shows it for that language, and validation checks the
+selectors in every version.
+
+A docs site offers `languages` (with a `fallback`, used when the browser asks for none of them) and chooses one for
+all its pages and players: the visitor's earlier choice, else the browser's language, else the fallback. Catalog texts
+can be given per language, and a written guide is translated in `pages/<lang>/<id>.html`; until it is, the page shows
+the original with a note.
+
 ### With an AI assistant (MCP)
 
 ```json

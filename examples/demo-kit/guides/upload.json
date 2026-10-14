@@ -2,33 +2,88 @@
   "id": "upload",
   "title": "How to upload a document",
   "scene": "upload",
-  "viewport": { "width": 1280, "height": 720 },
-  "stage": { "width": 640, "height": 360 },
-  "languages": ["en", "it"],
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "stage": {
+    "width": 640,
+    "height": 360
+  },
+  "languages": [
+    "en",
+    "it"
+  ],
   "steps": [
     {
       "id": "intro",
-      "title": "Where documents live",
-      "camera": { "target": "#sidebar", "padding": 30 },
+      "title": {
+        "en": "Where documents live",
+        "it": "Dove stanno i documenti"
+      },
+      "camera": {
+        "target": "#sidebar",
+        "padding": 30
+      },
       "actions": [
-        { "do": "move", "to": "#nav-documents", "at": "20%", "duration": 900 },
-        { "do": "highlight", "to": "#nav-documents", "at": "35%", "duration": 1800 }
+        {
+          "do": "move",
+          "to": "#nav-documents",
+          "at": "20%",
+          "duration": 900
+        },
+        {
+          "do": "highlight",
+          "to": "#nav-documents",
+          "at": "35%",
+          "duration": 1800
+        }
       ],
       "narration": {
         "en": "To upload a document, open the Documents section from the menu on the left.",
-        "it": "Per caricare un documento, apri la sezione Documents dal menu a sinistra."
+        "it": "Per caricare un documento, apri la sezione Documenti dal menu a sinistra."
       }
     },
     {
       "id": "choose",
-      "title": "Choose the file",
-      "camera": { "target": "#upload-card", "padding": 24 },
+      "title": {
+        "en": "Choose the file",
+        "it": "Scegli il file"
+      },
+      "camera": {
+        "target": "#upload-card",
+        "padding": 24
+      },
       "actions": [
-        { "do": "move", "to": "#choose-file", "at": 0, "duration": 900 },
-        { "do": "click", "to": "#choose-file", "at": "35%" },
-        { "do": "show", "to": "#file-row", "at": "45%" },
-        { "do": "show", "to": "#title-field", "at": "45%" },
-        { "do": "set", "to": "#upload-btn", "at": "45%", "remove": ["disabled"] }
+        {
+          "do": "move",
+          "to": "#choose-file",
+          "at": 0,
+          "duration": 900
+        },
+        {
+          "do": "click",
+          "to": "#choose-file",
+          "at": "35%"
+        },
+        {
+          "do": "show",
+          "to": "#file-row",
+          "at": "45%"
+        },
+        {
+          "do": "show",
+          "to": "#title-field",
+          "at": "45%"
+        },
+        {
+          "do": "set",
+          "to": "#upload-btn",
+          "at": "45%",
+          "remove": [
+            "disabled"
+          ]
+        }
       ],
       "narration": {
         "en": "Drag a file into the box, or press Choose a file and pick it from your computer. The file appears in the list.",
@@ -37,12 +92,36 @@
     },
     {
       "id": "title",
-      "title": "Give it a title",
-      "camera": { "target": "#title-field", "padding": 60 },
+      "title": {
+        "en": "Give it a title",
+        "it": "Dagli un titolo"
+      },
+      "camera": {
+        "target": "#title-field",
+        "padding": 60
+      },
       "actions": [
-        { "do": "move", "to": "#doc-title", "at": 0, "duration": 700 },
-        { "do": "click", "to": "#doc-title", "at": "20%" },
-        { "do": "type", "to": "#doc-title", "text": "Service contract 2024", "at": "30%", "duration": 1800 }
+        {
+          "do": "move",
+          "to": "#doc-title",
+          "at": 0,
+          "duration": 700
+        },
+        {
+          "do": "click",
+          "to": "#doc-title",
+          "at": "20%"
+        },
+        {
+          "do": "type",
+          "to": "#doc-title",
+          "text": {
+            "en": "Service contract 2024",
+            "it": "Contratto di servizio 2024"
+          },
+          "at": "30%",
+          "duration": 1800
+        }
       ],
       "narration": {
         "en": "Type a clear title, so you can find the document later.",
@@ -51,21 +130,69 @@
     },
     {
       "id": "send",
-      "title": "Upload",
-      "camera": { "target": "#upload-card", "padding": 24 },
+      "title": {
+        "en": "Upload",
+        "it": "Carica"
+      },
+      "camera": {
+        "target": "#upload-card",
+        "padding": 24
+      },
       "actions": [
-        { "do": "move", "to": "#upload-btn", "at": 0, "duration": 800 },
-        { "do": "set", "to": "#upload-btn", "at": "25%", "add": ["disabled"] },
-        { "do": "click", "to": "#upload-btn", "at": "25%" },
-        { "do": "show", "to": "#progress", "at": "30%" },
-        { "do": "tween", "to": "#progress-bar", "prop": "width", "from": "0%", "end": "100%", "at": "30%", "duration": 2200 },
-        { "do": "show", "to": "#toast", "at": "85%" },
-        { "do": "camera", "target": "#upload-card", "padding": 24, "at": "86%" },
-        { "do": "highlight", "to": "#toast", "at": "85%", "duration": 1500 }
+        {
+          "do": "move",
+          "to": "#upload-btn",
+          "at": 0,
+          "duration": 800
+        },
+        {
+          "do": "set",
+          "to": "#upload-btn",
+          "at": "25%",
+          "add": [
+            "disabled"
+          ]
+        },
+        {
+          "do": "click",
+          "to": "#upload-btn",
+          "at": "25%"
+        },
+        {
+          "do": "show",
+          "to": "#progress",
+          "at": "30%"
+        },
+        {
+          "do": "tween",
+          "to": "#progress-bar",
+          "prop": "width",
+          "from": "0%",
+          "end": "100%",
+          "at": "30%",
+          "duration": 2200
+        },
+        {
+          "do": "show",
+          "to": "#toast",
+          "at": "85%"
+        },
+        {
+          "do": "camera",
+          "target": "#upload-card",
+          "padding": 24,
+          "at": "86%"
+        },
+        {
+          "do": "highlight",
+          "to": "#toast",
+          "at": "85%",
+          "duration": 1500
+        }
       ],
       "narration": {
         "en": "Press Upload. A progress bar shows how it is going, and when it is done you get a confirmation: the document is now in your archive.",
-        "it": "Premi Upload. Una barra di avanzamento mostra a che punto sei e, a operazione finita, ricevi la conferma: il documento è ora nel tuo archivio."
+        "it": "Premi Carica. Una barra di avanzamento mostra a che punto sei e, a operazione finita, ricevi la conferma: il documento è ora nel tuo archivio."
       }
     }
   ]
