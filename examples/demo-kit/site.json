@@ -4,6 +4,7 @@
     "it": "Guida di Acme Portal"
   },
   "lang": "en",
+  "colorScheme": "auto",
   "brand": {
     "name": "Acme Portal"
   },

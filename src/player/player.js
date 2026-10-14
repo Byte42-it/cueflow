@@ -75,6 +75,10 @@
     var big = $(".cf-big"), playBtn = $(".cf-play"), fill = $(".cf-fill"), langSel = $(".cf-lang");
     var chapters = $(".cf-chapters"), speedBtn = $(".cf-speed"), ccBtn = $(".cf-cc"), voiceBtn = $(".cf-voice");
     var transcript = $(".cf-transcript");
+    // the Cueflow mark: over the picture by default; in the control bar it never covers the scene
+    var brand = $(".cf-brand");
+    if (opts.brand === "off") brand.remove();
+    else if (opts.brand === "controls") { brand.classList.add("cf-brand-bar"); $(".cf-bar").appendChild(brand); }
 
     stage.style.aspectRatio = guide.stage.width + " / " + guide.stage.height;
     if (!options.fluid) app.style.maxWidth = guide.stage.width + "px";
@@ -115,12 +119,20 @@
     function $el(sel) { try { return doc().querySelector(sel); } catch (e) { return null; } }
     function ms(v) { return reduce ? 0 : v / speed; } // CSS transition time at the current speed
 
+    /* stylesheets and images shared by the scenes travel once in DATA.shared; the scenes keep placeholders */
+    function withShared(html) {
+      var shared = DATA.shared || {};
+      return String(html)
+        .replace(/<style data-cf-style="([0-9a-f]+)"><\/style>/g, function (_, h) { return "<style>" + (shared[h] || "") + "</style>"; })
+        .replace(/cf-shared:([0-9a-f]+)/g, function (_, h) { return shared[h] || ""; });
+    }
+
     function loadScene(name) {
       return new Promise(function (resolve) {
         frame.onload = function () { frame.onload = null; resolve(); };
         // the translated version of the screen, when the kit has one for this language
         var own = DATA.sceneLang && DATA.sceneLang[lang] && DATA.sceneLang[lang][name];
-        frame.srcdoc = own || DATA.scenes[name];
+        frame.srcdoc = withShared(own || DATA.scenes[name]);
         curScene = lang + "/" + name;
         cursor.style.opacity = "0";
         ring.style.opacity = "0";
@@ -162,6 +174,10 @@
     function center(el) {
       var r = el.getBoundingClientRect();
       return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }
+    function fire(el) {
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
     }
     function parseNum(v) {
       var m = /^(-?\d+(?:\.\d+)?)(.*)$/.exec(String(v).trim());
@@ -221,6 +237,38 @@
           (a.add || []).forEach(function (c) { el.classList.add(c); });
           (a.remove || []).forEach(function (c) { el.classList.remove(c); });
           Object.keys(a.attr || {}).forEach(function (k) { el.setAttribute(k, a.attr[k]); });
+        }
+      },
+      select: {
+        start: function (a) {
+          var el = $el(a.to);
+          if (!el || !el.options) return;
+          var want = tx(a.option), opts = Array.prototype.slice.call(el.options);
+          var o = opts.filter(function (x) { return x.text.trim() === want; })[0] || opts.filter(function (x) { return x.value === want; })[0];
+          if (!o) return;
+          opts.forEach(function (x) { x.removeAttribute("selected"); });
+          o.setAttribute("selected", ""); // the attribute too: a later reload of the scene state must not undo it
+          el.value = o.value;
+          fire(el);
+        }
+      },
+      value: {
+        start: function (a) {
+          var el = $el(a.to);
+          if (!el) return;
+          var v = tx(a.value);
+          if ("value" in el) { el.value = v; if (el.tagName === "INPUT") el.setAttribute("value", v); else if (el.tagName === "TEXTAREA") el.textContent = v; }
+          else el.textContent = v;
+          fire(el);
+        }
+      },
+      check: {
+        start: function (a) {
+          var el = $el(a.to);
+          if (!el) return;
+          el.checked = a.checked !== false;
+          if (el.checked) el.setAttribute("checked", ""); else el.removeAttribute("checked");
+          fire(el);
         }
       },
       show: { start: function (a) { var el = $el(a.to); if (el) { el.removeAttribute("hidden"); el.style.display = ""; } } },
@@ -420,8 +468,10 @@
         runDue(cur, Infinity, { instant: true });
       }
       await enterStep(i, true);
-      runDue(cur, t || 0, { instant: true });
-      cur.t = t || 0;
+      // t: ms into the step, or a percentage of its narration ("80%") like an action's `at`
+      t = typeof t === "string" ? atMs({ at: t }, cur.narrDur) : t || 0;
+      runDue(cur, t, { instant: true });
+      cur.t = t;
       loading = false;
       progressBar();
     }
@@ -443,6 +493,18 @@
       await goTo(i, t);
       app.classList.add("cf-ready");
       return { total: cur.total, narration: cur.narrDur, steps: steps.length };
+    }
+
+    /** Where an element of the current scene is, for checks (cueflow validate --layout): found, visible, inside the scene. */
+    function probe(sel) {
+      var el = $el(sel);
+      if (!el) return { found: false };
+      var r = el.getBoundingClientRect(), cs = frame.contentWindow.getComputedStyle(el);
+      var visible = r.width > 0 && r.height > 0 && cs.visibility !== "hidden" && cs.display !== "none";
+      var rect = { x: Math.round(r.left), y: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) };
+      var inside = r.left >= -1 && r.top >= -1 && r.right <= vw + 1 && r.bottom <= vh + 1;
+      var outside = r.right <= 0 || r.bottom <= 0 || r.left >= vw || r.top >= vh;
+      return { found: true, visible: visible, rect: rect, inView: inside ? "full" : outside ? "none" : "part", viewport: { width: vw, height: vh } };
     }
 
     // ---- chapters ----
@@ -580,7 +642,7 @@
     });
     goTo(stepFromHash() || 0, 0);
     return {
-      seek: seek, restart: restart, jump: jump, transcript: transcriptText, downloadTranscript: downloadTranscript,
+      seek: seek, probe: probe, restart: restart, jump: jump, transcript: transcriptText, downloadTranscript: downloadTranscript,
       element: app, steps: function () { return steps.map(function (st, i) { return stepTitle(st, i); }); },
       setLang: function (l) { lang = l; langSel.value = l; }
     };

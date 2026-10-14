@@ -24,17 +24,19 @@ Decisions taken with the owner (Luca) — do not re-litigate:
 |---|---|
 | `schema.ts` | zod schemas: `Guide`, `Step`, `Action` (move, click, type, highlight, set, show, hide, tween, camera), `Camera` |
 | `kit.ts` | kit folder layout, load/save guides (atomic write), list scenes/guides |
-| `scene.ts` | `inlineScene` (inlines local CSS/JS/images/fonts → one standalone HTML), `describeScene` (targetable elements + best selector), `countMatches` |
+| `scene.ts` | `inlineScene` (inlines local CSS/JS/images/fonts → one standalone HTML; with a `Shared` map, stylesheets and images go there once by hash and the scene keeps placeholders), `bestFontSources` (one format per @font-face), `describeScene` (targetable elements + best selector), `countMatches` |
+| `capture.ts` | `capture.json` (zod) → Playwright: login, steps, cues, remove/hide, replace, script; `freezePage` runs in the page and works on a **copy** of the document (the live page stays usable for the next scene); assets mirrored in `shared/` (best font format only, image type sniffed) |
 | `validate.ts` | checks selectors against the scene current at each step, duplicate ids, unknown scenes, missing narration per language |
-| `tts.ts` | `TtsProvider` interface + OpenAI provider; on-disk cache keyed by hash(provider, voice, lang, text); ported from `chess.ai/packages/server/src/tts.ts` |
+| `tts.ts` | `TtsProvider` interface (+ `format`: mp3/m4a/wav/ogg) with OpenAI, `command` (any local program, e.g. Piper) and `say` (macOS) providers; on-disk cache keyed by hash(provider, voice, lang, text); ported from `chess.ai/packages/server/src/tts.ts` |
 | `theme.ts` | optional kit `theme/`: `theme.css` appended after the player CSS (urls inlined), `labels.json` (player words per language, validated) |
-| `build.ts` | guide → `dist/<id>.html` (player + css + scenes + base64 audio, JSON embedded script-safe) |
+| `build.ts` | guide → `dist/<id>.html` (player + css + scenes + `shared` + base64 audio, JSON embedded script-safe); `estimateDuration` (same rule as the silent player) |
 | `player/player.js`, `player.css` | browser runtime, plain JS inlined at build time (not bundled/compiled) |
 | `site.ts` | `site.json` catalog → `dist/site/` (home + one page per item: player, transcript, `pages/<id>.html` article); validation, posters via `preview.ts` |
 | `site/site.js`, `site.css` | docs-site runtime (left bar, drawer, request dialog, tiles/rows/hover preview, item page index/search/print); shipped with the player in `assets/cueflow.js`/`.css` |
-| `preview.ts` | Playwright renders the built HTML at (step, ms) → PNG; calls `window.__cueflow.seek` |
-| `mcp.ts` | MCP server (stdio): list_scenes, inspect_scene, create_guide, get_guide, add_step, replace_step, remove_step, set_narration, validate_guide, build_guide, preview_frame, validate_site, build_site |
-| `cli.ts` | `cueflow build|validate|site|mcp --kit <dir>` |
+| `preview.ts` | `launchChromium` (lang, `CUEFLOW_CHROMIUM`), `openPreview` session over a built guide: `seek` (ms or "80%"), `frame` (player, or stage without cursor/ring/mark), `probe`, contact `sheet` |
+| `layout.ts` | `checkLayout`: plays the guide and probes every element used by camera/move/click/highlight/type/form actions at its moment (found, visible, inside the scene) |
+| `mcp.ts` | MCP server (stdio): capture_scenes, list_scenes, inspect_scene, create_guide, get_guide, add_step, replace_step, remove_step, set_narration, validate_guide (+layout), build_guide, preview_frame, validate_site, build_site |
+| `cli.ts` | `cueflow capture|build|validate [--layout]|preview|site|mcp --kit <dir>` |
 
 Player model worth knowing before touching it:
 - Each action has `start/update(p)/finish` handlers; `runDue(step, t, ctx)` is **idempotent** and is used both by live
@@ -46,6 +48,8 @@ Player model worth knowing before touching it:
   scene always covers the stage. Camera rects are measured when the camera is applied, so if the layout changes
   during a step (things shown/hidden) add a `camera` action after the change.
 - `click` dispatches a real `click` event in the scene iframe (same-origin `srcdoc`), so scenes can have small scripts.
+- `DATA.shared` holds stylesheets/images once; `loadScene` expands the placeholders (`withShared`) before `srcdoc`.
+- `window.__cueflow` also exposes `probe(selector)` (used by `checkLayout`); `seek` accepts a percentage like `at`.
 - Cursor/camera movement uses CSS transitions (they keep running while paused: known, minor).
 
 ## Commands
@@ -56,32 +60,44 @@ npm test                       # node:test, no browser needed
 npm run build:demo             # examples/demo-kit/dist/upload.html (open it in a browser)
 CUEFLOW_TTS=none node src/cli.ts build upload --kit examples/demo-kit   # force silent build
 node src/cli.ts site --kit examples/demo-kit             # examples/demo-kit/dist/site/ (add --posters for guide frames)
+node src/cli.ts capture --kit <kit>                      # scenes from the live site (capture.json)
+node src/cli.ts validate <guide> --layout --kit <kit>    # + visibility/position in a browser
+node src/cli.ts preview <guide> --all --kit <kit>        # dist/preview/<guide>-sheet.png
 node src/cli.ts mcp --kit <kit>
 ```
 Node ≥ 22.18 runs the `.ts` files directly (imports use the `.ts` extension; `tsc` is only used with `--noEmit`).
 Preview needs Chromium: `npx playwright install chromium` (already installed on the dev machine; headless lacks emoji fonts).
-Env: `OPENAI_API_KEY` (enables TTS), `CUEFLOW_TTS=none|openai`, `CUEFLOW_TTS_MODEL`, `CUEFLOW_TTS_VOICE`, `CUEFLOW_KIT`.
+Env: `OPENAI_API_KEY` (enables TTS), `CUEFLOW_TTS=none|openai|say|command`, `CUEFLOW_TTS_COMMAND`, `CUEFLOW_TTS_FORMAT`,
+`CUEFLOW_TTS_MODEL`, `CUEFLOW_TTS_VOICE`, `CUEFLOW_KIT`, `CUEFLOW_CHROMIUM` (browser executable when Playwright's own
+Chromium build is not installed).
 
 ## State (2026-10-14)
 
-Proof of concept done and verified: typecheck clean, 9 tests green, live playback checked with Playwright (play, pause,
-progress, typing, no console errors), MCP checked with a real client (rejection of a bad selector, image preview).
-**Never verified: actual TTS audio** (no API key was available) — the code path in `tts.ts`/`build.ts` and the audio
-duration handling in the player (`audioDuration`, `enterStep`) have not run against a real mp3.
+Proof of concept, then a first real kit: the H2O Delivery back office (GAzie), in `../h2odelivery.it/docs/video-tutorial`
+— 5 scenes captured with `cueflow capture` (capture.json + 3 small scripts), a 17-step Italian guide, a docs site
+with a written guide and a dark theme. Its lessons became the
+improvements of 2026-10-14 (branch `feat/real-kit-improvements`): capture, shared stylesheets/images and one font format
+(guide 14.6 MB → 1.6 MB silent), `say`/`command` voices, preview CLI and contact sheets, `validate --layout`,
+`select`/`value`/`check` actions, `player.brand`, site `colorScheme` and `--cf-site-on-primary`/`--cf-site-veil`,
+raster logos, computed durations. 37 tests green (no browser needed).
+**Audio verified end to end with `CUEFLOW_TTS=say`** (m4a, real durations read by the player, live playback);
+**the OpenAI path has still never run against the real API.** On the dev machine Playwright 1.64 wants a Chromium build
+that is not installed: use `CUEFLOW_CHROMIUM=~/Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell`.
 
 ## Roadmap (suggested order)
 
-1. **Try it on a real site**: Playwright script to capture scenes from the lawyers' portal (`../sol`) with fake data →
-   serialized DOM with CSS inlined, scripts stripped, into `scenes/`. This is where the idea is really tested.
-2. Run with a real `OPENAI_API_KEY` and fix whatever audio/timing issues appear.
+1. ~~Try it on a real site~~ done with H2O (GAzie): `cueflow capture`. Still to try on the lawyers' portal (`../sol`).
+2. Run with a real `OPENAI_API_KEY` and fix whatever audio/timing issues appear (the `say` path works).
 3. Word-level sync (marks in the narration, or TTS timestamps) instead of percentages.
-4. More TTS providers (local Piper so that nobody needs a key); implement `TtsProvider`.
-5. `capture` / `list_elements` improvements: scenes with several states (empty / file chosen / uploading / done) as
-   separate files vs. driven by `show/hide/set` actions — decide with real examples.
+4. ~~More TTS providers~~ `say` and `command` (Piper via a command template) done; a Piper preset only if asked.
+5. Scenes with several states: so far separate captured files plus hidden prepared elements (`hide` + `show`) were
+   enough; a "state" concept only if a kit needs many.
 6. Export mp4 (record the player with Playwright + ffmpeg) — only if people ask.
 7. ~~UI translation of the scene itself~~ done: `scenes/<lang>/<scene>.html`, texts per language, one language per docs site.
 8. Publish: TypeScript build step (`tsc` emit or tsdown), register `cueflow` on npm, CI, `.github` templates, an
    English-first README with a GIF of the demo.
+9. Site: serve `shared/` as files next to the site's assets instead of embedding it in every item page (each page
+   now carries its guide's shared parts once; across pages they repeat).
 
 ## Conventions
 
