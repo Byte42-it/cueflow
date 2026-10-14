@@ -333,6 +333,7 @@
 
     function setPlaying(v) {
       playing = v;
+      if (v) app.classList.add("cf-started"); // themes can style the untouched player (veil, poster) apart from a paused one
       app.classList.toggle("cf-playing", v);
       playBtn.textContent = v ? "❚❚" : "▶";
       playBtn.setAttribute("aria-label", v ? L("pause") : L("play"));

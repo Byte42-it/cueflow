@@ -28,6 +28,7 @@ html:has(> .cf-page), .cf-page { margin: 0; background: var(--cf-bg); color: var
 /* captions: under the stage, or over its bottom edge like subtitles */
 .cf-caption { min-height: 3.2em; padding: 10px 4px 0; color: var(--cf-fg); text-align: center; }
 .cf-captions-overlay .cf-caption, .cf-captions-off .cf-caption { display: none; }
+.cf-app:not(.cf-started):not(.cf-ready) .cf-subs { display: none; } /* subtitles start with the video */
 .cf-subs { position: absolute; left: 0; right: 0; bottom: 4%; margin: 0 auto; max-width: 86%; text-align: center; pointer-events: none; }
 .cf-subs span { display: inline; padding: .15em .45em; background: var(--cf-subs-bg); color: var(--cf-subs-fg); font-size: clamp(12px, 2.1vw, 17px); line-height: 1.6; border-radius: 4px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 
