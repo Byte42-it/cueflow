@@ -1,0 +1,28 @@
+{
+  "title": "Acme Portal Help",
+  "lang": "en",
+  "brand": { "name": "Acme Portal" },
+  "footer": "Acme Portal — example docs site built with Cueflow",
+  "requestEndpoint": "https://example.com/api/tutorial-requests",
+  "featured": "upload",
+  "rows": [
+    { "id": "ready", "title": "Watch and read", "note": "start here" },
+    { "id": "soon", "title": "Coming soon", "band": true, "askTile": true }
+  ],
+  "items": [
+    {
+      "id": "upload", "row": "ready", "status": "video", "guide": "upload",
+      "title": "How to upload a document", "kicker": "Documents",
+      "desc": "From the Documents section to a file in your archive: choose it, give it a title, upload it.",
+      "duration": "about 30 s",
+      "contents": ["Short video with captions", "Transcript to read or download", "Guide: file types, titles, what happens after the upload"]
+    },
+    {
+      "id": "sharing", "row": "ready", "status": "guide", "title": "Sharing with your team", "kicker": "Teamwork",
+      "desc": "Who can see a document, how to share it with a colleague and how to stop sharing.",
+      "contents": ["Guide in 2 sections", "Printable as PDF"]
+    },
+    { "id": "search", "row": "soon", "status": "soon", "title": "Finding a document", "kicker": "Documents", "desc": "Search by title, date and type." },
+    { "id": "settings", "row": "soon", "status": "soon", "title": "Your settings", "kicker": "Account", "desc": "Language, notifications and password." }
+  ]
+}

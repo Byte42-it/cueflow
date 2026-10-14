@@ -5,6 +5,7 @@ import { buildGuide } from "./build.ts";
 import { listGuides, listScenes, loadGuide, readScene, saveGuide, type Kit } from "./kit.ts";
 import { renderFrame } from "./preview.ts";
 import { describeScene } from "./scene.ts";
+import { buildSite, loadSite, validateSite } from "./site.ts";
 import { Guide, Step } from "./schema.ts";
 import { defaultProvider } from "./tts.ts";
 import { validateGuide } from "./validate.ts";
@@ -143,6 +144,22 @@ export function createServer(kit: Kit): McpServer {
       inputSchema: { guide: guideId }
     },
     safe(async ({ guide }) => text(await buildGuide(kit, guide, defaultProvider())))
+  );
+
+  server.registerTool(
+    "validate_site",
+    { description: "Check the kit's site.json (the docs-site catalog): unique ids, existing rows, guides, articles, posters and icons." },
+    safe(async () => text(await validateSite(kit, await loadSite(kit))))
+  );
+
+  server.registerTool(
+    "build_site",
+    {
+      description:
+        "Build the docs site from site.json into dist/site/: a home page (featured item, quick access, scrolling rows) and one page per item with its video, transcript and written guide (pages/<id>.html). `posters` renders a frame of each guide as its poster (needs Playwright).",
+      inputSchema: { posters: z.boolean().default(false) }
+    },
+    safe(async ({ posters }) => text(await buildSite(kit, { provider: defaultProvider(), posters })))
   );
 
   server.registerTool(

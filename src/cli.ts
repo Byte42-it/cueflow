@@ -3,6 +3,7 @@ import { parseArgs } from "node:util";
 import { buildGuide } from "./build.ts";
 import { openKit } from "./kit.ts";
 import { startMcp } from "./mcp.ts";
+import { buildSite } from "./site.ts";
 import { defaultProvider } from "./tts.ts";
 import { validateGuide } from "./validate.ts";
 import { loadGuide } from "./kit.ts";
@@ -11,12 +12,13 @@ const USAGE = `cueflow — narrated UI walkthroughs from static HTML scenes
 
   cueflow build <guide>     build dist/<guide>.html (TTS audio when OPENAI_API_KEY is set)
   cueflow validate <guide>  check selectors, ids and narrations
+  cueflow site [--posters]  build the docs site from site.json into dist/site/ (--posters renders guide frames)
   cueflow mcp               start the MCP server on stdio
 
   --kit <dir>               kit folder (default: $CUEFLOW_KIT or the current directory)
 `;
 
-const { values, positionals } = parseArgs({ allowPositionals: true, options: { kit: { type: "string" }, help: { type: "boolean", short: "h" } } });
+const { values, positionals } = parseArgs({ allowPositionals: true, options: { kit: { type: "string" }, posters: { type: "boolean" }, help: { type: "boolean", short: "h" } } });
 const kit = openKit(values.kit ?? process.env.CUEFLOW_KIT ?? ".");
 const [command, id] = positionals;
 
@@ -31,6 +33,10 @@ try {
     for (const e of report.errors) console.log(`error: ${e}`);
     if (report.errors.length) process.exitCode = 1;
     else console.log("ok");
+  } else if (command === "site") {
+    const r = await buildSite(kit, { provider: defaultProvider(), posters: values.posters ?? false });
+    for (const w of r.warnings) console.log(`warning: ${w}`);
+    console.log(`${r.dir}  (${r.pages.length} page(s)${r.posters.length ? `, ${r.posters.length} poster(s) rendered` : ""})`);
   } else if (command === "build" && id) {
     const r = await buildGuide(kit, id, defaultProvider());
     for (const w of r.warnings) console.log(`warning: ${w}`);

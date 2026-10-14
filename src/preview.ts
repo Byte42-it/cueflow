@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
  * Renders one frame of a built guide as a PNG: the model (or a human) can look at the framing without playing
  * the whole thing. Needs the optional `playwright` package and a Chromium (`npx playwright install chromium`).
  */
-export async function renderFrame(htmlFile: string, opts: { step: number; atMs: number; lang?: string }): Promise<Buffer> {
+export async function renderFrame(htmlFile: string, opts: { step: number; atMs: number; lang?: string; only?: "player" | "stage" }): Promise<Buffer> {
   let chromium: typeof import("playwright").chromium;
   try {
     ({ chromium } = await import("playwright"));
@@ -22,7 +22,8 @@ export async function renderFrame(htmlFile: string, opts: { step: number; atMs: 
     );
     if (opts.step >= info.steps) throw new Error(`the guide has ${info.steps} steps, step ${opts.step} does not exist`);
     await page.waitForTimeout(900); // let the camera transition settle (seek applies it without one, but fonts/layout need a beat)
-    return await page.locator(".cf-app").screenshot();
+    // "stage" is the picture alone (posters); "player" includes caption and controls
+    return await page.locator(opts.only === "stage" ? ".cf-stage" : ".cf-app").screenshot();
   } finally {
     await browser.close();
   }

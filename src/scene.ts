@@ -18,7 +18,7 @@ const MIME: Record<string, string> = {
 
 const isLocal = (ref: string) => !/^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(ref);
 
-async function dataUri(file: string): Promise<string | null> {
+export async function dataUri(file: string): Promise<string | null> {
   const mime = MIME[path.extname(file).toLowerCase()];
   if (!mime) return null;
   try {
