@@ -38,12 +38,33 @@ my-kit/
   shared/     CSS, fonts, icons, libraries copied from the real site
   scenes/     one static HTML page per screen/state, using shared/
   guides/     one JSON per guide: camera, actions, narration per language
+  theme/      optional: theme.css and labels.json, the look and words of the player
   audio/      text-to-speech cache (hash of text + voice + language)
   dist/       output: one HTML file per guide
 ```
 
 Scenes reference `shared/` instead of copying styles, so when the site's CSS changes every guide follows at the next build.
 Give elements an `id` or a `data-cue="…"` attribute: that is what guides point at.
+
+### Theme
+
+The player's colors, fonts and shapes are CSS variables (`--cf-bg`, `--cf-fg`, `--cf-accent`, `--cf-font`,
+`--cf-stage-radius`… see the top of `src/player/player.css`). `theme/theme.css` is added after the player's own
+stylesheet, so it can override them or restyle anything else; fonts and images it points at are inlined.
+`theme/labels.json` changes the player's interface words, or adds a language (built in: en, it, fr, de):
+
+```json
+{ "en": { "steps": "Chapters", "step": "Chapter" } }
+```
+
+An example theme is in `examples/themes/paper/`: copy it to `<kit>/theme/`.
+
+### Player options
+
+Each guide can tune the player in a `player` block (all optional):
+`captions` (`below`, `overlay`, `off`), `chapters`, `speeds` (e.g. `[1, 1.5]`), `transcript`, and
+`fallbackVoice: "browser"` to read silent builds with the browser's voice. `pronunciation` maps written words to
+how the voice must say them (audio only). A link ending in `#step-3` opens the guide at that step.
 
 ## Use
 

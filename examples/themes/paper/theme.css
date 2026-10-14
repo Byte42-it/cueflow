@@ -1,0 +1,11 @@
+/* Example theme: a light, flat player. Copy this folder to <kit>/theme/ to use it. */
+:root {
+  --cf-bg: #f6f5f1; --cf-fg: #1d1d1b; --cf-muted: #6b6a66; --cf-accent: #2f5bd3; --cf-on-accent: #fff;
+  --cf-surface: #fff; --cf-line: #dedbd3;
+  --cf-font: 15px/1.55 Georgia, "Times New Roman", serif;
+  --cf-stage-radius: 0; --cf-stage-shadow: none;
+  --cf-control-radius: 0;
+  --cf-subs-bg: rgba(255, 255, 255, .92); --cf-subs-fg: #1d1d1b;
+  --cf-ring: #e0a100;
+}
+.cf-stage { outline: 1px solid var(--cf-line); }

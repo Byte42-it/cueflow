@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { distFile, loadGuide, type Kit } from "./kit.ts";
 import { inlineScene } from "./scene.ts";
 import type { Guide } from "./schema.ts";
+import { loadTheme } from "./theme.ts";
 import { narrationAudio, spokenText, type TtsProvider } from "./tts.ts";
 import { validateGuide } from "./validate.ts";
 
@@ -42,8 +43,13 @@ export async function buildGuide(kit: Kit, id: string, provider: TtsProvider | n
     }
   }
 
-  const [player, css] = await Promise.all([readFile(path.join(here, "player", "player.js"), "utf8"), readFile(path.join(here, "player", "player.css"), "utf8")]);
-  const html = pageHtml(guide, css, player, { guide, scenes, audio });
+  const [player, css, theme] = await Promise.all([
+    readFile(path.join(here, "player", "player.js"), "utf8"),
+    readFile(path.join(here, "player", "player.css"), "utf8"),
+    loadTheme(kit)
+  ]);
+  const styles = theme.css ? `${css}\n/* kit theme */\n${theme.css}` : css;
+  const html = pageHtml(guide, styles, player, { guide, scenes, audio, labels: theme.labels });
   const file = distFile(kit, id);
   await mkdir(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
@@ -59,7 +65,7 @@ function pageHtml(guide: Guide, css: string, player: string, data: unknown): str
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(guide.title)}</title>
-<style>${css}</style>
+<style>${css.replace(/<\/style/gi, "<\\/style")}</style>
 </head>
 <body>
 <div id="cueflow"></div>
