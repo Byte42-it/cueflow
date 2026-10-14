@@ -39,6 +39,8 @@ my-kit/
   scenes/     one static HTML page per screen/state, using shared/
   guides/     one JSON per guide: camera, actions, narration per language
   theme/      optional: theme.css and labels.json, the look and words of the player
+  site.json   optional: the catalog of a docs site (see below)
+  pages/      optional: the written guide of each site item, as HTML fragments
   audio/      text-to-speech cache (hash of text + voice + language)
   dist/       output: one HTML file per guide
 ```
@@ -79,6 +81,31 @@ Open the generated HTML in a browser. Without a TTS key the guide is silent (cap
 To explicitly build without audio, set `CUEFLOW_TTS=none`.
 With `OPENAI_API_KEY` set, the narration is synthesised once per text and cached in `audio/`.
 
+### A docs site
+
+`node src/cli.ts site --kit <kit>` turns the kit's `site.json` into a small static docs site in `dist/site/`:
+a home page (a featured tutorial, quick access, rows that scroll sideways, a hover preview with the steps and the
+contents) and one page per item with its video, the transcript and the written guide. A left bar opens the list of
+tutorials, the index of the page (searchable, with print to PDF of chosen sections) and, when `requestEndpoint` is
+set, a dialog that POSTs `{ topic, message?, name?, email?, page }` to it. `--posters` renders a frame of each
+guide as its cover (needs Playwright).
+
+```json
+{
+  "title": "Acme Portal Help", "lang": "en", "featured": "upload",
+  "rows": [{ "id": "ready", "title": "Watch and read" }, { "id": "soon", "title": "Coming soon", "band": true }],
+  "items": [
+    { "id": "upload", "row": "ready", "status": "video", "guide": "upload", "title": "How to upload a document" },
+    { "id": "search", "row": "soon", "status": "soon", "title": "Finding a document" }
+  ]
+}
+```
+
+`pages/<id>.html` holds `<section id="…" data-title="…">` blocks with `h2`/`h3[id]`: the sections become the index
+and the printable units. The site is styled with `--cf-site-*` variables (top of `src/site/site.css`), set in the
+same `theme/theme.css` as the player; its interface is in English or Italian (`lang`), and `site.json` `labels`
+overrides any word. See `examples/demo-kit`.
+
 ### With an AI assistant (MCP)
 
 ```json
@@ -99,6 +126,7 @@ With `OPENAI_API_KEY` set, the narration is synthesised once per text and cached
 | `set_narration` | write or translate the narration of a step, per language |
 | `validate_guide` | selectors must exist in the scene current at each step, ids unique, every language narrated |
 | `preview_frame` | render any instant of the guide as an image, to check the framing |
+| `validate_site`, `build_site` | check and build the docs site from `site.json` |
 | `build_guide` | write `dist/<guide>.html` |
 
 `add_step` checks the selectors immediately, the way a chess lesson checks a move: a step that points at an element

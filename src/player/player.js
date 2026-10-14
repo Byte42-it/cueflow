@@ -17,7 +17,12 @@
       transcript: "Transkript", download: "Herunterladen (.txt)", watch: "Diesen Schritt ansehen", language: "Sprache" }
   };
 
-  function mount(root, DATA) {
+  /**
+   * options (all optional): fluid (fill the container instead of stopping at the stage width, for docs pages),
+   * lang (start in this language when the guide has it).
+   */
+  function mount(root, DATA, options) {
+    options = options || {};
     // the kit's theme/labels.json: new languages, or other words for the built-in ones
     Object.keys(DATA.labels || {}).forEach(function (l) {
       var mine = LABELS[l] || (LABELS[l] = {});
@@ -31,7 +36,7 @@
     var pronunciation = guide.pronunciation || {};
     var vw = guide.viewport.width;
     var vh = guide.viewport.height;
-    var lang = guide.languages[0];
+    var lang = guide.languages.indexOf(options.lang) >= 0 ? options.lang : guide.languages[0];
     var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     function L(k) { var d = LABELS[lang] || LABELS[String(lang).slice(0, 2)] || LABELS.en; return d[k] || LABELS.en[k]; }
     function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -63,7 +68,7 @@
     var transcript = $(".cf-transcript");
 
     stage.style.aspectRatio = guide.stage.width + " / " + guide.stage.height;
-    app.style.maxWidth = guide.stage.width + "px";
+    if (!options.fluid) app.style.maxWidth = guide.stage.width + "px";
     world.style.width = vw + "px";
     world.style.height = vh + "px";
     frame.style.width = vw + "px";
@@ -76,6 +81,7 @@
       langSel.appendChild(o);
     });
     if (guide.languages.length < 2) langSel.style.display = "none";
+    langSel.value = lang;
 
     // ---- runtime state ----
     var curScene = null;
@@ -126,7 +132,8 @@
       var rect = spec ? rectOf(spec.target) : null;
       var pad = spec && spec.padding != null ? spec.padding : 24;
       if (!rect) rect = { x: 0, y: 0, width: vw, height: vh }, pad = 0;
-      var s = Math.min(SW / (rect.width + 2 * pad), SH / (rect.height + 2 * pad), 4);
+      // never zoom out below the scale where the scene fills the stage: past that there is only empty space to show
+      var s = Math.max(Math.min(SW / (rect.width + 2 * pad), SH / (rect.height + 2 * pad), 4), Math.max(SW / vw, SH / vh));
       var tx = SW / 2 - (rect.x + rect.width / 2) * s;
       var ty = SH / 2 - (rect.y + rect.height / 2) * s;
       // never show the empty space outside the scene: keep the scene covering the stage (or centered when smaller)
@@ -135,7 +142,9 @@
       world.style.transitionDuration = ms(dur) + "ms";
       world.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + s + ")";
     }
-    window.addEventListener("resize", function () { if (cam !== undefined) applyCamera(cam, 0); });
+    // re-frame whenever the stage changes size (window, side panels, a docs page settling its layout)
+    if ("ResizeObserver" in window) new ResizeObserver(function () { applyCamera(cam, 0); }).observe(stage);
+    else window.addEventListener("resize", function () { applyCamera(cam, 0); });
 
     // ---- actions: start / update(p) / finish ----
     function center(el) {
@@ -439,22 +448,25 @@
     function buildTranscript() {
       if (!opts.transcript) return;
       transcript.hidden = false;
-      $(".cf-tr-title").textContent = L("transcript");
-      $(".cf-download").textContent = L("download");
-      $(".cf-transcript ol").innerHTML = steps.map(function (st, i) {
+      transcript.querySelector(".cf-tr-title").textContent = L("transcript");
+      transcript.querySelector(".cf-download").textContent = L("download");
+      transcript.querySelector("ol").innerHTML = steps.map(function (st, i) {
         return "<li><b>" + esc(stepTitle(st, i)) + "</b> " + esc(st.narration[lang] || "") +
           ' <a href="#step-' + (i + 1) + '" data-step="' + i + '">' + esc(L("watch")) + "</a></li>";
       }).join("");
     }
-    $(".cf-download").onclick = function (e) {
+    transcript.querySelector(".cf-download").onclick = function (e) {
       e.preventDefault(); // it sits in the summary: do not open/close the panel
+      downloadTranscript();
+    };
+    function downloadTranscript() {
       var blob = new Blob([transcriptText()], { type: "text/plain;charset=utf-8" });
       var a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = guide.id + "-" + lang + ".txt";
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-    };
+    }
     transcript.addEventListener("click", function (e) {
       var link = e.target.closest && e.target.closest("a[data-step]");
       if (!link) return;
@@ -521,11 +533,23 @@
     buildChapters();
     buildTranscript();
 
-    /* a link to a step (#step-3, counted from 1) opens the player there, ready to play */
-    var m = /^#step-(\d+)$/.exec(location.hash);
-    var startAt = m ? Math.max(0, Math.min(steps.length - 1, +m[1] - 1)) : 0;
-    goTo(startAt, 0);
-    return { seek: seek, restart: restart, jump: jump, transcript: transcriptText, setLang: function (l) { lang = l; langSel.value = l; } };
+    /* a link to a step (#step-3, counted from 1) opens the player there, ready to play; followed later, it plays */
+    function stepFromHash() {
+      var m = /^#step-(\d+)$/.exec(location.hash);
+      return m ? Math.max(0, Math.min(steps.length - 1, +m[1] - 1)) : null;
+    }
+    window.addEventListener("hashchange", function () {
+      var i = stepFromHash();
+      if (i == null) return;
+      root.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+      jump(i);
+    });
+    goTo(stepFromHash() || 0, 0);
+    return {
+      seek: seek, restart: restart, jump: jump, transcript: transcriptText, downloadTranscript: downloadTranscript,
+      element: app, steps: steps.map(function (st, i) { return stepTitle(st, i); }),
+      setLang: function (l) { lang = l; langSel.value = l; }
+    };
   }
 
   window.Cueflow = { mount: mount };

@@ -11,16 +11,26 @@ import { validateGuide } from "./validate.ts";
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 /** JSON that is safe inside a <script> element. */
-const embed = (value: unknown): string => JSON.stringify(value).replace(/</g, "\\u003c");
-const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+export const embed = (value: unknown): string => JSON.stringify(value).replace(/</g, "\\u003c");
+export const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+/** Text that is safe inside a <script> or <style> element. */
+export const rawText = (s: string, tag: "script" | "style") => s.replace(new RegExp(`</${tag}`, "gi"), `<\\/${tag}`);
 
 export type BuildResult = { file: string; scenes: string[]; audioFiles: number; silent: boolean; warnings: string[] };
 
-/** Builds guides/<id>.json into dist/<id>.html: one self-contained file with player, scenes, timeline and audio. */
-export async function buildGuide(kit: Kit, id: string, provider: TtsProvider | null): Promise<BuildResult> {
+/** What the player needs to run a guide: the guide, its scenes inlined, its audio as data URIs. */
+export type GuideBundle = {
+  guide: Guide;
+  data: { guide: Guide; scenes: Record<string, string>; audio: Record<string, Record<string, string>> };
+  scenes: string[];
+  audioFiles: number;
+  warnings: string[];
+};
+
+export async function guideBundle(kit: Kit, id: string, provider: TtsProvider | null): Promise<GuideBundle> {
   const guide = await loadGuide(kit, id);
   const report = await validateGuide(kit, guide);
-  if (report.errors.length) throw new Error(`the guide is not valid:\n- ${report.errors.join("\n- ")}`);
+  if (report.errors.length) throw new Error(`the guide "${id}" is not valid:\n- ${report.errors.join("\n- ")}`);
 
   // every scene the guide visits, in order
   const names: string[] = [guide.scene];
@@ -42,20 +52,35 @@ export async function buildGuide(kit: Kit, id: string, provider: TtsProvider | n
       }
     }
   }
+  return { guide, data: { guide, scenes, audio }, scenes: names, audioFiles, warnings: report.warnings };
+}
 
-  const [player, css, theme] = await Promise.all([
+/** The player's script and stylesheet, with the kit's theme after the defaults. */
+export async function playerAssets(kit: Kit) {
+  const [js, css, theme] = await Promise.all([
     readFile(path.join(here, "player", "player.js"), "utf8"),
     readFile(path.join(here, "player", "player.css"), "utf8"),
     loadTheme(kit)
   ]);
-  const styles = theme.css ? `${css}\n/* kit theme */\n${theme.css}` : css;
-  const html = pageHtml(guide, styles, player, { guide, scenes, audio, labels: theme.labels });
-  const file = distFile(kit, id);
+  return { js, css, theme };
+}
+
+export async function writeAtomic(file: string, content: string | Buffer): Promise<void> {
   await mkdir(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
-  await writeFile(tmp, html);
-  await rename(tmp, file);
-  return { file, scenes: names, audioFiles, silent: !provider, warnings: report.warnings };
+  await writeFile(tmp, content);
+  await rename(tmp, file); // never leave a half-written file where readers look
+}
+
+/** Builds guides/<id>.json into dist/<id>.html: one self-contained file with player, scenes, timeline and audio. */
+export async function buildGuide(kit: Kit, id: string, provider: TtsProvider | null): Promise<BuildResult> {
+  const bundle = await guideBundle(kit, id, provider);
+  const { js, css, theme } = await playerAssets(kit);
+  const styles = theme.css ? `${css}\n/* kit theme */\n${theme.css}` : css;
+  const html = pageHtml(bundle.guide, styles, js, { ...bundle.data, labels: theme.labels });
+  const file = distFile(kit, id);
+  await writeAtomic(file, html);
+  return { file, scenes: bundle.scenes, audioFiles: bundle.audioFiles, silent: !provider, warnings: bundle.warnings };
 }
 
 function pageHtml(guide: Guide, css: string, player: string, data: unknown): string {
@@ -65,11 +90,11 @@ function pageHtml(guide: Guide, css: string, player: string, data: unknown): str
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(guide.title)}</title>
-<style>${css.replace(/<\/style/gi, "<\\/style")}</style>
+<style>${rawText(css, "style")}</style>
 </head>
-<body>
+<body class="cf-page">
 <div id="cueflow"></div>
-<script>${player.replace(/<\/script/gi, "<\\/script")}</script>
+<script>${rawText(player, "script")}</script>
 <script>window.__cueflow = Cueflow.mount(document.getElementById("cueflow"), ${embed(data)});</script>
 </body>
 </html>

@@ -30,9 +30,11 @@ Decisions taken with the owner (Luca) — do not re-litigate:
 | `theme.ts` | optional kit `theme/`: `theme.css` appended after the player CSS (urls inlined), `labels.json` (player words per language, validated) |
 | `build.ts` | guide → `dist/<id>.html` (player + css + scenes + base64 audio, JSON embedded script-safe) |
 | `player/player.js`, `player.css` | browser runtime, plain JS inlined at build time (not bundled/compiled) |
+| `site.ts` | `site.json` catalog → `dist/site/` (home + one page per item: player, transcript, `pages/<id>.html` article); validation, posters via `preview.ts` |
+| `site/site.js`, `site.css` | docs-site runtime (left bar, drawer, request dialog, tiles/rows/hover preview, item page index/search/print); shipped with the player in `assets/cueflow.js`/`.css` |
 | `preview.ts` | Playwright renders the built HTML at (step, ms) → PNG; calls `window.__cueflow.seek` |
-| `mcp.ts` | MCP server (stdio): list_scenes, inspect_scene, create_guide, get_guide, add_step, replace_step, remove_step, set_narration, validate_guide, build_guide, preview_frame |
-| `cli.ts` | `cueflow build|validate|mcp --kit <dir>` |
+| `mcp.ts` | MCP server (stdio): list_scenes, inspect_scene, create_guide, get_guide, add_step, replace_step, remove_step, set_narration, validate_guide, build_guide, preview_frame, validate_site, build_site |
+| `cli.ts` | `cueflow build|validate|site|mcp --kit <dir>` |
 
 Player model worth knowing before touching it:
 - Each action has `start/update(p)/finish` handlers; `runDue(step, t, ctx)` is **idempotent** and is used both by live
@@ -53,6 +55,7 @@ npm run typecheck
 npm test                       # node:test, no browser needed
 npm run build:demo             # examples/demo-kit/dist/upload.html (open it in a browser)
 CUEFLOW_TTS=none node src/cli.ts build upload --kit examples/demo-kit   # force silent build
+node src/cli.ts site --kit examples/demo-kit             # examples/demo-kit/dist/site/ (add --posters for guide frames)
 node src/cli.ts mcp --kit <kit>
 ```
 Node ≥ 22.18 runs the `.ts` files directly (imports use the `.ts` extension; `tsc` is only used with `--noEmit`).

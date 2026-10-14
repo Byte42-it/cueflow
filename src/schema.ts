@@ -106,3 +106,48 @@ export const PlayerLabels = z.record(
   z.object(Object.fromEntries(LABEL_KEYS.map((k) => [k, z.string().min(1).optional()])) as Record<(typeof LABEL_KEYS)[number], z.ZodOptional<z.ZodString>>).strict()
 );
 export type PlayerLabels = z.infer<typeof PlayerLabels>;
+
+const itemId = z.string().regex(/^[a-z0-9][a-z0-9-]*$/i);
+
+/** One entry of the site catalog: a video (a Cueflow guide), a written guide, or something announced. */
+export const SiteItem = z.object({
+  id: itemId.describe("also the folder of its page: <id>/index.html"),
+  row: z.string().describe("id of the row it is listed in"),
+  status: z.enum(["video", "guide", "soon"]).describe("video: has a Cueflow guide; guide: an article only, video to come; soon: announced, no page yet"),
+  title: z.string().min(1),
+  kicker: z.string().optional().describe("short category shown above the title"),
+  desc: z.string().default(""),
+  guide: z.string().optional().describe("id of the Cueflow guide played on the page (required for status video)"),
+  article: z.string().optional().describe("HTML fragment in pages/ (default: pages/<id>.html when it exists): <section id data-title> blocks with h2/h3[id]"),
+  poster: z.string().optional().describe("image path in the kit; without it a frame of the guide (cueflow site --posters) or a drawn cover"),
+  posterAt: z.object({ step: z.number().int().min(0).default(0), at: z.number().min(0).default(1500) }).optional().describe("frame used as poster"),
+  duration: z.string().optional().describe('as shown to people, e.g. "about 1 min"'),
+  icon: z.string().optional().describe("SVG file in the kit, shown in the quick-access squares"),
+  contents: z.array(z.string()).default([]).describe("what the page contains, listed in the hover preview")
+});
+export type SiteItem = z.infer<typeof SiteItem>;
+
+export const SiteRow = z.object({
+  id: z.string(),
+  title: z.string(),
+  note: z.string().optional().describe("small text next to the title"),
+  band: z.boolean().default(false).describe("set apart on a band of its own (for what is coming)"),
+  kicker: z.string().optional(),
+  lede: z.string().optional(),
+  askTile: z.boolean().default(false).describe("end the row with a 'request a tutorial' tile")
+});
+
+/** site.json in the kit: the catalog that build_site turns into a home page and one page per item. */
+export const Site = z.object({
+  title: z.string().describe("name of the docs site"),
+  lang: z.string().min(2).default("en").describe("language of the site's interface and of the players (when the guide has it)"),
+  brand: z.object({ name: z.string(), logo: z.string().optional().describe("SVG file in the kit") }).optional(),
+  footer: z.string().optional(),
+  requestEndpoint: z.string().url().optional().describe("POST endpoint for tutorial requests; without it the request form is not shown"),
+  featured: z.string().optional().describe("id of the item shown big at the top of the home"),
+  quickAccess: z.boolean().default(true),
+  rows: z.array(SiteRow).default([]),
+  items: z.array(SiteItem).default([]),
+  labels: z.record(z.string()).default({}).describe("override the site's interface words (see the en labels in src/site/site.js)")
+});
+export type Site = z.infer<typeof Site>;
