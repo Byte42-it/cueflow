@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { distFile, loadGuide, type Kit } from "./kit.ts";
 import { inlineScene } from "./scene.ts";
 import type { Guide } from "./schema.ts";
-import { narrationAudio, type TtsProvider } from "./tts.ts";
+import { narrationAudio, spokenText, type TtsProvider } from "./tts.ts";
 import { validateGuide } from "./validate.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -35,7 +35,7 @@ export async function buildGuide(kit: Kit, id: string, provider: TtsProvider | n
       for (const step of guide.steps) {
         const text = step.narration[lang]?.trim();
         if (!text) continue;
-        const mp3 = await narrationAudio(kit, provider, text, lang);
+        const mp3 = await narrationAudio(kit, provider, spokenText(text, guide.pronunciation), lang);
         audio[lang]![step.id] = `data:audio/mpeg;base64,${mp3.toString("base64")}`;
         audioFiles += 1;
       }

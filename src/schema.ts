@@ -68,6 +68,21 @@ export const Step = z.object({
 });
 export type Step = z.infer<typeof Step>;
 
+/** How the player looks and behaves around the scene. Everything has a default, so old guides keep working. */
+export const PlayerOptions = z
+  .object({
+    captions: z.enum(["below", "overlay", "off"]).default("below").describe("where the narration text is shown: under the video, over its bottom edge like subtitles, or not at all"),
+    chapters: z.boolean().default(true).describe("progress bar split into one clickable segment per step, labelled with the step title"),
+    speeds: z.array(z.number().positive()).min(1).default([1, 1.5]).describe("playback speeds offered by the speed button; the first is the default"),
+    transcript: z.boolean().default(true).describe("collapsible transcript under the player, with a download as .txt and a link to each step"),
+    fallbackVoice: z
+      .enum(["none", "browser"])
+      .default("none")
+      .describe("when a step has no audio: stay silent, or read the narration with the browser's own voice (a preview: it differs from machine to machine)")
+  })
+  .default({});
+export type PlayerOptions = z.infer<typeof PlayerOptions>;
+
 export const Guide = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/i),
   title: z.string(),
@@ -75,6 +90,11 @@ export const Guide = z.object({
   viewport: z.object({ width: z.number().default(1280), height: z.number().default(720) }).default({}),
   stage: z.object({ width: z.number().default(640), height: z.number().default(360) }).default({}).describe("size of the visible window of the 'video'"),
   languages: z.array(z.string().min(2)).min(1).default(["en"]),
+  player: PlayerOptions,
+  pronunciation: z
+    .record(z.string())
+    .default({})
+    .describe('words the voice must say differently from how they are written, e.g. {"SQL": "sequel"}; applied to the audio, never to captions'),
   steps: z.array(Step).default([])
 });
 export type Guide = z.infer<typeof Guide>;

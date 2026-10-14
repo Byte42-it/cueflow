@@ -55,6 +55,20 @@ export function defaultProvider(env: NodeJS.ProcessEnv = process.env): TtsProvid
   throw new Error(`unknown CUEFLOW_TTS "${choice}" (expected openai or none)`);
 }
 
+/**
+ * The text the voice actually reads: the guide's pronunciation entries replaced as whole words (a short entry must
+ * not change the inside of a longer word). Captions keep the written form.
+ */
+export function spokenText(text: string, pronunciation: Record<string, string> = {}): string {
+  let out = text;
+  for (const [written, said] of Object.entries(pronunciation)) {
+    if (!written) continue;
+    const escaped = written.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    out = out.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, "gu"), said);
+  }
+  return out;
+}
+
 const inFlight = new Map<string, Promise<Buffer>>();
 
 /** The mp3 for this text, from the cache or freshly generated. */
