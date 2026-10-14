@@ -2,7 +2,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { buildGuide } from "./build.ts";
+import { captureScenes } from "./capture.ts";
 import { listGuides, listScenes, loadGuide, readScene, saveGuide, type Kit } from "./kit.ts";
+import { checkLayout } from "./layout.ts";
 import { renderFrame } from "./preview.ts";
 import { describeScene } from "./scene.ts";
 import { buildSite, loadSite, validateSite } from "./site.ts";
@@ -27,6 +29,16 @@ const safe =
 export function createServer(kit: Kit): McpServer {
   const server = new McpServer({ name: "cueflow", version: "0.0.1" });
   const guideId = z.string().describe("guide id");
+
+  server.registerTool(
+    "capture_scenes",
+    {
+      description:
+        "Capture the kit's scenes from the live site described in capture.json (base URL, login, and per scene: url, steps, data-cue names to give to elements, elements to remove or hide, text replacements). Writes scenes/<name>.html and copies stylesheets, fonts and images to shared/. Needs Playwright. `scenes` limits the writing to some scenes (all of them still run, in order).",
+      inputSchema: { scenes: z.array(z.string()).optional() }
+    },
+    safe(async ({ scenes }) => text(await captureScenes(kit, { only: scenes })))
+  );
 
   server.registerTool(
     "list_scenes",
@@ -133,8 +145,16 @@ export function createServer(kit: Kit): McpServer {
 
   server.registerTool(
     "validate_guide",
-    { description: "Check a guide: selectors exist in the scene current at each step, ids are unique, every language has a narration.", inputSchema: { guide: guideId } },
-    safe(async ({ guide }) => text(await validateGuide(kit, await loadGuide(kit, guide))))
+    {
+      description:
+        "Check a guide: selectors exist in the scene current at each step, ids are unique, every language has a narration. `layout` also plays it in a browser (needs Playwright) and warns when an element used by a camera, cursor, click, highlight or typing is hidden or outside the scene at that moment.",
+      inputSchema: { guide: guideId, layout: z.boolean().default(false), lang: z.string().optional() }
+    },
+    safe(async ({ guide, layout, lang }) => {
+      const report = await validateGuide(kit, await loadGuide(kit, guide));
+      if (layout && !report.errors.length) report.warnings.push(...(await checkLayout(kit, guide, { lang })).map((w) => `layout: ${w}`));
+      return text(report);
+    })
   );
 
   server.registerTool(
@@ -166,12 +186,18 @@ export function createServer(kit: Kit): McpServer {
     "preview_frame",
     {
       description:
-        "Render one frame of a guide as an image, to check the framing, the cursor and the scene state. Builds the guide first. `step` is the 0-based step index, `at_ms` the time inside that step.",
-      inputSchema: { guide: guideId, step: z.number().int().min(0).default(0), at_ms: z.number().min(0).default(0), lang: z.string().optional() }
+        "Render one frame of a guide as an image, to check the framing, the cursor and the scene state. Builds the guide first. `step` is the 0-based step index, `at_ms` the time inside that step (or `at`, a percentage of its narration).",
+      inputSchema: {
+        guide: guideId,
+        step: z.number().int().min(0).default(0),
+        at_ms: z.number().min(0).default(0),
+        at: z.string().regex(/^\d+(\.\d+)?%$/).optional().describe('instead of at_ms: a percentage of the step\'s narration, e.g. "80%"'),
+        lang: z.string().optional()
+      }
     },
-    safe(async ({ guide, step, at_ms, lang }) => {
+    safe(async ({ guide, step, at_ms, at, lang }) => {
       const built = await buildGuide(kit, guide, null); // silent: the preview does not need audio
-      const png = await renderFrame(built.file, { step, atMs: at_ms, lang });
+      const png = await renderFrame(built.file, { step, at: at ?? at_ms, lang });
       return { content: [{ type: "image" as const, data: png.toString("base64"), mimeType: "image/png" }] };
     })
   );
