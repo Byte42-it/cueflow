@@ -1,0 +1,32 @@
+/* Stand-in for the real site's stylesheet: in a real kit this folder holds the CSS, fonts and icons copied from the site. */
+:root { --brand: #2f5bea; --brand-dark: #1f3fb0; --ink: #1c2230; --muted: #6b7384; --line: #e3e7ef; --bg: #f5f7fb; --ok: #1a9d62; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; height: 100vh; overflow: hidden; display: grid; grid-template-columns: 240px 1fr; font: 15px/1.5 system-ui, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+.sidebar { background: #101a3a; color: #cfd6ee; padding: 20px 14px; }
+.sidebar .logo { font-weight: 700; font-size: 20px; color: #fff; margin: 0 8px 24px; }
+.sidebar a { display: block; padding: 10px 12px; margin-bottom: 4px; border-radius: 8px; color: inherit; text-decoration: none; }
+.sidebar a.active { background: var(--brand); color: #fff; }
+.main { display: flex; flex-direction: column; min-width: 0; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; background: #fff; border-bottom: 1px solid var(--line); }
+.topbar input { width: 320px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center; font-weight: 600; }
+.content { padding: 28px; overflow: hidden; }
+h1 { font-size: 24px; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 22px; max-width: 760px; }
+.dropzone { border: 2px dashed #b9c3e0; border-radius: 12px; padding: 34px; text-align: center; color: var(--muted); background: #fafbff; }
+.dropzone strong { color: var(--ink); display: block; font-size: 17px; margin-bottom: 6px; }
+.btn { display: inline-block; margin-top: 14px; padding: 9px 16px; border: 0; border-radius: 8px; background: var(--brand); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.btn.secondary { background: #fff; color: var(--brand); border: 1px solid var(--brand); }
+.btn:disabled, .btn.disabled { opacity: .45; }
+.file-row { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; }
+.file-row .name { font-weight: 600; flex: 1; }
+.file-row .size { color: var(--muted); }
+.field { margin-top: 18px; }
+.field label { display: block; font-weight: 600; margin-bottom: 4px; }
+.field input { width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.progress { margin-top: 18px; height: 10px; background: #e8ecf6; border-radius: 6px; overflow: hidden; }
+.progress > div { height: 100%; width: 0; background: var(--brand); }
+.toast { margin-top: 18px; padding: 12px 14px; border-radius: 10px; background: #e6f6ee; color: #0e6b42; border: 1px solid #b7e4cf; font-weight: 600; }
+.badge { padding: 2px 7px; border-radius: 5px; background: #fde8e6; color: #b3261e; font-size: 12px; font-weight: 700; }

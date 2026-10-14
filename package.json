@@ -1,0 +1,27 @@
+{
+  "name": "cueflow",
+  "version": "0.0.1",
+  "description": "Build narrated, animated UI walkthroughs from static HTML scenes, driven by an MCP server",
+  "type": "module",
+  "license": "MIT",
+  "bin": { "cueflow": "src/cli.ts" },
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts",
+    "build:demo": "node src/cli.ts build upload --kit examples/demo-kit",
+    "mcp": "node src/cli.ts mcp"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "linkedom": "^0.18.0",
+    "zod": "^3.25.0"
+  },
+  "peerDependencies": { "playwright": ">=1.45" },
+  "peerDependenciesMeta": { "playwright": { "optional": true } },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "playwright": "^1.50.0",
+    "typescript": "^5.6.0"
+  }
+}

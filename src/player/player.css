@@ -1,0 +1,23 @@
+:root { --cf-bg: #0f1115; --cf-fg: #eef0f4; --cf-accent: #ff7a59; --cf-muted: #8b93a4; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--cf-bg); color: var(--cf-fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+body { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.cf-app { width: 100%; }
+.cf-stage { position: relative; width: 100%; overflow: hidden; background: #fff; border-radius: 10px; box-shadow: 0 8px 30px rgba(0, 0, 0, .45); }
+.cf-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; transition: transform 700ms cubic-bezier(.4, 0, .2, 1); }
+.cf-frame { display: block; border: 0; background: #fff; pointer-events: none; }
+.cf-ring { position: absolute; border: 3px solid var(--cf-accent); border-radius: 8px; box-shadow: 0 0 0 4px rgba(255, 122, 89, .25); opacity: 0; pointer-events: none; transition: opacity 200ms; animation: cf-pulse 1s ease-in-out infinite; }
+.cf-cursor { position: absolute; left: 0; top: 0; width: 22px; height: 22px; margin: -3px 0 0 -3px; opacity: 0; pointer-events: none; transition: transform 800ms cubic-bezier(.4, 0, .2, 1), opacity 200ms;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 2l15 9-6.5 1.6L9 19z' fill='%23111' stroke='%23fff' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat; }
+.cf-cursor::after { content: ""; position: absolute; left: -9px; top: -9px; width: 24px; height: 24px; border-radius: 50%; background: rgba(255, 122, 89, .55); opacity: 0; transform: scale(.3); }
+.cf-cursor.cf-click::after { animation: cf-click 350ms ease-out; }
+.cf-big { position: absolute; inset: 0; margin: auto; width: 64px; height: 64px; border-radius: 50%; border: 0; background: var(--cf-accent); color: #fff; font-size: 26px; cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, .4); }
+.cf-playing .cf-big { display: none; }
+.cf-ready .cf-big { display: none; }
+.cf-caption { min-height: 3.2em; padding: 10px 4px 0; color: var(--cf-fg); text-align: center; }
+.cf-bar { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.cf-bar button, .cf-bar select { background: #1b1f27; color: var(--cf-fg); border: 1px solid #2a2f3a; border-radius: 6px; padding: 4px 10px; cursor: pointer; font: inherit; }
+.cf-track { flex: 1; height: 6px; background: #1b1f27; border-radius: 3px; overflow: hidden; }
+.cf-fill { height: 100%; width: 0; background: var(--cf-accent); }
+@keyframes cf-pulse { 50% { box-shadow: 0 0 0 8px rgba(255, 122, 89, .12); } }
+@keyframes cf-click { 0% { opacity: .9; transform: scale(.3); } 100% { opacity: 0; transform: scale(1.4); } }

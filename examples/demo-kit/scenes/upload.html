@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Documents — Acme Portal</title>
+  <link rel="stylesheet" href="../shared/style.css">
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="logo">Acme Portal</div>
+    <a href="#">Dashboard</a>
+    <a href="#" class="active" id="nav-documents">Documents</a>
+    <a href="#">Cases</a>
+    <a href="#">Clients</a>
+    <a href="#">Settings</a>
+  </aside>
+  <div class="main">
+    <header class="topbar" id="topbar">
+      <input placeholder="Search…" aria-label="Search">
+      <div class="avatar">MR</div>
+    </header>
+    <main class="content">
+      <h1>Documents</h1>
+      <p class="sub">Upload and organise the documents of your cases.</p>
+      <section class="card" id="upload-card">
+        <div class="dropzone" id="dropzone">
+          <strong>Drag your files here</strong>
+          or
+          <br>
+          <button class="btn secondary" id="choose-file" type="button">Choose a file</button>
+        </div>
+        <div class="file-row" id="file-row" hidden>
+          <span class="badge">PDF</span>
+          <span class="name" id="file-name">contract-2024.pdf</span>
+          <span class="size">1.2 MB</span>
+        </div>
+        <div class="field" id="title-field" hidden>
+          <label for="doc-title">Document title</label>
+          <input id="doc-title" placeholder="e.g. Service contract">
+        </div>
+        <div class="progress" id="progress" hidden><div id="progress-bar"></div></div>
+        <button class="btn disabled" id="upload-btn" type="button">Upload</button>
+        <div class="toast" id="toast" hidden>✓ Upload complete — the document is in your archive.</div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

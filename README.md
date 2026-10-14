@@ -1,0 +1,96 @@
+# Cueflow
+
+Narrated, animated walkthroughs of a web interface — without recording a video.
+
+You give Cueflow a **kit**: the static HTML of your site's screens (the real CSS, fonts and layout, no backend).
+Through an **MCP server** an AI assistant composes guides on top of it: a camera that frames only the part of the
+screen that matters, a cursor that moves and clicks, text that gets typed, progress bars that fill, and a narration
+in as many languages as you like. The result is **one self-contained HTML file** that plays like a small video but
+is really the live page, shrunk to a window.
+
+Changing a text, translating a guide or following a UI change means editing a line and rebuilding, not re-shooting
+and re-dubbing.
+
+## The kit
+
+```
+my-kit/
+  shared/     CSS, fonts, icons, libraries copied from the real site
+  scenes/     one static HTML page per screen/state, using shared/
+  guides/     one JSON per guide: camera, actions, narration per language
+  audio/      text-to-speech cache (hash of text + voice + language)
+  dist/       output: one HTML file per guide
+```
+
+Scenes reference `shared/` instead of copying styles, so when the site's CSS changes every guide follows at the next build.
+Give elements an `id` or a `data-cue="…"` attribute: that is what guides point at.
+
+## Use
+
+```bash
+npm install
+node src/cli.ts build upload --kit examples/demo-kit     # → examples/demo-kit/dist/upload.html
+node src/cli.ts validate upload --kit examples/demo-kit
+```
+
+Open the generated HTML in a browser. Without a TTS key the guide is silent (captions only, timings estimated).
+With `OPENAI_API_KEY` set, the narration is synthesised once per text and cached in `audio/`.
+
+### With an AI assistant (MCP)
+
+```json
+{
+  "mcpServers": {
+    "cueflow": {
+      "command": "node",
+      "args": ["/path/to/cueflow/src/cli.ts", "mcp", "--kit", "/path/to/my-kit"]
+    }
+  }
+}
+```
+
+| Tool | What it does |
+|---|---|
+| `list_scenes`, `inspect_scene` | what screens exist, and which elements (selector, text, hidden?) can be targeted |
+| `create_guide`, `add_step`, `replace_step`, `remove_step`, `get_guide` | compose the timeline |
+| `set_narration` | write or translate the narration of a step, per language |
+| `validate_guide` | selectors must exist in the scene current at each step, ids unique, every language narrated |
+| `preview_frame` | render any instant of the guide as an image, to check the framing |
+| `build_guide` | write `dist/<guide>.html` |
+
+`add_step` checks the selectors immediately, the way a chess lesson checks a move: a step that points at an element
+that does not exist is refused with a readable message, so the assistant corrects itself.
+
+## A step
+
+```json
+{
+  "id": "send",
+  "camera": { "target": "#upload-card", "padding": 24 },
+  "actions": [
+    { "do": "move", "to": "#upload-btn", "at": 0 },
+    { "do": "click", "to": "#upload-btn", "at": "25%" },
+    { "do": "show", "to": "#progress", "at": "30%" },
+    { "do": "tween", "to": "#progress-bar", "prop": "width", "from": "0%", "end": "100%", "at": "30%", "duration": 2200 },
+    { "do": "camera", "target": "#upload-card", "at": "86%" }
+  ],
+  "narration": { "en": "Press Upload…", "it": "Premi Upload…" }
+}
+```
+
+`at` is milliseconds from the start of the step, or a percentage of the narration length (`"40%"`), so actions stay
+in sync with the voice whatever the language or the voice speed. Actions: `move`, `click`, `type`, `highlight`,
+`set`, `show`, `hide`, `tween`, `camera`. A `click` also dispatches a real click event inside the scene, so a scene
+can carry small scripts of its own.
+
+## Previews
+
+`preview_frame` needs Chromium: `npm install playwright && npx playwright install chromium`.
+
+## Status
+
+Proof of concept. Not done yet: capturing scenes from a live site (Playwright), text-to-speech providers other than
+OpenAI (the `TtsProvider` interface in `src/tts.ts` is the extension point), exporting an mp4, word-level sync with
+the narration, a TypeScript build step for publishing to npm.
+
+MIT
