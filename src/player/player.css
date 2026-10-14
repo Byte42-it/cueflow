@@ -22,7 +22,19 @@ html:has(> .cf-page), .cf-page { margin: 0; background: var(--cf-bg); color: var
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 2l15 9-6.5 1.6L9 19z' fill='%23111' stroke='%23fff' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat; }
 .cf-cursor::after { content: ""; position: absolute; left: -9px; top: -9px; width: 24px; height: 24px; border-radius: 50%; background: color-mix(in srgb, var(--cf-ring) 55%, transparent); opacity: 0; transform: scale(.3); }
 .cf-cursor.cf-click::after { animation: cf-click 350ms ease-out; }
-.cf-big { position: absolute; inset: 0; margin: auto; width: 64px; height: 64px; border-radius: 50%; border: 0; background: var(--cf-accent); color: var(--cf-on-accent); font-size: 26px; cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, .4); }
+.cf-big { position: absolute; inset: 0; z-index: 2; margin: auto; width: 68px; height: 68px; padding: 0; border-radius: 50%; border: 0; background: var(--cf-accent); color: var(--cf-on-accent); cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, .4); display: flex; align-items: center; justify-content: center; transition: transform .2s; }
+.cf-big svg { width: 50%; height: 50%; display: block; }
+.cf-big:hover { transform: scale(1.06); }
+/* made with Cueflow: a small mark in the corner of every player, linking to the project */
+.cf-brand { position: absolute; right: 10px; bottom: 10px; z-index: 3; display: flex; align-items: center; gap: 5px; height: 24px; padding: 0 6px; border-radius: 12px;
+  background: rgba(255, 255, 255, .82); color: #ff7a59; text-decoration: none; font: 600 11px/1 system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: .01em; opacity: .7; transition: opacity .2s; }
+.cf-brand svg { width: 15px; height: 15px; display: block; }
+.cf-brand span { color: #0f1115; max-width: 0; overflow: hidden; transition: max-width .25s; white-space: nowrap; }
+.cf-brand:hover, .cf-brand:focus-visible { opacity: 1; }
+.cf-brand:hover span, .cf-brand:focus-visible span { max-width: 60px; }
+.cf-captions-overlay .cf-subs { bottom: calc(4% + 22px); } /* clear of the mark */
+.cf-play svg { width: 16px; height: 16px; display: block; }
+.cf-bar .cf-play { display: flex; align-items: center; justify-content: center; padding: 4px 8px; }
 .cf-playing .cf-big, .cf-ready .cf-big { display: none; }
 
 /* captions: under the stage, or over its bottom edge like subtitles */
