@@ -10,18 +10,27 @@ const at = z
   .describe('start time: ms from the start of the step, or "40%" of the narration length');
 const duration = (def: number) => z.number().min(0).default(def).describe("duration in ms");
 
+/** Text that changes with the language: one string for every language, or one per language code. */
+export const Localized = z.union([z.string(), z.record(z.string())]);
+export type Localized = z.infer<typeof Localized>;
+/** The value for a language: that language, else the fallback, else the first one given. */
+export function pick(value: Localized | undefined, lang: string, fallback?: string): string | undefined {
+  if (value == null || typeof value === "string") return value;
+  return value[lang] ?? (fallback ? value[fallback] : undefined) ?? Object.values(value)[0];
+}
+
 export const Action = z.discriminatedUnion("do", [
   z.object({ do: z.literal("move"), to: selector, at, duration: duration(800) }).describe("move the cursor to the center of an element"),
   z.object({ do: z.literal("click"), to: selector, at }).describe("click an element (also dispatches a real click event in the scene)"),
-  z.object({ do: z.literal("type"), to: selector, text: z.string(), at, duration: duration(1200) }).describe("type text into an input or element"),
+  z.object({ do: z.literal("type"), to: selector, text: Localized, at, duration: duration(1200) }).describe("type text into an input or element (text: a string, or one per language)"),
   z.object({ do: z.literal("highlight"), to: selector, at, duration: duration(1800) }).describe("draw an attention ring around an element"),
   z
     .object({
       do: z.literal("set"),
       to: selector,
       at,
-      text: z.string().optional(),
-      html: z.string().optional(),
+      text: Localized.optional(),
+      html: Localized.optional(),
       add: z.array(z.string()).optional().describe("classes to add"),
       remove: z.array(z.string()).optional().describe("classes to remove"),
       attr: z.record(z.string()).optional().describe("attributes to set")
@@ -42,6 +51,16 @@ export const Action = z.discriminatedUnion("do", [
     .describe("animate a numeric CSS property (progress bars, counters)"),
   z
     .object({
+      do: z.literal("scroll"),
+      to: selector.describe("element to bring into view"),
+      in: selector.describe("the scrolling container"),
+      at,
+      margin: z.number().min(0).default(24).describe("space kept below (or above) the element"),
+      duration: duration(450)
+    })
+    .describe("scroll a container just enough to show an element, like a chat following its last message"),
+  z
+    .object({
       do: z.literal("camera"),
       at,
       target: z.union([selector, z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })]),
@@ -59,7 +78,7 @@ export const Camera = z.object({
 
 export const Step = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/i).describe("unique within the guide"),
-  title: z.string().optional(),
+  title: Localized.optional().describe("chapter name, shown on the progress bar and in the transcript"),
   scene: z.string().optional().describe("switch to another scene file (name without .html); default: keep the current one"),
   camera: Camera.optional().describe("framing at the start of the step; omitted = keep the previous framing"),
   actions: z.array(Action).default([]),
@@ -108,41 +127,44 @@ export const PlayerLabels = z.record(
 export type PlayerLabels = z.infer<typeof PlayerLabels>;
 
 const itemId = z.string().regex(/^[a-z0-9][a-z0-9-]*$/i);
+const List = z.union([z.array(z.string()), z.record(z.array(z.string()))]);
 
-/** One entry of the site catalog: a video (a Cueflow guide), a written guide, or something announced. */
+/** One entry of the site catalog: a video (a Cueflow guide), a written guide, or something announced. Texts can be given per language. */
 export const SiteItem = z.object({
   id: itemId.describe("also the folder of its page: <id>/index.html"),
   row: z.string().describe("id of the row it is listed in"),
   status: z.enum(["video", "guide", "soon"]).describe("video: has a Cueflow guide; guide: an article only, video to come; soon: announced, no page yet"),
-  title: z.string().min(1),
-  kicker: z.string().optional().describe("short category shown above the title"),
-  desc: z.string().default(""),
+  title: Localized,
+  kicker: Localized.optional().describe("short category shown above the title"),
+  desc: Localized.default(""),
   guide: z.string().optional().describe("id of the Cueflow guide played on the page (required for status video)"),
-  article: z.string().optional().describe("HTML fragment in pages/ (default: pages/<id>.html when it exists): <section id data-title> blocks with h2/h3[id]"),
-  poster: z.string().optional().describe("image path in the kit; without it a frame of the guide (cueflow site --posters) or a drawn cover"),
+  article: z.string().optional().describe("HTML fragment in pages/ (default <id>.html; a translation goes in pages/<lang>/ with the same name): <section id data-title> blocks with h2/h3[id]"),
+  poster: Localized.optional().describe("image path in the kit (one per language if the picture shows text); without it a frame of the guide (cueflow site --posters) or a drawn cover"),
   posterAt: z.object({ step: z.number().int().min(0).default(0), at: z.number().min(0).default(1500) }).optional().describe("frame used as poster"),
-  duration: z.string().optional().describe('as shown to people, e.g. "about 1 min"'),
+  duration: Localized.optional().describe('as shown to people, e.g. "about 1 min"'),
   icon: z.string().optional().describe("SVG file in the kit, shown in the quick-access squares"),
-  contents: z.array(z.string()).default([]).describe("what the page contains, listed in the hover preview")
+  contents: List.default([]).describe("what the page contains, listed in the hover preview")
 });
 export type SiteItem = z.infer<typeof SiteItem>;
 
 export const SiteRow = z.object({
   id: z.string(),
-  title: z.string(),
-  note: z.string().optional().describe("small text next to the title"),
+  title: Localized,
+  note: Localized.optional().describe("small text next to the title"),
   band: z.boolean().default(false).describe("set apart on a band of its own (for what is coming)"),
-  kicker: z.string().optional(),
-  lede: z.string().optional(),
+  kicker: Localized.optional(),
+  lede: Localized.optional(),
   askTile: z.boolean().default(false).describe("end the row with a 'request a tutorial' tile")
 });
 
 /** site.json in the kit: the catalog that build_site turns into a home page and one page per item. */
 export const Site = z.object({
-  title: z.string().describe("name of the docs site"),
-  lang: z.string().min(2).default("en").describe("language of the site's interface and of the players (when the guide has it)"),
-  brand: z.object({ name: z.string(), logo: z.string().optional().describe("SVG file in the kit") }).optional(),
-  footer: z.string().optional(),
+  title: Localized.describe("name of the docs site"),
+  lang: z.string().min(2).default("en").describe("language the content is written in (pages/<id>.html, texts given as plain strings)"),
+  languages: z.array(z.string().min(2)).default([]).describe("languages offered by the site, chosen once for every page and player; default: [lang]"),
+  fallback: z.string().min(2).optional().describe("language used when the browser asks for none of the offered ones; default: the first offered"),
+  brand: z.object({ name: Localized, logo: z.string().optional().describe("SVG file in the kit") }).optional(),
+  footer: Localized.optional(),
   favicon: z.string().optional().describe("icon file in the kit (svg, png)"),
   stylesheets: z.array(z.string().url()).default([]).describe("remote stylesheets linked from every page, e.g. web fonts used by the theme"),
   requestEndpoint: z.string().url().optional().describe("POST endpoint for tutorial requests; without it the request form is not shown"),
@@ -150,6 +172,12 @@ export const Site = z.object({
   quickAccess: z.boolean().default(true),
   rows: z.array(SiteRow).default([]),
   items: z.array(SiteItem).default([]),
-  labels: z.record(z.string()).default({}).describe("override the site's interface words (see the en labels in src/site/site.js)")
+  labels: z.record(z.record(z.string())).default({}).describe("override the site's interface words per language, e.g. { en: { quick: 'Shortcuts' } } (keys: the en labels in src/site/site.js)")
 });
 export type Site = z.infer<typeof Site>;
+
+/** The languages a site offers and the one it falls back to. */
+export function siteLanguages(site: Site): { languages: string[]; fallback: string } {
+  const languages = site.languages.length ? site.languages : [site.lang];
+  return { languages, fallback: site.fallback ?? languages[0]! };
+}

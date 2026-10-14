@@ -5,7 +5,40 @@
   "use strict";
   var S = window.CUEFLOW_SITE;
   if (!S) return;
-  var cat = S.catalog, root = S.root || "", body = document.body;
+  var root = S.root || "", body = document.body;
+
+  /* one language for the whole site: the one chosen here before, else the browser's, else the fallback */
+  var LANG_KEY = "cueflow-docs-lang";
+  var offered = S.catalog.languages && S.catalog.languages.length ? S.catalog.languages : [S.catalog.lang || "en"];
+  var fallback = S.catalog.fallback || offered[0];
+  function chooseLang() {
+    var stored = null;
+    try { stored = localStorage.getItem(LANG_KEY); } catch (e) { /* storage unavailable */ }
+    if (stored && offered.indexOf(stored) >= 0) return stored;
+    var wanted = (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || ""]);
+    for (var i = 0; i < wanted.length; i++) {
+      var w = String(wanted[i]).toLowerCase();
+      for (var j = 0; j < offered.length; j++) if (offered[j].toLowerCase() === w) return offered[j];
+      for (j = 0; j < offered.length; j++) if (offered[j].toLowerCase().split("-")[0] === w.split("-")[0]) return offered[j];
+    }
+    return fallback;
+  }
+  var lang = chooseLang();
+  document.documentElement.lang = lang;
+  function P(v) { return v == null || typeof v !== "object" || Array.isArray(v) ? v : v[lang] != null ? v[lang] : v[fallback] != null ? v[fallback] : v[Object.keys(v)[0]]; }
+
+  /* the catalog in the chosen language: from here on every text is a plain string */
+  var src = S.catalog;
+  var cat = {
+    title: P(src.title), lang: src.lang, brand: { name: P(src.brand && src.brand.name) || P(src.title), logo: src.brand && src.brand.logo },
+    footer: P(src.footer), requestEndpoint: src.requestEndpoint, featured: src.featured, quickAccess: src.quickAccess,
+    labels: (src.labels && src.labels[lang]) || {},
+    rows: src.rows.map(function (r) { return { id: r.id, title: P(r.title), note: P(r.note), kicker: P(r.kicker), lede: P(r.lede), band: r.band, askTile: r.askTile }; }),
+    items: src.items.map(function (it) {
+      return { id: it.id, row: it.row, status: it.status, title: P(it.title), kicker: P(it.kicker), desc: P(it.desc), duration: P(it.duration),
+        contents: P(it.contents) || [], chapters: (it.chapters || []).map(P), href: it.href, poster: P(it.poster), icon: it.icon };
+    })
+  };
 
   var LABELS = {
     en: {
@@ -31,7 +64,8 @@
       printHint: "Only the checked sections are included. With more than one section, the first page of the PDF is an index. In Chrome, enable \"Background graphics\" in the print dialog to keep the colors.",
       printOne: "Print this section only", include: "Include in the PDF", next: "Next", previous: "Previous",
       deepTitle: "The full guide", deepLede: "Everything the video shows, in detail: section by section, each one printable on its own.",
-      transcriptTitle: "Video transcript", transcriptSub: "the narration, step by step", contents: "Contents", docsOf: "{title} · documentation"
+      transcriptTitle: "Video transcript", transcriptSub: "the narration, step by step", contents: "Contents", docsOf: "{title} · documentation",
+      language: "Language", articleIn: "This guide is not translated yet: here it is in {lang}.", videoIn: "This video is not available in your language yet: it plays in {lang}."
     },
     it: {
       home: "Home della guida", tutorials: "Tutorial", index: "Indice della guida", request: "Richiedi un tutorial", pdf: "Genera PDF",
@@ -56,16 +90,17 @@
       printHint: "Si includono solo le sezioni spuntate. Con più di una sezione, la prima pagina del PDF è un indice. In Chrome, nella finestra di stampa abilita \"Grafica di sfondo\" per vedere i colori.",
       printOne: "Stampa solo questa sezione", include: "Includi nel PDF", next: "Successivo", previous: "Precedente",
       deepTitle: "La guida completa", deepLede: "Tutto quello che il video mostra, con i dettagli: sezione per sezione, ognuna stampabile anche da sola.",
-      transcriptTitle: "Trascrizione del video", transcriptSub: "i testi letti nel video, passo per passo", contents: "Indice", docsOf: "{title} · documentazione"
+      transcriptTitle: "Trascrizione del video", transcriptSub: "i testi letti nel video, passo per passo", contents: "Indice", docsOf: "{title} · documentazione",
+      language: "Lingua", articleIn: "Questa guida non è ancora tradotta: eccola in {lang}.", videoIn: "Questo video non è ancora disponibile nella tua lingua: si vede in {lang}."
     }
   };
-  var lang = cat.lang || "en";
   var WORDS = LABELS[lang] || LABELS[lang.slice(0, 2)] || LABELS.en;
   function L(k, vars) {
-    var s = (cat.labels && cat.labels[k]) || WORDS[k] || LABELS.en[k] || k;
+    var s = cat.labels[k] || WORDS[k] || LABELS.en[k] || k;
     return s.replace(/\{(\w+)\}/g, function (_, v) { return vars && vars[v] != null ? vars[v] : ""; });
   }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function langName(l) { try { return new Intl.DisplayNames([lang], { type: "language" }).of(l); } catch (e) { return l; } }
   function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
 
   var ICON = {
@@ -218,6 +253,29 @@
   var askBtn = cat.requestEndpoint ? railBtn("button", ICON.plus, L("request"), { "aria-haspopup": "dialog" }) : null;
   if (askBtn) bar.appendChild(askBtn);
   bar.appendChild(el("span", "cf-spacer"));
+  if (offered.length > 1) {
+    var native = function (l) {
+      try { var n = new Intl.DisplayNames([l], { type: "language" }).of(l); return n.charAt(0).toUpperCase() + n.slice(1); } catch (e) { return l.toUpperCase(); }
+    };
+    var langBtn = railBtn("button", '<b class="cf-lang-code">' + esc(lang.toUpperCase()) + "</b>", L("language"), { "aria-haspopup": "true", "aria-expanded": "false" });
+    var menu = el("div", "cf-lang-menu", offered.map(function (l) {
+      return '<button type="button" data-lang="' + esc(l) + '"' + (l === lang ? ' aria-current="true"' : "") + ' lang="' + esc(l) + '"><b>' + esc(l.toUpperCase()) + "</b>" + esc(native(l)) + "</button>";
+    }).join(""));
+    menu.hidden = true;
+    langBtn.appendChild(menu);
+    langBtn.addEventListener("click", function (e) {
+      var pickBtn = e.target.closest && e.target.closest("[data-lang]");
+      if (pickBtn) {
+        try { localStorage.setItem(LANG_KEY, pickBtn.getAttribute("data-lang")); } catch (err) { /* this visit only */ }
+        if (pickBtn.getAttribute("data-lang") !== lang) location.reload();
+        return;
+      }
+      menu.hidden = !menu.hidden;
+      langBtn.setAttribute("aria-expanded", String(!menu.hidden));
+    });
+    document.addEventListener("click", function (e) { if (!langBtn.contains(e.target)) { menu.hidden = true; langBtn.setAttribute("aria-expanded", "false"); } });
+    bar.appendChild(langBtn);
+  }
   var pdfBtn = null;
   if (current) { pdfBtn = railBtn("button", ICON.print, L("pdf")); bar.appendChild(pdfBtn); }
   body.insertBefore(bar, body.firstChild);
@@ -344,12 +402,26 @@
   }
 
   // ───────────── item page ─────────────
-  var sections = S.sections || [];
+  var articles = S.articles || {};
+  var art = articles[lang] || articles[fallback] || articles[cat.lang] || articles[Object.keys(articles)[0]];
+  var sections = art ? art.sections : [];
+  document.querySelector(".cf-video-zone h1").textContent = current.title;
+  document.title = current.title + " · " + cat.title;
+  var foot = document.querySelector(".cf-foot");
+  if (foot) foot.textContent = cat.footer || "";
+  var artBox = document.querySelector(".cf-article");
+  if (artBox && art) {
+    artBox.innerHTML = (art.lang !== lang ? '<p class="cf-lang-note">' + esc(L("articleIn", { lang: langName(art.lang) })) + "</p>" : "") + art.html;
+    artBox.lang = art.lang;
+  }
   var side = document.querySelector(".cf-side");
   var player = null;
   var transcriptSec = document.getElementById("transcript");
   if (S.guide && window.Cueflow) {
-    player = window.Cueflow.mount(document.getElementById("cf-player"), S.guide, { fluid: true, lang: lang });
+    // every player follows the site's language; a guide without it plays in the fallback, or its first language
+    var gl = S.guide.guide.languages, playLang = gl.indexOf(lang) >= 0 ? lang : gl.indexOf(fallback) >= 0 ? fallback : gl[0];
+    player = window.Cueflow.mount(document.getElementById("cf-player"), S.guide, { fluid: true, lang: playLang, langSelect: false });
+    if (playLang !== lang) document.getElementById("cf-player").insertAdjacentHTML("beforebegin", '<p class="cf-lang-note">' + esc(L("videoIn", { lang: langName(playLang) })) + "</p>");
     window.__cueflow = player;
     // the player's transcript becomes a printable section of the page
     var tr = player.element.querySelector(".cf-transcript");
@@ -396,7 +468,7 @@
   }
   var html = '<div class="cf-search"><input type="search" placeholder="' + esc(L("search")) + '" aria-label="' + esc(L("search")) + '"></div>';
   if (player) {
-    var stepLinks = player.steps.map(function (t, i) { return '<li><a href="#step-' + (i + 1) + '">' + (i + 1) + " · " + esc(t) + "</a></li>"; });
+    var stepLinks = player.steps().map(function (t, i) { return '<li><a href="#step-' + (i + 1) + '">' + (i + 1) + " · " + esc(t) + "</a></li>"; });
     stepLinks.push('<li><button type="button" class="cf-link-btn" data-download>' + L("downloadTranscript") + "</button></li>");
     html += '<details class="cf-acc" data-zone="video" open><summary>' + L("video") + '</summary><ul class="cf-tree">' +
       treeItem("transcript", L("transcriptTitle"), stepLinks) + "</ul></details>";

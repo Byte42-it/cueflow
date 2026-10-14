@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Guide } from "./schema.ts";
 
@@ -12,7 +12,17 @@ const safeName = (name: string): string => {
   return name;
 };
 
-export const sceneFile = (kit: Kit, scene: string) => path.join(kit.root, "scenes", `${safeName(scene)}.html`);
+export const sceneFile = (kit: Kit, scene: string, lang?: string) =>
+  lang ? path.join(kit.root, "scenes", safeName(lang), `${safeName(scene)}.html`) : path.join(kit.root, "scenes", `${safeName(scene)}.html`);
+
+/** The scene file for a language: scenes/<lang>/<scene>.html when the kit translates that screen, else the base one. */
+export async function sceneFileFor(kit: Kit, scene: string, lang?: string): Promise<string> {
+  if (lang) {
+    const own = sceneFile(kit, scene, lang);
+    if (await stat(own).then(() => true, () => false)) return own;
+  }
+  return sceneFile(kit, scene);
+}
 export const guideFile = (kit: Kit, id: string) => path.join(kit.root, "guides", `${safeName(id)}.json`);
 export const distFile = (kit: Kit, id: string) => path.join(kit.root, "dist", `${safeName(id)}.html`);
 export const audioDir = (kit: Kit) => path.join(kit.root, "audio");
@@ -25,9 +35,9 @@ export async function listGuides(kit: Kit): Promise<string[]> {
   return (await readdir(path.join(kit.root, "guides")).catch(() => [])).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5)).sort();
 }
 
-export async function readScene(kit: Kit, scene: string): Promise<string> {
+export async function readScene(kit: Kit, scene: string, lang?: string): Promise<string> {
   try {
-    return await readFile(sceneFile(kit, scene), "utf8");
+    return await readFile(await sceneFileFor(kit, scene, lang), "utf8");
   } catch {
     throw new Error(`scene "${scene}" not found (available: ${(await listScenes(kit)).join(", ") || "none"})`);
   }

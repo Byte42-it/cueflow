@@ -26,7 +26,7 @@
 
   /**
    * options (all optional): fluid (fill the container instead of stopping at the stage width, for docs pages),
-   * lang (start in this language when the guide has it).
+   * lang (start in this language when the guide has it), langSelect (false hides the language selector).
    */
   function mount(root, DATA, options) {
     options = options || {};
@@ -45,6 +45,7 @@
     var vh = guide.viewport.height;
     var lang = guide.languages.indexOf(options.lang) >= 0 ? options.lang : guide.languages[0];
     var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    function tx(v) { return v == null || typeof v === "string" ? v || "" : v[lang] != null ? v[lang] : v[Object.keys(v)[0]]; }
     function L(k) { var d = LABELS[lang] || LABELS[String(lang).slice(0, 2)] || LABELS.en; return d[k] || LABELS.en[k]; }
     function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
@@ -88,7 +89,8 @@
       o.textContent = l.toUpperCase();
       langSel.appendChild(o);
     });
-    if (guide.languages.length < 2) langSel.style.display = "none";
+    // a docs site chooses the language for every player at once: then the player has no selector of its own
+    if (guide.languages.length < 2 || options.langSelect === false) langSel.style.display = "none";
     langSel.value = lang;
 
     // ---- runtime state ----
@@ -116,8 +118,10 @@
     function loadScene(name) {
       return new Promise(function (resolve) {
         frame.onload = function () { frame.onload = null; resolve(); };
-        frame.srcdoc = DATA.scenes[name];
-        curScene = name;
+        // the translated version of the screen, when the kit has one for this language
+        var own = DATA.sceneLang && DATA.sceneLang[lang] && DATA.sceneLang[lang][name];
+        frame.srcdoc = own || DATA.scenes[name];
+        curScene = lang + "/" + name;
         cursor.style.opacity = "0";
         ring.style.opacity = "0";
         cursor.style.transitionDuration = "0ms";
@@ -191,7 +195,8 @@
         update: function (a, p) {
           var el = $el(a.to);
           if (!el) return;
-          var text = a.text.slice(0, Math.round(a.text.length * p));
+          var full = tx(a.text);
+          var text = full.slice(0, Math.round(full.length * p));
           if ("value" in el) {
             el.value = text;
             el.dispatchEvent(new Event("input", { bubbles: true }));
@@ -211,8 +216,8 @@
         start: function (a) {
           var el = $el(a.to);
           if (!el) return;
-          if (a.text != null) el.textContent = a.text;
-          if (a.html != null) el.innerHTML = a.html;
+          if (a.text != null) el.textContent = tx(a.text);
+          if (a.html != null) el.innerHTML = tx(a.html);
           (a.add || []).forEach(function (c) { el.classList.add(c); });
           (a.remove || []).forEach(function (c) { el.classList.remove(c); });
           Object.keys(a.attr || {}).forEach(function (k) { el.setAttribute(k, a.attr[k]); });
@@ -228,12 +233,32 @@
           el.style[a.prop] = f.n + (e.n - f.n) * p + (e.unit || f.unit);
         }
       },
+      scroll: {
+        /* just enough to show the element (below, or above), measured when the action starts */
+        start: function (a) {
+          var box = $el(a.in), el = $el(a.to);
+          a._box = box;
+          if (!box || !el) return;
+          var b = box.getBoundingClientRect(), r = el.getBoundingClientRect(), m = a.margin != null ? a.margin : 24;
+          var target = box.scrollTop;
+          if (r.bottom + m > b.bottom) target += r.bottom + m - b.bottom;
+          else if (r.top - m < b.top) target -= b.top - (r.top - m);
+          a._from = box.scrollTop;
+          a._to = Math.max(0, Math.min(target, box.scrollHeight - box.clientHeight));
+        },
+        update: function (a, p) {
+          if (!a._box || a._to == null) return;
+          var e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; // ease in-out
+          a._box.scrollTop = a._from + (a._to - a._from) * e;
+        }
+      },
       camera: {
         start: function (a, ctx) { applyCamera({ target: a.target, padding: a.padding }, ctx.instant ? 0 : a.duration); }
       }
     };
     function durationOf(a) {
       if (a.do === "click") return CLICK_MS;
+      if (a.do === "scroll") return reduce ? 0 : a.duration != null ? a.duration : 450; // step time already runs at the chosen speed
       if (a.do === "move" || a.do === "camera") return 0; // CSS transitions run on their own
       return a.duration || 0;
     }
@@ -313,7 +338,7 @@
     async function enterStep(i, instant) {
       var st = steps[i];
       var sceneName = sceneStepIndex[i];
-      if (sceneName !== curScene) { await loadScene(sceneName); cam = null; }
+      if (lang + "/" + sceneName !== curScene) { await loadScene(sceneName); cam = null; }
       var text = st.narration[lang] || "";
       var url = audioUrl(i);
       var info = url ? await audioDuration(url) : { audio: null, ms: null };
@@ -421,7 +446,7 @@
     }
 
     // ---- chapters ----
-    function stepTitle(st, i) { return st.title || L("step") + " " + (i + 1); }
+    function stepTitle(st, i) { return tx(st.title) || L("step") + " " + (i + 1); }
     function buildChapters() {
       chapters.innerHTML = "";
       if (!opts.chapters) { app.classList.add("cf-no-chapters"); return; }
@@ -556,7 +581,7 @@
     goTo(stepFromHash() || 0, 0);
     return {
       seek: seek, restart: restart, jump: jump, transcript: transcriptText, downloadTranscript: downloadTranscript,
-      element: app, steps: steps.map(function (st, i) { return stepTitle(st, i); }),
+      element: app, steps: function () { return steps.map(function (st, i) { return stepTitle(st, i); }); },
       setLang: function (l) { lang = l; langSel.value = l; }
     };
   }

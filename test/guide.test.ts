@@ -3,10 +3,10 @@ import { appendFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
-import { buildGuide } from "../src/build.ts";
+import { buildGuide, guideBundle } from "../src/build.ts";
 import { loadGuide, openKit, saveGuide, type Kit } from "../src/kit.ts";
 import { describeScene } from "../src/scene.ts";
-import { Guide } from "../src/schema.ts";
+import { Guide, pick } from "../src/schema.ts";
 import { spokenText } from "../src/tts.ts";
 import { validateGuide } from "../src/validate.ts";
 
@@ -30,8 +30,9 @@ describe("validation", () => {
     const guide = await loadGuide(kit, "upload");
     guide.steps[0]!.actions.push({ do: "click", to: "#does-not-exist", at: 0 });
     const report = await validateGuide(kit, guide);
-    assert.equal(report.errors.length, 1);
-    assert.match(report.errors[0]!, /#does-not-exist.*matches nothing/);
+    assert.equal(report.errors.length, 2, "once per version of the screen: the base one and the Italian one");
+    assert.match(report.errors[0]!, /#does-not-exist.*matches nothing in scene "upload"$/);
+    assert.match(report.errors[1]!, /#does-not-exist.*matches nothing in scene "upload" \(it\)/);
   });
 
   it("rejects duplicate step ids and unknown scenes", async () => {
@@ -64,6 +65,37 @@ describe("schema", () => {
     assert.deepEqual(g.pronunciation, {});
     assert.throws(() => Guide.parse({ id: "g", title: "G", scene: "s", player: { captions: "sideways" } }));
     assert.throws(() => Guide.parse({ id: "g", title: "G", scene: "s", player: { speeds: [] } }));
+  });
+});
+
+describe("languages", () => {
+  it("bundles the translated screen of each language and validates its selectors", async () => {
+    const b = await guideBundle(kit, "upload", null);
+    assert.deepEqual(Object.keys(b.data.sceneLang), ["it"]);
+    assert.match(b.data.sceneLang.it!.upload!, /Trascina qui i tuoi file/);
+    assert.match(b.data.scenes.upload!, /Drag your files here/);
+    const original = await readFile(path.join(dir, "scenes", "it", "upload.html"), "utf8");
+    try {
+      await writeFile(path.join(dir, "scenes", "it", "upload.html"), original.replace('id="choose-file"', 'id="scegli-file"'));
+      const report = await validateGuide(kit, await loadGuide(kit, "upload"));
+      assert.ok(report.errors.some((e) => /#choose-file.*matches nothing in scene "upload" \(it\)/.test(e)), report.errors.join("; "));
+    } finally {
+      await writeFile(path.join(dir, "scenes", "it", "upload.html"), original);
+    }
+  });
+
+  it("warns about an action text missing a language", async () => {
+    const guide = await loadGuide(kit, "upload");
+    guide.steps[2]!.actions.push({ do: "type", to: "#doc-title", text: { en: "Only English" }, at: 0, duration: 100 });
+    const report = await validateGuide(kit, guide);
+    assert.ok(report.warnings.some((w) => /no text in "it"/.test(w)));
+  });
+
+  it("picks a language, then the fallback, then the first one given", () => {
+    assert.equal(pick({ en: "a", it: "b" }, "it"), "b");
+    assert.equal(pick({ en: "a", it: "b" }, "fr", "en"), "a");
+    assert.equal(pick({ it: "b" }, "fr", "en"), "b");
+    assert.equal(pick("same", "fr"), "same");
   });
 });
 

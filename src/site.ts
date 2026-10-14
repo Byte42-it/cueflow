@@ -6,7 +6,7 @@ import { buildGuide, embed, escapeHtml, guideBundle, playerAssets, writeAtomic }
 import { listGuides, type Kit } from "./kit.ts";
 import { renderFrame } from "./preview.ts";
 import { dataUri } from "./scene.ts";
-import { Site, type SiteItem } from "./schema.ts";
+import { pick, Site, siteLanguages, type Localized, type SiteItem } from "./schema.ts";
 import type { TtsProvider } from "./tts.ts";
 
 /**
@@ -19,7 +19,6 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 export const siteFile = (kit: Kit) => path.join(kit.root, "site.json");
 export const siteDir = (kit: Kit) => path.join(kit.root, "dist", "site");
-const pagesDir = (kit: Kit) => path.join(kit.root, "pages");
 
 const exists = (file: string) => stat(file).then(() => true, () => false);
 /** A path in the kit that must stay inside it. */
@@ -41,17 +40,22 @@ export async function loadSite(kit: Kit): Promise<Site> {
   return parsed.data;
 }
 
-const articleFile = async (kit: Kit, it: SiteItem) => {
-  if (it.article) return inKit(kit, path.join("pages", it.article));
-  const def = path.join(pagesDir(kit), `${it.id}.html`);
-  return (await exists(def)) ? def : null;
+/** The written guide of an item: pages/<lang>/<name> for a translation, pages/<name> in the site's own language. */
+const articleFile = async (kit: Kit, it: SiteItem, lang?: string) => {
+  const name = it.article ?? `${it.id}.html`;
+  const file = inKit(kit, path.join("pages", ...(lang ? [lang] : []), name));
+  return (await exists(file)) ? file : null;
 };
+/** Every value of a text given once or per language. */
+const values = (v: Localized | undefined): string[] => (v == null ? [] : typeof v === "string" ? [v] : Object.values(v));
 
 /** Mistakes that would produce a broken page are errors; gaps a reader would notice are warnings. */
 export async function validateSite(kit: Kit, site: Site): Promise<{ errors: string[]; warnings: string[] }> {
   const errors: string[] = [];
   const warnings: string[] = [];
   const guides = await listGuides(kit);
+  const { languages, fallback } = siteLanguages(site);
+  if (!languages.includes(fallback)) errors.push(`fallback "${fallback}" is not one of the languages (${languages.join(", ")})`);
   const ids = new Set<string>();
   const rows = new Set(site.rows.map((r) => r.id));
   for (const it of site.items) {
@@ -60,10 +64,14 @@ export async function validateSite(kit: Kit, site: Site): Promise<{ errors: stri
     if (!rows.has(it.row)) errors.push(`item "${it.id}": row "${it.row}" does not exist (rows: ${[...rows].join(", ") || "none"})`);
     if (it.status === "video" && !it.guide) errors.push(`item "${it.id}" is a video but names no guide`);
     if (it.guide && !guides.includes(it.guide)) errors.push(`item "${it.id}": guide "${it.guide}" does not exist (guides: ${guides.join(", ") || "none"})`);
-    for (const [what, rel] of [["poster", it.poster], ["icon", it.icon]] as const) {
+    for (const [what, rel] of [...values(it.poster).map((p) => ["poster", p] as const), ["icon", it.icon] as const]) {
       if (rel && !(await exists(inKit(kit, rel)))) errors.push(`item "${it.id}": ${what} "${rel}" not found in the kit`);
     }
-    if (it.article && !(await exists(inKit(kit, path.join("pages", it.article))))) errors.push(`item "${it.id}": article pages/${it.article} not found`);
+    for (const lang of languages) {
+      const missing = (["title", "desc"] as const).filter((k) => typeof it[k] === "object" && (it[k] as Record<string, string>)[lang] == null);
+      if (missing.length) warnings.push(`item "${it.id}": no ${missing.join(", ")} in "${lang}"`);
+    }
+    if (it.article && !(await articleFile(kit, it))) errors.push(`item "${it.id}": article pages/${it.article} not found`);
     if (it.status === "guide" && !(await articleFile(kit, it))) warnings.push(`item "${it.id}" is a written guide but has no pages/${it.id}.html`);
   }
   if (site.featured) {
@@ -131,31 +139,38 @@ export async function buildSite(kit: Kit, opts: { provider: TtsProvider | null; 
   await writeAtomic(path.join(out, "assets", "cueflow.js"), `${playerJs}\n${siteJs}\n`);
 
   // posters: the kit's own image, a frame of the guide (when asked), or one rendered by an earlier build
+  // posters, per language: the kit's own image, a frame of the guide (when asked), or one rendered by an earlier build
+  const { languages, fallback } = siteLanguages(site);
   const posters: string[] = [];
-  const posterOf: Record<string, string> = {};
+  const posterOf: Record<string, Record<string, string>> = {};
   for (const it of site.items) {
-    const target = (ext: string) => path.join(out, "posters", `${it.id}${ext}`);
-    if (it.poster) {
-      const ext = path.extname(it.poster).toLowerCase();
-      await writeAtomic(target(ext), await readFile(inKit(kit, it.poster)));
-      posterOf[it.id] = `posters/${it.id}${ext}`;
-    } else if (it.guide && opts.posters) {
-      try {
-        const built = await buildGuide(kit, it.guide, null);
-        const at = it.posterAt ?? { step: 0, at: 1500 };
-        await writeAtomic(target(".png"), await renderFrame(built.file, { step: at.step, atMs: at.at, lang: site.lang, only: "stage" }));
-        posterOf[it.id] = `posters/${it.id}.png`;
-        posters.push(it.id);
-      } catch (e) {
-        warnings.push(`poster of "${it.id}" not rendered: ${e instanceof Error ? e.message : e}`);
+    const mine: Record<string, string> = {};
+    for (const lang of languages) {
+      const target = (ext: string) => path.join(out, "posters", `${it.id}.${lang}${ext}`);
+      const own = pick(it.poster, lang, fallback);
+      if (own) {
+        const ext = path.extname(own).toLowerCase();
+        await writeAtomic(target(ext), await readFile(inKit(kit, own)));
+        mine[lang] = `posters/${it.id}.${lang}${ext}`;
+      } else if (it.guide && opts.posters) {
+        try {
+          const built = await buildGuide(kit, it.guide, null);
+          const at = it.posterAt ?? { step: 0, at: 1500 };
+          await writeAtomic(target(".png"), await renderFrame(built.file, { step: at.step, atMs: at.at, lang, only: "stage" }));
+          mine[lang] = `posters/${it.id}.${lang}.png`;
+          posters.push(`${it.id} (${lang})`);
+        } catch (e) {
+          warnings.push(`poster of "${it.id}" (${lang}) not rendered: ${e instanceof Error ? e.message : e}`);
+        }
+      } else if (await exists(target(".png"))) {
+        mine[lang] = `posters/${it.id}.${lang}.png`;
       }
-    } else if (await exists(target(".png"))) {
-      posterOf[it.id] = `posters/${it.id}.png`;
     }
+    if (Object.keys(mine).length) posterOf[it.id] = mine;
   }
 
   // the catalog as the pages see it
-  const chapters: Record<string, string[]> = {};
+  const chapters: Record<string, Localized[]> = {};
   const bundles: Record<string, Awaited<ReturnType<typeof guideBundle>>> = {};
   for (const it of site.items) {
     if (!it.guide || it.status === "soon") continue;
@@ -166,6 +181,8 @@ export async function buildSite(kit: Kit, opts: { provider: TtsProvider | null; 
   const catalog = {
     title: site.title,
     lang: site.lang,
+    languages,
+    fallback,
     brand: site.brand ? { name: site.brand.name, logo: await svgInline(kit, site.brand.logo) } : { name: site.title },
     footer: site.footer,
     requestEndpoint: site.requestEndpoint,
@@ -196,7 +213,7 @@ export async function buildSite(kit: Kit, opts: { provider: TtsProvider | null; 
     (favicon ? `<link rel="icon" href="${favicon}">\n` : "") +
     site.stylesheets.map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}">\n`).join("");
   const page = (title: string, root: string, body: string, data: unknown) => `<!doctype html>
-<html lang="${escapeHtml(site.lang)}">
+<html lang="${escapeHtml(fallback)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -212,29 +229,38 @@ ${body}
 `;
 
   const pages: string[] = [];
-  await writeAtomic(path.join(out, "index.html"), page(site.title, "", '<main id="cf-home"></main>', { page: "home", root: "", catalog }));
+  const name = (v: Localized) => pick(v, fallback, fallback) ?? "";
+  await writeAtomic(path.join(out, "index.html"), page(name(site.title), "", '<main id="cf-home"></main>', { page: "home", root: "", catalog }));
   pages.push("index.html");
 
   for (const it of site.items) {
     if (it.status === "soon") continue;
-    const file = await articleFile(kit, it);
-    const article = file ? await readArticle(file) : { html: "", sections: [] };
+    // the written guide in every language that has it; the page shows the original where a translation is missing
+    const articles: Record<string, { lang: string; html: string; sections: Section[] }> = {};
+    const base = await articleFile(kit, it);
+    if (base) articles[site.lang] = { lang: site.lang, ...(await readArticle(base)) };
+    for (const lang of languages) {
+      if (lang === site.lang) continue;
+      const own = await articleFile(kit, it, lang);
+      if (own) articles[lang] = { lang, ...(await readArticle(own)) };
+      else if (base) warnings.push(`item "${it.id}": no pages/${lang}/${it.article ?? `${it.id}.html`}, the ${site.lang} article is shown`);
+    }
     const b = it.guide ? bundles[it.guide] : undefined;
     const body =
       `<div id="cf-print-cover"></div>\n<div class="cf-layout"><nav class="cf-side" aria-label="index"></nav><main class="cf-main">\n` +
-      `<div class="cf-video-zone"><h1>${escapeHtml(it.title)}</h1>${b ? '<div id="cf-player"></div><section id="transcript" class="cf-section cf-transcript-section"></section>' : ""}</div>\n` +
-      (article.html ? `<div class="cf-deep-head"></div>\n<div class="cf-article">${article.html}</div>\n` : "") +
-      (site.footer ? `<p class="cf-foot">${escapeHtml(site.footer)}</p>` : "") +
+      `<div class="cf-video-zone"><h1></h1>${b ? '<div id="cf-player"></div><section id="transcript" class="cf-section cf-transcript-section"></section>' : ""}</div>\n` +
+      (Object.keys(articles).length ? `<div class="cf-deep-head"></div>\n<div class="cf-article"></div>\n` : "") +
+      (site.footer ? `<p class="cf-foot"></p>` : "") +
       `</main></div>`;
     const data = {
       page: "item",
       root: "../",
       catalog,
       item: it.id,
-      sections: article.sections,
+      articles,
       guide: b ? { ...b.data, labels: theme.labels } : undefined
     };
-    await writeAtomic(path.join(out, it.id, "index.html"), page(`${it.title} · ${site.title}`, "../", body, data));
+    await writeAtomic(path.join(out, it.id, "index.html"), page(`${name(it.title)} · ${name(site.title)}`, "../", body, data));
     pages.push(`${it.id}/index.html`);
   }
   return { dir: out, pages, posters, warnings };

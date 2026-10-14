@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { distFile, loadGuide, type Kit } from "./kit.ts";
+import { distFile, loadGuide, sceneFile, sceneFileFor, type Kit } from "./kit.ts";
 import { inlineScene } from "./scene.ts";
 import type { Guide } from "./schema.ts";
 import { loadTheme } from "./theme.ts";
@@ -21,7 +21,7 @@ export type BuildResult = { file: string; scenes: string[]; audioFiles: number; 
 /** What the player needs to run a guide: the guide, its scenes inlined, its audio as data URIs. */
 export type GuideBundle = {
   guide: Guide;
-  data: { guide: Guide; scenes: Record<string, string>; audio: Record<string, Record<string, string>> };
+  data: { guide: Guide; scenes: Record<string, string>; sceneLang: Record<string, Record<string, string>>; audio: Record<string, Record<string, string>> };
   scenes: string[];
   audioFiles: number;
   warnings: string[];
@@ -37,6 +37,14 @@ export async function guideBundle(kit: Kit, id: string, provider: TtsProvider | 
   for (const s of guide.steps) if (s.scene && !names.includes(s.scene)) names.push(s.scene);
   const scenes: Record<string, string> = {};
   for (const n of names) scenes[n] = await inlineScene(kit, n);
+  // translated screens: only the languages that have their own version of a scene
+  const sceneLang: Record<string, Record<string, string>> = {};
+  for (const lang of guide.languages) {
+    for (const n of names) {
+      if ((await sceneFileFor(kit, n, lang)) === sceneFile(kit, n)) continue;
+      (sceneLang[lang] ??= {})[n] = await inlineScene(kit, n, lang);
+    }
+  }
 
   const audio: Record<string, Record<string, string>> = {};
   let audioFiles = 0;
@@ -52,7 +60,7 @@ export async function guideBundle(kit: Kit, id: string, provider: TtsProvider | 
       }
     }
   }
-  return { guide, data: { guide, scenes, audio }, scenes: names, audioFiles, warnings: report.warnings };
+  return { guide, data: { guide, scenes, sceneLang, audio }, scenes: names, audioFiles, warnings: report.warnings };
 }
 
 /** The player's script and stylesheet, with the kit's theme after the defaults. */

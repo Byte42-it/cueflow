@@ -79,7 +79,7 @@ duration handling in the player (`audioDuration`, `enterStep`) have not run agai
 5. `capture` / `list_elements` improvements: scenes with several states (empty / file chosen / uploading / done) as
    separate files vs. driven by `show/hide/set` actions — decide with real examples.
 6. Export mp4 (record the player with Playwright + ffmpeg) — only if people ask.
-7. UI translation of the scene itself (today the UI language of the scene is fixed; narration can be translated).
+7. ~~UI translation of the scene itself~~ done: `scenes/<lang>/<scene>.html`, texts per language, one language per docs site.
 8. Publish: TypeScript build step (`tsc` emit or tsdown), register `cueflow` on npm, CI, `.github` templates, an
    English-first README with a GIF of the demo.
 

@@ -37,22 +37,35 @@ describe("site", () => {
     const home = pageData(await readFile(path.join(r.dir, "index.html"), "utf8"));
     assert.equal(home.page, "home");
     const upload = home.catalog.items.find((i: { id: string }) => i.id === "upload");
-    assert.deepEqual(upload.chapters, ["Where documents live", "Choose the file", "Give it a title", "Upload"], "chapters come from the guide's step titles");
+    assert.deepEqual(upload.chapters.map((c: { en: string }) => c.en), ["Where documents live", "Choose the file", "Give it a title", "Upload"], "chapters come from the guide's step titles");
+    assert.equal(upload.chapters[0].it, "Dove stanno i documenti");
     assert.equal(home.catalog.items.find((i: { id: string }) => i.id === "search").href, undefined, "an announced item has no page");
   });
 
-  it("puts the guide, the article and its index on the item page", async () => {
+  it("puts the guide and the article of every language on the item page", async () => {
     const html = await readFile(path.join(kit.root, "dist", "site", "upload", "index.html"), "utf8");
     const data = pageData(html);
     assert.equal(data.guide.guide.id, "upload");
+    assert.deepEqual(Object.keys(data.articles).sort(), ["en", "it"]);
     assert.deepEqual(
-      data.sections.map((s: { id: string; subs: { id: string }[] }) => [s.id, s.subs.map((x) => x.id)]),
+      data.articles.en.sections.map((s: { id: string; subs: { id: string }[] }) => [s.id, s.subs.map((x) => x.id)]),
       [["files", ["files-types", "files-size"]], ["after", ["after-rename"]]]
     );
-    const tag = /<section[^>]*id="files"[^>]*>/.exec(html)?.[0] ?? "";
+    assert.equal(data.articles.it.sections[0].title, "Quali file");
+    const tag = /<section[^>]*id="files"[^>]*>/.exec(data.articles.en.html)?.[0] ?? "";
     assert.match(tag, /class="cf-section"/);
-    assert.match(tag, /data-title="Which files"/);
     assert.ok(!/<\/script><b>/.test(html));
+  });
+
+  it("offers the languages with their fallback, and says which article is missing", async () => {
+    const r = await buildSite(kit, { provider: null });
+    const home = pageData(await readFile(path.join(r.dir, "index.html"), "utf8"));
+    assert.deepEqual(home.catalog.languages, ["en", "it"]);
+    assert.equal(home.catalog.fallback, "en");
+    assert.deepEqual(home.catalog.items[0].title, { en: "How to upload a document", it: "Come caricare un documento" });
+    assert.ok(r.warnings.some((w) => /item "sharing": no pages\/it\/sharing\.html/.test(w)));
+    const sharing = pageData(await readFile(path.join(r.dir, "sharing", "index.html"), "utf8"));
+    assert.deepEqual(Object.keys(sharing.articles), ["en"], "an untranslated article is stored once, in the original");
   });
 
   it("ships one stylesheet with site, player and kit theme in that order", async () => {
