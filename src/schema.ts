@@ -36,6 +36,15 @@ export const Action = z.discriminatedUnion("do", [
       attr: z.record(z.string()).optional().describe("attributes to set")
     })
     .describe("change an element: text, html, classes, attributes"),
+  z
+    .object({ do: z.literal("select"), to: selector, option: Localized.describe("the option's visible text, or its value"), at })
+    .describe("choose an option of a <select> by its text (or value), as a person would; fires input and change"),
+  z
+    .object({ do: z.literal("value"), to: selector, value: Localized.describe('the new value; "" empties the field'), at })
+    .describe("set (or empty) the value of a field at once, without typing; fires input and change"),
+  z
+    .object({ do: z.literal("check"), to: selector, checked: z.boolean().default(true), at })
+    .describe("tick (or untick, checked: false) a checkbox or radio; fires input and change"),
   z.object({ do: z.literal("show"), to: selector, at }).describe("make a hidden element visible"),
   z.object({ do: z.literal("hide"), to: selector, at }).describe("hide an element"),
   z
@@ -94,6 +103,10 @@ export const PlayerOptions = z
     chapters: z.boolean().default(true).describe("progress bar split into one clickable segment per step, labelled with the step title"),
     speeds: z.array(z.number().positive()).min(1).default([1, 1.5]).describe("playback speeds offered by the speed button; the first is the default"),
     transcript: z.boolean().default(true).describe("collapsible transcript under the player, with a download as .txt and a link to each step"),
+    brand: z
+      .enum(["stage", "controls", "off"])
+      .default("stage")
+      .describe("the small Cueflow mark linking to the project: in a corner of the picture, at the end of the control bar (never over the scene), or not shown"),
     fallbackVoice: z
       .enum(["none", "browser"])
       .default("none")
@@ -142,7 +155,7 @@ export const SiteItem = z.object({
   poster: Localized.optional().describe("image path in the kit (one per language if the picture shows text); without it a frame of the guide (cueflow site --posters) or a drawn cover"),
   posterAt: z.object({ step: z.number().int().min(0).default(0), at: z.number().min(0).default(1500) }).optional().describe("frame used as poster"),
   duration: Localized.optional().describe('as shown to people, e.g. "about 1 min"'),
-  icon: z.string().optional().describe("SVG file in the kit, shown in the quick-access squares"),
+  icon: z.string().optional().describe("image file in the kit (SVG, or png, jpg, gif, webp), shown in the quick-access squares"),
   contents: List.default([]).describe("what the page contains, listed in the hover preview")
 });
 export type SiteItem = z.infer<typeof SiteItem>;
@@ -163,9 +176,13 @@ export const Site = z.object({
   lang: z.string().min(2).default("en").describe("language the content is written in (pages/<id>.html, texts given as plain strings)"),
   languages: z.array(z.string().min(2)).default([]).describe("languages offered by the site, chosen once for every page and player; default: [lang]"),
   fallback: z.string().min(2).optional().describe("language used when the browser asks for none of the offered ones; default: the first offered"),
-  brand: z.object({ name: Localized, logo: z.string().optional().describe("SVG file in the kit") }).optional(),
+  brand: z.object({ name: Localized, logo: z.string().optional().describe("image file in the kit: SVG (takes the text color) or png, jpg, gif, webp") }).optional(),
   footer: Localized.optional(),
   favicon: z.string().optional().describe("icon file in the kit (svg, png)"),
+  colorScheme: z
+    .enum(["light", "dark", "auto"])
+    .default("light")
+    .describe("the site's built-in colors: light, dark, or auto to follow the visitor's system; a theme's own :root colors always win"),
   stylesheets: z.array(z.string().url()).default([]).describe("remote stylesheets linked from every page, e.g. web fonts used by the theme"),
   requestEndpoint: z.string().url().optional().describe("POST endpoint for tutorial requests; without it the request form is not shown"),
   featured: z.string().optional().describe("id of the item shown big at the top of the home"),

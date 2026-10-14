@@ -2,7 +2,7 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseHTML } from "linkedom";
-import { buildGuide, embed, escapeHtml, guideBundle, playerAssets, writeAtomic } from "./build.ts";
+import { buildGuide, embed, escapeHtml, estimateDuration, guideBundle, playerAssets, writeAtomic } from "./build.ts";
 import { listGuides, type Kit } from "./kit.ts";
 import { renderFrame } from "./preview.ts";
 import { dataUri } from "./scene.ts";
@@ -80,6 +80,9 @@ export async function validateSite(kit: Kit, site: Site): Promise<{ errors: stri
     else if (f.status === "soon") errors.push(`featured "${site.featured}" has no page yet (status soon)`);
   }
   if (site.brand?.logo && !(await exists(inKit(kit, site.brand.logo)))) errors.push(`brand logo "${site.brand.logo}" not found in the kit`);
+  for (const [what, rel] of [["brand logo", site.brand?.logo], ...site.items.map((it) => [`item "${it.id}": icon`, it.icon])] as const) {
+    if (rel && !/\.(svg|png|jpe?g|gif|webp)$/i.test(rel)) errors.push(`${what} "${rel}" must be an svg, png, jpg, gif or webp file`);
+  }
   if (site.favicon && !(await exists(inKit(kit, site.favicon)))) errors.push(`favicon "${site.favicon}" not found in the kit`);
   return { errors, warnings };
 }
@@ -117,10 +120,30 @@ async function readArticle(file: string): Promise<{ html: string; sections: Sect
   return { html: box.innerHTML, sections: out };
 }
 
-async function svgInline(kit: Kit, rel?: string): Promise<string | undefined> {
+/** A logo or icon as markup: an SVG file inlined (it takes the text color), any other picture as an <img>. */
+async function imageInline(kit: Kit, rel?: string): Promise<string | undefined> {
   if (!rel) return undefined;
-  const svg = await readFile(inKit(kit, rel), "utf8");
-  return svg.replace(/<\?xml[^>]*>/, "").replace(/<script[\s\S]*?<\/script>/gi, "").trim();
+  const file = inKit(kit, rel);
+  if (path.extname(file).toLowerCase() === ".svg") {
+    const svg = await readFile(file, "utf8");
+    return svg.replace(/<\?xml[^>]*>/, "").replace(/<script[\s\S]*?<\/script>/gi, "").trim();
+  }
+  const uri = await dataUri(file);
+  if (!uri) throw new Error(`"${rel}" is not an image Cueflow can embed (svg, png, jpg, gif, webp)`);
+  return `<img src="${uri}" alt="">`;
+}
+
+const ABOUT: Record<string, string> = { en: "about", it: "circa", fr: "environ", de: "etwa", es: "unos", pt: "cerca de" };
+
+/** "about 3 min" in each language of the site, from the guide's estimated length when site.json gives none. */
+function durationLabel(guide: Parameters<typeof estimateDuration>[0], languages: string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const lang of languages) {
+    const sec = estimateDuration(guide, guide.languages.includes(lang) ? lang : guide.languages[0]) / 1000;
+    const about = ABOUT[lang.slice(0, 2)] ?? ABOUT.en;
+    out[lang] = sec < 90 ? `${about} ${Math.max(10, Math.round(sec / 10) * 10)} s` : `${about} ${Math.round(sec / 60)} min`;
+  }
+  return out;
 }
 
 export type SiteResult = { dir: string; pages: string[]; posters: string[]; warnings: string[] };
@@ -156,7 +179,7 @@ export async function buildSite(kit: Kit, opts: { provider: TtsProvider | null; 
         try {
           const built = await buildGuide(kit, it.guide, null);
           const at = it.posterAt ?? { step: 0, at: 1500 };
-          await writeAtomic(target(".png"), await renderFrame(built.file, { step: at.step, atMs: at.at, lang, only: "stage" }));
+          await writeAtomic(target(".png"), await renderFrame(built.file, { step: at.step, at: at.at, lang, only: "stage" }));
           mine[lang] = `posters/${it.id}.${lang}.png`;
           posters.push(`${it.id} (${lang})`);
         } catch (e) {
@@ -171,19 +194,21 @@ export async function buildSite(kit: Kit, opts: { provider: TtsProvider | null; 
 
   // the catalog as the pages see it
   const chapters: Record<string, Localized[]> = {};
+  const durations: Record<string, Localized> = {};
   const bundles: Record<string, Awaited<ReturnType<typeof guideBundle>>> = {};
   for (const it of site.items) {
     if (!it.guide || it.status === "soon") continue;
     const b = (bundles[it.guide] ??= await guideBundle(kit, it.guide, opts.provider));
     warnings.push(...b.warnings.map((w) => `${it.guide}: ${w}`));
     chapters[it.id] = b.guide.steps.map((s, i) => s.title ?? `${i + 1}`);
+    if (!it.duration) durations[it.id] = durationLabel(b.guide, languages);
   }
   const catalog = {
     title: site.title,
     lang: site.lang,
     languages,
     fallback,
-    brand: site.brand ? { name: site.brand.name, logo: await svgInline(kit, site.brand.logo) } : { name: site.title },
+    brand: site.brand ? { name: site.brand.name, logo: await imageInline(kit, site.brand.logo) } : { name: site.title },
     footer: site.footer,
     requestEndpoint: site.requestEndpoint,
     featured: site.featured,
@@ -198,12 +223,12 @@ export async function buildSite(kit: Kit, opts: { provider: TtsProvider | null; 
         title: it.title,
         kicker: it.kicker,
         desc: it.desc,
-        duration: it.duration,
+        duration: it.duration ?? durations[it.id],
         contents: it.contents,
         chapters: chapters[it.id] ?? [],
         href: it.status === "soon" ? undefined : `${it.id}/index.html`,
         poster: posterOf[it.id],
-        icon: await svgInline(kit, it.icon)
+        icon: await imageInline(kit, it.icon)
       }))
     )
   };
@@ -213,7 +238,7 @@ export async function buildSite(kit: Kit, opts: { provider: TtsProvider | null; 
     (favicon ? `<link rel="icon" href="${favicon}">\n` : "") +
     site.stylesheets.map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}">\n`).join("");
   const page = (title: string, root: string, body: string, data: unknown) => `<!doctype html>
-<html lang="${escapeHtml(fallback)}">
+<html lang="${escapeHtml(fallback)}" data-cf-scheme="${site.colorScheme}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
