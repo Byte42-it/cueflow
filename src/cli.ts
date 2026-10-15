@@ -30,6 +30,10 @@ const USAGE = `cueflow — narrated UI walkthroughs from static HTML scenes
   Browser (capture, preview, --layout, --posters): Playwright's Chromium, or CUEFLOW_CHROMIUM=<executable>
 `;
 
+// Optional local secrets (OPENAI_API_KEY…): .env in the current folder, then the kit's; real env vars win over both.
+const loadEnv = (file: string) => { try { process.loadEnvFile(file); } catch {} };
+loadEnv(".env");
+
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
@@ -47,6 +51,7 @@ const { values, positionals } = parseArgs({
   }
 });
 const kit = openKit(values.kit ?? process.env.CUEFLOW_KIT ?? ".");
+loadEnv(path.join(kit.root, ".env"));
 const [command, id] = positionals;
 
 /** "2000" → 2000 ms; "80%" stays a percentage of the step's narration */
