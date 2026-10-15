@@ -10,7 +10,7 @@ import type { Kit } from "./kit.ts";
  * decides what else should follow (a narration that names the button, a description, a pronunciation). Once read it
  * is marked seen; the file is an inbox, not a history to keep.
  */
-export type ChangeKind = "element-text" | "element-attribute" | "narration" | "title" | "file-replaced" | "file-edited" | "catalog" | "tutorial-deleted";
+export type ChangeKind = "element-text" | "element-attribute" | "narration" | "title" | "file-replaced" | "file-edited" | "catalog" | "article" | "tutorial-deleted";
 export type Change = {
   id: string;
   at: string;
@@ -91,6 +91,7 @@ export function describeChange(c: Change): string {
     case "file-replaced": return `The file ${c.target}${w} was replaced (${c.before ?? "?"} → ${c.after ?? "?"}).`;
     case "file-edited": return `The file ${c.target}${w} was edited: ${c.after ?? ""}`;
     case "tutorial-deleted": return `The tutorial "${c.target}" (“${c.before ?? ""}”) was deleted by the user; it is ${c.after ?? "in the trash"}. Do not recreate it; check that no other tutorial or description refers to it.`;
+    case "article": return `The written guide "${c.target}"${w} was edited by hand in Studio. Its sections were: ${c.before ?? ""}; now: ${c.after ?? ""}. Read it again before changing it, and keep what the person wrote.`;
     case "catalog": return `The dashboard text ${c.target}${w} was changed from “${c.before ?? ""}” to “${c.after ?? ""}”.`;
   }
 }

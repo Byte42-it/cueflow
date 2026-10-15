@@ -1,12 +1,14 @@
 import { execFile } from "node:child_process";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { chmod, readdir, readFile, stat } from "node:fs/promises";
+import { chmod, mkdir, readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { ArticleError, catalogOverview, createArticle, deleteItem, readArticle, startTranslation, updateItem, writeArticle } from "./articles.ts";
 import { Brief, loadBrief, updateBrief } from "./brief.ts";
 import { buildGuide, estimateStepDuration, renderGuideHtml, writeAtomic } from "./build.ts";
 import { checkLayout } from "./layout.ts";
-import { buildSite, loadSite, setSiteText, syncSite } from "./site.ts";
+import { buildSite, loadSite, setSiteText, siteFile, syncSite } from "./site.ts";
+import { loadTheme } from "./theme.ts";
 import { describeChange, discardChanges, pendingChanges, recordChange } from "./changes.ts";
 import { agentPrompt } from "./prompt.ts";
 import { deleteTutorial } from "./trash.ts";
@@ -86,6 +88,12 @@ async function signature(kit: Kit): Promise<string> {
   for (const dir of ["guides", "scenes", "scenes/it", "scenes/en"]) {
     for (const f of await readdir(path.join(kit.root, dir)).catch(() => [] as string[])) parts.push(`${dir}/${f}:${await mtime(path.join(kit.root, dir, f))}`);
   }
+  // the written guides too: pages/ and its language folders
+  for (const e of await readdir(path.join(kit.root, "pages"), { withFileTypes: true }).catch(() => [])) {
+    const rel = path.join("pages", e.name);
+    if (e.isDirectory()) for (const f of await readdir(path.join(kit.root, rel)).catch(() => [] as string[])) parts.push(`${rel}/${f}:${await mtime(path.join(kit.root, rel, f))}`);
+    else parts.push(`${rel}:${await mtime(path.join(kit.root, rel))}`);
+  }
   for (const f of ["cueflow.json", "brief.json", "changes.json", "site.json"]) parts.push(`${f}:${await mtime(path.join(kit.root, f))}`);
   return parts.join("|");
 }
@@ -100,7 +108,30 @@ async function state(kit: Kit) {
     for (const lang of g.languages) timing[lang] = g.steps.map((s) => estimateStepDuration(s, lang));
     guides.push({ id, title: g.title, languages: g.languages, scene: g.scene, viewport: g.viewport, timing, steps: g.steps.map((s) => ({ id: s.id, title: s.title ?? null, narration: s.narration, actions: s.actions.map((a) => ({ do: a.do, at: "at" in a ? a.at : 0, duration: "duration" in a ? a.duration : undefined })) })) });
   }
-  return { kitRoot: kit.root, outDir: kit.out, brief: await loadBrief(kit), pending: (await pendingChanges(kit)).length, guides, scenes: await listScenes(kit), hasKey: Boolean(process.env.OPENAI_API_KEY) };
+  return { kitRoot: kit.root, outDir: kit.out, brief: await loadBrief(kit), pending: (await pendingChanges(kit)).length, guides, scenes: await listScenes(kit), hasKey: Boolean(process.env.OPENAI_API_KEY), catalog: await catalogOverview(kit).catch((e) => ({ exists: false as const, error: e instanceof Error ? e.message : String(e) })) };
+}
+
+/**
+ * The page a written guide is edited in: the docs site's own stylesheet and the kit's theme, so what is written looks
+ * as it will be read. Relative images resolve against pages/ (or pages/<lang>/) through /kit/.
+ */
+async function articleFrame(kit: Kit, lang: string | undefined) {
+  const site = await loadSite(kit);
+  const siteCss = await readFile(path.join(here, "site", "site.css"), "utf8");
+  const theme = await loadTheme(kit);
+  const base = !lang || lang === site.lang ? "/kit/pages/" : `/kit/pages/${lang}/`;
+  const links = site.stylesheets.map((h) => `<link rel="stylesheet" href="${h.replace(/"/g, "&quot;")}">`).join("");
+  return `<!doctype html><html lang="${lang ?? site.lang}"><head><meta charset="utf-8"><base href="${base}">${links}
+<style>${siteCss}</style><style>${theme.css}</style>
+<style>
+html, body { min-height: 100%; }
+body.cf-site { display: block; }
+.cf-main { max-width: 860px; margin: 0 auto; padding: 28px 36px 120px; }
+.cf-article section { display: block !important; }
+[contenteditable], [contenteditable]:focus { outline: none !important; box-shadow: none !important; }
+[contenteditable]:empty::before { content: attr(data-placeholder); color: #999; }
+.cf-ed-sel { outline: 2px solid #ff7a59 !important; outline-offset: 2px; }
+</style></head><body class="cf-site"><main class="cf-main"><div class="cf-article" id="doc"></div></main></body></html>`;
 }
 
 async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clients: Set<ServerResponse>) {
@@ -123,6 +154,46 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
   if (req.method !== "GET" && req.headers["x-cueflow"] !== "studio") throw new HttpError(403, "not allowed from this page");
 
   if (p === "/api/state") return json(res, await state(kit));
+
+  // ---- written guides ----
+  if (p === "/article-frame" && req.method === "GET") return send(res, 200, await articleFrame(kit, lang), "text/html; charset=utf-8");
+  let am = /^\/kit\/((?:pages|shared|media)\/.+)$/.exec(p);
+  if (am && req.method === "GET") {
+    const rel = safeRel(decodeURIComponent(am[1]!));
+    const file = path.join(kit.root, rel);
+    const ext = path.extname(file).toLowerCase();
+    const types: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml", ".css": "text/css", ".woff2": "font/woff2", ".woff": "font/woff" };
+    if (!types[ext]) throw new HttpError(404, "not found");
+    return send(res, 200, await readFile(file).catch(() => { throw new HttpError(404, "not found"); }), types[ext]!);
+  }
+  am = /^\/api\/article\/([\w-]+)$/.exec(p);
+  if (am && req.method === "GET") return json(res, await readArticle(kit, am[1]!, lang ?? (await loadSite(kit)).lang));
+  if (am && req.method === "PUT") {
+    const b = await readBody(req);
+    return json(res, await writeArticle(kit, am[1]!, lang ?? (await loadSite(kit)).lang, String(b.html ?? ""), typeof b.version === "number" ? b.version : undefined));
+  }
+  am = /^\/api\/article-translate\/([\w-]+)$/.exec(p);
+  if (am && req.method === "POST") return json(res, await startTranslation(kit, am[1]!, String(lang)));
+  if (p === "/api/article-create" && req.method === "POST") {
+    const b = await readBody(req);
+    if (!(await readFile(siteFile(kit)).then(() => true, () => false))) await syncSite(kit); // the first written guide starts the dashboard
+    return json(res, await createArticle(kit, b));
+  }
+  if (p === "/api/article-image" && req.method === "POST") {
+    // images of the written guides live in pages/img/, beside the articles that show them
+    const name = cleanName(url.searchParams.get("name") ?? "");
+    if (!/\.(png|jpe?g|gif|webp|svg)$/i.test(name)) throw new HttpError(400, "an image is a .png, .jpg, .gif, .webp or .svg file");
+    const data = await readRaw(req);
+    const dir = path.join(kit.root, "pages", "img");
+    await mkdir(dir, { recursive: true });
+    let file = path.join(dir, name), n = 2;
+    while (await stat(file).then(() => true, () => false)) file = path.join(dir, name.replace(/(\.\w+)$/, `-${n++}$1`));
+    await writeAtomic(file, data);
+    return json(res, { path: "img/" + path.basename(file) });
+  }
+  am = /^\/api\/item\/([\w-]+)$/.exec(p);
+  if (am && req.method === "POST") return json(res, await updateItem(kit, am[1]!, await readBody(req)));
+  if (am && req.method === "DELETE") return json(res, await deleteItem(kit, am[1]!));
   if (p === "/api/agent-prompt") return json(res, { prompt: await agentPrompt(kit, { guide: url.searchParams.get("guide") ?? undefined, step: url.searchParams.get("step") ? Number(url.searchParams.get("step")) : undefined, lang }) });
   if (p === "/api/changes" && req.method === "GET") return json(res, (await pendingChanges(kit)).map((c) => ({ ...c, sentence: describeChange(c) })));
   if (p === "/api/changes/discard" && req.method === "POST") {
@@ -354,7 +425,7 @@ export async function startStudio(kit: Kit, opts: { port?: number; open?: boolea
     // only this computer, under its own name: a web page elsewhere must not be able to drive the kit
     if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host ?? "")) return send(res, 403, "forbidden", "text/plain");
     handle(kit, req, res, clients).catch((e) => {
-      const status = e instanceof HttpError ? e.status : e?.name === "ZodError" ? 422 : 500;
+      const status = e instanceof HttpError || e instanceof ArticleError ? e.status : e?.name === "ZodError" ? 422 : 500;
       const message = e?.name === "ZodError" ? e.issues.map((i: any) => `${i.path.join(".")}: ${i.message}`).join("; ") : e instanceof Error ? e.message : String(e);
       if (!res.headersSent) json(res, { error: message }, status);
       else res.end();
