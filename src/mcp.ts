@@ -12,7 +12,8 @@ import { listGuides, listScenes, loadGuide, readScene, saveGuide, type Kit } fro
 import { checkLayout } from "./layout.ts";
 import { renderFrame } from "./preview.ts";
 import { describeScene } from "./scene.ts";
-import { buildSite, checkEndpoint, loadSite, validateSite } from "./site.ts";
+import { buildSite, checkEndpoint, loadSite, syncSite, validateSite } from "./site.ts";
+import { createArticle, readArticle, writeArticle } from "./articles.ts";
 import { Guide, Step } from "./schema.ts";
 import { validateGuide } from "./validate.ts";
 
@@ -111,6 +112,43 @@ export function createServer(kit: Kit): McpServer {
       inputSchema: { ids: z.array(z.string()).optional().describe("ids from get_changes; omit for all"), note: z.string().optional() }
     },
     safe(async ({ ids, note }) => text({ marked: await markSeen(kit, ids ?? "all", note) }))
+  );
+
+  server.registerTool(
+    "create_article",
+    {
+      description:
+        "Start a WRITTEN guide (a page of text with sections, on the dashboard) or announce one that is coming. Creates the dashboard (site.json) if there is none. A written guide starts with one empty section: write it with write_article. Prefer the user's own words and the product's real texts; no invented features.",
+      inputSchema: {
+        id: z.string().describe("lowercase letters, digits and - : it becomes the address of its page"),
+        title: z.string(),
+        status: z.enum(["guide", "soon"]).default("guide").describe("guide: to be written now; soon: announced on the dashboard as coming"),
+        kicker: z.string().optional().describe("short category shown above the title"),
+        desc: z.string().optional().describe("one or two sentences shown on the dashboard"),
+        row: z.string().optional().describe("id of the row of the home page; default: the first one"),
+        lang: z.string().optional().describe("language of title and description; default: the site's")
+      }
+    },
+    safe(async (b) => {
+      await syncSite(kit);
+      return text(await createArticle(kit, b));
+    })
+  );
+
+  server.registerTool(
+    "read_article",
+    { description: "The HTML of a written guide in a language (sections as <section id data-title> blocks with h2/h3), with a version to give back to write_article.", inputSchema: { id: z.string(), lang: z.string() } },
+    safe(async ({ id, lang }) => text(await readArticle(kit, id, lang)))
+  );
+
+  server.registerTool(
+    "write_article",
+    {
+      description:
+        "Save the HTML of a written guide in a language. Structure: <section id=\"…\" data-title=\"…\"><h2>…</h2><p>…</p><h3 id=\"…\">…</h3></section> per section; h3 need an id (the side index uses them). Plain HTML, no scripts. Each language is its own file. Pass `version` from read_article to be refused if the person edited it meanwhile.",
+      inputSchema: { id: z.string(), lang: z.string(), html: z.string(), version: z.number().optional() }
+    },
+    safe(async ({ id, lang, html, version }) => text(await writeArticle(kit, id, lang, html, version)))
   );
 
   server.registerTool(

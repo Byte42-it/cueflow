@@ -239,3 +239,32 @@ body:not(.doc-mode) .docpage, body:not(.doc-mode) .docbar { display: none !impor
 .danger-zone p { color: var(--muted); font-size: 12.5px; }
 .soon button { display: none; }
 .soon:hover button, .soon:focus-within button { display: inline-block; }
+
+.btn.newbtn { width: 100%; border-style: dashed; color: var(--accent-ink); font-weight: 600; padding: 9px 12px; flex: none; }
+.btn.newbtn:hover { border-color: var(--accent); }
+.kindbadge { position: absolute; z-index: 2; left: 6px; top: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: .03em; background: rgba(15, 17, 21, .78); color: #fff; pointer-events: none; }
+.kindbadge.video { background: rgba(255, 122, 89, .95); color: #1a0d08; }
+.kindbadge.guide { background: rgba(40, 90, 160, .92); }
+.kindbadge.soon { background: rgba(110, 110, 120, .92); }
+.thumb.doc .kindbadge { left: 30px; }
+.thumb.soonthumb { display: flex; flex-direction: column; justify-content: flex-end; padding: 10px 12px; background: none; border: 2px dashed var(--line); color: var(--ink); aspect-ratio: 16 / 9; }
+.thumb.soonthumb b { font-size: 13px; line-height: 1.25; }
+.tilewrap .del.wr { right: 42px; }
+.kindcard { display: block; width: 100%; text-align: left; margin: 8px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--ink); }
+.kindcard:hover { border-color: var(--accent); }
+.kindcard b { display: block; font-size: 14px; } .kindcard span { color: var(--muted); font-size: 12.5px; }
+.agentbox { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; }
+.agentbox:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.agentbox input { margin-top: 3px; } .agentbox small { display: block; color: var(--muted); font-size: 12px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #6a6f7a; display: inline-block; margin-left: 2px; }
+.dot.on { background: #4cd18a; box-shadow: 0 0 0 3px rgba(76, 209, 138, .25); }
+.agentstate { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-weight: 600; }
+.alog { max-height: 22vh; overflow: auto; font-size: 12.5px; border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 10px; margin: 8px 0; }
+.alog div { padding: 3px 0; border-bottom: 1px solid var(--line); } .alog div:last-child { border: 0; }
+
+.film { position: relative; }
+.filmline { position: absolute; left: 10px; right: 10px; height: 3px; border-radius: 2px; background: var(--accent); pointer-events: none; z-index: 5; }
+.filmline[hidden] { display: none; }
+.rowcap { margin: 8px 2px 0; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.tilewrap.dragging { opacity: .35; }
+.tilewrap[draggable="true"] { cursor: grab; }

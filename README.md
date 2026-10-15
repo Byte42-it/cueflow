@@ -41,10 +41,13 @@ Cueflow is a tool you install once and point at any number of projects. It does 
    the result goes: `cueflow-dist/` next to it (change it with `--out-dir`; it is stored in `.cueflow/cueflow.json`
    and stays the same). `.cueflow/` is meant to be committed with your product; its own `.gitignore` leaves out `.env`
    and the voice cache. Every `cueflow` command run anywhere inside the project finds `.cueflow/` by itself.
-3. **Connect your AI assistant to it** (here Claude Code, from the project's folder; any MCP client works):
-   ```bash
-   claude mcp add cueflow -- cueflow mcp
-   ```
+3. **Connect your AI assistant to it.** Three ways; pick what your assistant can do:
+   - **Through Studio** (nothing to install, works in the terminal, in VS Code, anywhere an assistant can run `curl`): run
+     `cueflow studio`, press the **AI** button (or copy what it prints in the terminal) and paste the prompt into your
+     assistant. See *Talking to your assistant* below.
+   - **As an MCP server**, if your assistant has the `claude` command: `claude mcp add cueflow -- cueflow mcp`.
+   - **As an MCP server without the `claude` command** (for example the VS Code extension): create `.mcp.json` at the
+     project root with `{"mcpServers":{"cueflow":{"command":"cueflow","args":["mcp"]}}}`.
 4. **Ask for tutorials.** Say you want tutorials. Cueflow gives the assistant the method (`get_method`) and the state of the
    kit (`get_brief`): it starts by asking which site (a folder or a live address), then talks the brief through with you
    (audience, tone, languages, rules, how names are pronounced). It captures the screens, writes the steps (each one
@@ -103,6 +106,24 @@ tutorials, never rewritten). An external voice is called only then, and the page
 
 If you edit something that an assistant changed meanwhile, the save is refused with a message instead of overwriting.
 First version: the timeline does not yet drag actions; scenes are not captured from the page.
+
+### Talking to your assistant
+
+Studio is not an assistant, and it does not need your assistant to be an MCP client. While `cueflow studio` runs it opens
+a small door on this computer only (`/agent/`, with a key that is new at each start and stops working when Studio stops):
+the **same tools as the MCP server**, over HTTP, usable with `curl`. The AI button gives the prompt that tells the
+assistant how: read `/agent/help`, call tools with `POST /agent/call/<tool>`, and **listen** with a long request
+(`GET /agent/next`) run in the background. The talk goes both ways: when you ask for something in Studio (a new tutorial,
+the Assistant tab) it is sent to the assistant that is listening, which does it, reports progress (`/agent/say`) and
+finishes (`/agent/done`), and Studio shows it. The AI button has a dot: green when an assistant is connected.
+
+With no assistant connected, the same requests turn into a **prompt to copy and paste** into your assistant instead.
+
+**New** (the `+` at the top of the list) asks what you want to make: a video tutorial, a written guide, or an announcement
+of one that is coming. With “Create it with my local assistant” ticked (the default; your choice is remembered) nothing is
+created: the request goes to your assistant, which asks you what you want to make and does it. Untick it to create the
+empty item yourself. The list shows everything in the order of the dashboard: **drag a thumbnail to change the order**
+(dropped in another row it joins that row); the dashboard follows at the next Build.
 
 ### Voices
 

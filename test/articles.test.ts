@@ -44,9 +44,11 @@ describe("written guides", () => {
     const a = await readArticle(kit, "billing", "en");
     assert.equal(a.exists, true);
     const html = `<section id="intro" data-title="Paying"><h2>Paying</h2><p>Open the invoice.</p></section>`;
+    await new Promise((resolve) => setTimeout(resolve, 20)); // file times tick every few ms: two writes closer than that share one
     const r = await writeArticle(kit, "billing", "en", html, a.version);
     assert.match(await readFile(path.join(dir, "pages", "billing.html"), "utf8"), /Open the invoice\./);
     await assert.rejects(writeArticle(kit, "billing", "en", html + "<p>x</p>", a.version), /changed on disk/);
+    await new Promise((resolve) => setTimeout(resolve, 20));
     await writeArticle(kit, "billing", "en", html.replace("Open", "First open"), r.version);
     assert.ok((await pendingChanges(kit)).some((c) => c.kind === "article" && c.target === "billing"));
   });

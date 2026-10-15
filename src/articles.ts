@@ -211,6 +211,37 @@ export async function updateItem(kit: Kit, id: string, patch: ItemPatch) {
   await writeRaw(kit, raw);
   return catalogOverview(kit);
 }
+/**
+ * The order of the dashboard, as chosen by dragging in Studio. `order` lists item ids in the new order (the home page
+ * shows each row's items in that order); `row` moves the dragged item into another row when it was dropped there.
+ * Items missing from `order` keep their relative order after the listed ones.
+ */
+export async function reorderItems(kit: Kit, order: string[], moved?: { id: string; row?: string }) {
+  const { raw, site } = await readRaw(kit);
+  const items = raw.items as any[];
+  if (moved?.row) {
+    if (!site.rows.some((r) => r.id === moved.row)) throw new ArticleError(400, `the dashboard has no row "${moved.row}"`);
+    const it = findItem(raw, moved.id);
+    if (it.row !== moved.row) it.row = moved.row;
+  }
+  const before = items.map((i) => i.id);
+  const known = new Map(items.map((i) => [i.id, i]));
+  const next: any[] = [];
+  for (const id of order) {
+    const it = known.get(id);
+    if (it) { next.push(it); known.delete(id); }
+  }
+  for (const it of items) if (known.has(it.id)) next.push(it);
+  raw.items = next;
+  await writeRaw(kit, raw);
+  const after = next.map((i) => i.id);
+  if (before.join() !== after.join() || moved?.row) {
+    const title = (id: string) => pick(next.find((i) => i.id === id)?.title, site.lang, site.lang) ?? id;
+    await recordChange(kit, { kind: "catalog", target: "order", before: before.map(title).join(" › "), after: after.map(title).join(" › ") + (moved?.row ? ` (“${title(moved.id)}” is now in the row “${moved.row}”)` : "") });
+  }
+  return catalogOverview(kit);
+}
+
 const statusWord = (s: string) => (s === "guide" ? "written guide" : s === "soon" ? "coming soon" : "video");
 
 /** Takes an item off the dashboard; its written guide (every language) goes to trash/, nothing is erased. */

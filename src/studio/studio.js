@@ -74,18 +74,47 @@
   function copyText(t, okMsg, el) {
     return (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { flash(okMsg, "ok"); }, function () { if (el) { var r = document.createRange(); r.selectNodeContents(el); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); } flash("Select the text and copy it (Ctrl+C).", ""); });
   }
-  function aiDialog() {
-    var q = "/api/agent-prompt?lang=" + encodeURIComponent(S.lang || "") + (S.guideId ? "&guide=" + encodeURIComponent(S.guideId) + "&step=" + S.step : "");
-    api(q).then(function (r) {
-      dialog("Carry on with your AI assistant", function (body, close) {
+  /* the assistant: is one connected to Studio (waiting for what we send), what was asked, what it says */
+  function refreshAgent() {
+    return api("/api/agent").then(function (a) {
+      var before = S.agent;
+      S.agent = a;
+      var dot = $("#aidot"); if (dot) { dot.className = "dot" + (a.connected ? " on" : ""); dot.title = a.connected ? "An assistant is connected" : "No assistant connected"; }
+      if (before) {
+        a.tasks.forEach(function (t) { var o = before.tasks.filter(function (x) { return x.id === t.id; })[0]; if (t.status === "done" && (!o || o.status !== "done")) flash("Your assistant finished: " + t.title + (t.summary ? " — " + t.summary : ""), "ok"); });
+        var seen = before.log.length ? before.log[before.log.length - 1].at : "";
+        var fresh = a.log.filter(function (l) { return l.at > seen && !/^Done/.test(l.text); });
+        if (fresh.length) flash("Assistant: " + fresh[fresh.length - 1].text, "");
+      }
+      if ($("#dlg").open && $("#dlg").dataset.agent) renderAgentDialog();
+    }).catch(function () { /* Studio is going away */ });
+  }
+  function renderAgentDialog() {
+    var d = $("#dlg"), live = d.querySelector(".alive");
+    if (!live) return;
+    var a = S.agent || { connected: false, tasks: [], log: [] };
+    live.textContent = "";
+    live.appendChild(h("div", { class: "agentstate" }, h("i", { class: "dot" + (a.connected ? " on" : "") }), a.connected ? (a.listening ? "An assistant is connected and waiting for you" : "An assistant is connected and working") : "No assistant connected"));
+    if (a.tasks.length) { var last = a.tasks.slice(-3).reverse(); var box = h("div", { class: "alog" }); last.forEach(function (t) { box.appendChild(h("div", null, "• " + t.title + " — " + t.status + (t.summary ? ": " + t.summary : ""))); }); live.appendChild(box); }
+    if (a.log.length) { var lg = h("div", { class: "alog" }); a.log.slice(-8).forEach(function (l) { lg.appendChild(h("div", null, l.text)); }); live.appendChild(lg); }
+  }
+  function agentDialog() {
+    var q = "/api/agent-prompt?lang=" + encodeURIComponent(S.lang || "") + (S.guideId && S.kind !== "doc" ? "&guide=" + encodeURIComponent(S.guideId) + "&step=" + S.step : "");
+    Promise.all([api(q), refreshAgent()]).then(function (res) {
+      var r = res[0];
+      var d = dialog("Your AI assistant", function (body, close) {
         body.parentNode.classList.add("big");
-        body.appendChild(h("p", null, "Paste this into your assistant to continue in a new session without starting over: it says where the kit is, what exists, what you are looking at and what to read first. It is rewritten each time with the current state."));
+        body.appendChild(h("div", { class: "alive" }));
+        body.appendChild(h("p", null, "Paste this into your assistant (Claude Code in the terminal or in VS Code, or another that can run curl or MCP). It tells it where the kit is, what exists, what you are looking at and how to talk to Studio: through Studio's own door, valid while Studio runs, or as an MCP server. Once it is connected, what you ask from Studio (a new tutorial, a request) goes to it directly, without copying. Paste it again in a new session to carry on without starting over."));
         var pre = h("pre", { class: "prompt" }, r.prompt);
         body.appendChild(pre);
-        body.appendChild(h("div", { class: "row" }, h("button", { class: "btn primary", onclick: function () { copyText(r.prompt, "Prompt copied.", pre); } }, "Copy the prompt"), h("button", { class: "btn", onclick: close }, "Close")));
+        body.appendChild(h("div", { class: "row" }, h("button", { class: "btn primary", onclick: function () { copyText(r.prompt, "Prompt copied.", pre); } }, "Copy the prompt"), h("button", { class: "btn", onclick: function () { d.dataset.agent = ""; close(); } }, "Close")));
       });
+      d.dataset.agent = "1";
+      renderAgentDialog();
     }).catch(function (e) { flash(e.message, "err"); });
   }
+  var aiDialog = agentDialog;
   function renderAll() { renderWelcome(); renderLang(); renderSide(); renderView(false); renderPanel(); renderStrip(); renderPage(); }
   /* the bottom bar: Media, Timeline, Voice, Export (as in a video editor) */
   function showPage(name) {
@@ -109,30 +138,101 @@
     Object.keys(all).forEach(function (l) { sel.appendChild(h("option", { value: l, selected: l === S.lang }, l)); });
   }
   function renderSide() { renderFilm(); }
-  /* all the tutorials as thumbnails, like the slides of a presentation */
+  /* every tutorial, written guide and announcement as thumbnails, in the order of the dashboard, with one "+" on top.
+     Dragging a thumbnail changes the order here and on the dashboard (and the row, when it is dropped in another one). */
   function renderFilm() {
     var film = $("#film"); film.textContent = "";
-    film.appendChild(h("div", { class: "group" }, "Videos"));
-    S.state.guides.forEach(function (g, i) {
+    film.appendChild(h("button", { class: "btn newbtn", onclick: newDialog, title: "A video tutorial, a written guide, or an announcement" }, "+  New"));
+    var c = catalog(), shown = {};
+    var place = function (wrap, itemId, rowId) {
+      wrap.dataset.item = itemId; wrap.dataset.row = rowId || ""; wrap.draggable = true;
+      wrap.addEventListener("dragstart", function (e) { S.dragItem = itemId; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", itemId); setTimeout(function () { wrap.classList.add("dragging"); }, 0); });
+      wrap.addEventListener("dragend", function () { S.dragItem = null; wrap.classList.remove("dragging"); var l = film.querySelector(".filmline"); if (l) l.hidden = true; });
+      film.appendChild(wrap);
+    };
+    var videoTile = function (g, itemId, rowId) {
+      shown[g.id] = true;
       var on = S.kind !== "doc" && g.id === S.guideId;
       var vp = g.viewport || { width: 1280, height: 720 };
-      var thumb = h("div", { class: "thumb", style: "aspect-ratio:" + vp.width + " / " + vp.height });
+      var thumb = h("div", { class: "thumb", style: "aspect-ratio:" + vp.width + " / " + vp.height }, h("span", { class: "kindbadge video" }, "Video"));
       var fr = h("iframe", { src: "/scene/" + g.scene + "?lang=" + S.lang, loading: "lazy", tabindex: "-1", title: "" });
       fr.style.width = vp.width + "px"; fr.style.height = vp.height + "px";
       thumb.appendChild(fr);
       var total = (g.timing[S.lang] || g.timing[g.languages[0]] || []).reduce(function (n, t) { return n + t.total; }, 0);
-      var tile = h("button", { class: "tile" + (on ? " on" : ""), title: text(g.title, S.lang), onclick: function () { selectGuide(g.id); } },
-        thumb, h("span", { class: "cap" }, (i + 1) + ". " + text(g.title, S.lang)), h("span", { class: "sub" }, g.steps.length + " steps · " + fmt(total)));
-      var del = h("button", { class: "del", title: "Delete this tutorial", "aria-label": "Delete this tutorial", onclick: function (e) { e.stopPropagation(); deleteTutorialDialog(g); } },
-        h("span", null, "🗑"));
-      film.appendChild(h("div", { class: "tilewrap" }, tile, del));
+      var tile = h("button", { class: "tile" + (on ? " on" : ""), title: text(g.title, S.lang) + " — drag to change the order", onclick: function () { selectGuide(g.id); } },
+        thumb, h("span", { class: "cap" }, text(g.title, S.lang)), h("span", { class: "sub" }, g.steps.length + " steps · " + fmt(total)));
+      var del = h("button", { class: "del", title: "Delete this tutorial", "aria-label": "Delete this tutorial", onclick: function (e) { e.stopPropagation(); deleteTutorialDialog(g); } }, h("span", null, "🗑"));
+      place(h("div", { class: "tilewrap" }, tile, del), itemId, rowId);
       requestAnimationFrame(function () { fr.style.transform = "scale(" + thumb.clientWidth / vp.width + ")"; });
-    });
-    film.appendChild(h("button", { class: "tile add", title: "New video tutorial", onclick: newTutorialDialog }, h("div", { class: "thumb" }, "+"), h("span", { class: "cap" }, "New video")));
-    renderDocFilm(film);
+    };
+    var docTile = function (it) {
+      var on = S.kind === "doc" && it.id === D.id;
+      var missing = c.languages.filter(function (l) { return !it.files[l]; });
+      var tile = h("button", { class: "tile" + (on ? " on" : ""), title: text(it.title, S.lang) + " — drag to change the order", onclick: function () { if (S.kind !== "doc" || D.id !== it.id) { D.page = "write"; selectDoc(it.id); } } },
+        h("div", { class: "thumb doc" }, h("span", { class: "kindbadge guide" }, it.status === "video" ? "Written part" : "Guide"), it.kicker ? h("i", null, text(it.kicker, S.lang)) : null, h("b", null, text(it.title, S.lang))),
+        h("span", { class: "cap" }, text(it.title, S.lang)),
+        h("span", { class: "sub" }, missing.length ? "not yet in: " + missing.join(", ") : "in " + c.languages.join(", ")));
+      var del = h("button", { class: "del", title: "Take it off the dashboard", "aria-label": "Take it off the dashboard", onclick: function (e) { e.stopPropagation(); deleteItemDialog(it); } }, h("span", null, "🗑"));
+      place(h("div", { class: "tilewrap" }, tile, del), it.id, it.row);
+    };
+    var soonTile = function (it) {
+      var tile = h("button", { class: "tile", title: (text(it.desc, S.lang) || text(it.title, S.lang)) + " — drag to change the order", onclick: function () { if (confirmLeave()) { D.page = "details"; selectDoc(it.id); } } },
+        h("div", { class: "thumb soonthumb" }, h("span", { class: "kindbadge soon" }, "Coming soon"), h("b", null, text(it.title, S.lang))),
+        h("span", { class: "cap" }, text(it.title, S.lang)), h("span", { class: "sub" }, "announced: not written yet"));
+      var write = h("button", { class: "del wr", title: "Start writing it: it becomes a written guide", onclick: function (e) { e.stopPropagation(); if (confirmLeave()) startWriting(it); } }, h("span", null, "✎"));
+      var del = h("button", { class: "del", title: "Take it off the dashboard", "aria-label": "Take it off the dashboard", onclick: function (e) { e.stopPropagation(); deleteItemDialog(it); } }, h("span", null, "🗑"));
+      place(h("div", { class: "tilewrap" }, tile, write, del), it.id, it.row);
+    };
+    var byId = {}; S.state.guides.forEach(function (g) { byId[g.id] = g; });
+    if (c) {
+      // as the home page shows them: row by row, the items of a row in the order of the catalog
+      var rowIds = c.rows.map(function (r) { return r.id; });
+      c.items.forEach(function (it) { if (rowIds.indexOf(it.row) < 0) rowIds.push(it.row); });
+      c.rows.length > 0 && rowIds.forEach(function (rid) {
+        var items = c.items.filter(function (it) { return it.row === rid; });
+        if (!items.length) return;
+        var row = c.rows.filter(function (r) { return r.id === rid; })[0];
+        if (rowIds.length > 1) film.appendChild(h("div", { class: "rowcap", "data-row": rid }, row ? text(row.title, S.lang) : rid));
+        items.forEach(function (it) {
+          if (it.status === "soon") return soonTile(it);
+          if (it.status === "video" && it.guide && byId[it.guide]) { videoTile(byId[it.guide], it.id, it.row); if (hasArticle(it)) docTile(it); return; }
+          if (it.status === "guide" && hasArticle(it)) docTile(it);
+        });
+      });
+    }
+    var rest = S.state.guides.filter(function (g) { return !shown[g.id]; });
+    if (rest.length) {
+      if (c) film.appendChild(h("div", { class: "rowcap", "data-row": "" }, "Not on the dashboard yet"));
+      rest.forEach(function (g) { videoTile(g, g.id, ""); });
+    }
+    film.appendChild(h("div", { class: "filmline", hidden: true }));
     if (S.kind === "doc") return;
     var g = video();
     $("#current").textContent = g ? text(g.title, S.lang) : "";
+  }
+  /* where a dragged thumbnail would land: before the first one whose middle is below the pointer; its row follows its neighbours */
+  function dropTarget(e) {
+    var film = $("#film"), wraps = [].slice.call(film.querySelectorAll(".tilewrap:not(.dragging)"));
+    var before = null;
+    for (var i = 0; i < wraps.length; i++) { var r = wraps[i].getBoundingClientRect(); if (e.clientY < r.top + r.height / 2) { before = wraps[i]; break; } }
+    var prev = before ? wraps[wraps.indexOf(before) - 1] : wraps[wraps.length - 1];
+    var row = "";
+    if (prev && before && prev.dataset.row !== before.dataset.row) {
+      var gap = (prev.getBoundingClientRect().bottom + before.getBoundingClientRect().top) / 2;
+      row = e.clientY > gap ? before.dataset.row : prev.dataset.row;
+    } else row = (prev || before) ? (prev || before).dataset.row : "";
+    return { before: before, prev: prev, row: row, wraps: wraps };
+  }
+  function moveOnDashboard(e) {
+    var id = S.dragItem; if (!id) return;
+    var t = dropTarget(e), ids = [];
+    t.wraps.forEach(function (w) { if (t.before === w) ids.push(id); if (w.dataset.item !== id && ids[ids.length - 1] !== w.dataset.item) ids.push(w.dataset.item); });
+    if (!t.before) ids.push(id);
+    var dragged = $("#film").querySelector('.tilewrap[data-item="' + id + '"]');
+    var changeRow = t.row && dragged && dragged.dataset.row !== t.row;
+    api("/api/order", { method: "POST", body: { ids: ids, moved: id, row: changeRow ? t.row : undefined } })
+      .then(function () { return loadState(); }).then(function () { flash("Order saved" + (changeRow ? (dragged.dataset.row ? ", in another row of the dashboard" : ", and added to the dashboard") : "") + ". It is the order of the dashboard: Build to publish it.", "ok"); })
+      .catch(function (err) { flash(err.message, "err"); });
   }
   function deleteTutorialDialog(g) {
     dialog("Delete “" + text(g.title, S.lang) + "”?", function (body, close) {
@@ -159,24 +259,92 @@
     return d;
   }
   var slug = function (t) { return String(t).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40); };
-  function newTutorialDialog() {
-    dialog("New tutorial", function (body, close) {
-      var title = h("input", { type: "text", placeholder: "How to … (the title)" });
-      var id = h("input", { type: "text", placeholder: "id (letters, digits, -)" });
-      title.addEventListener("input", function () { if (!id.dataset.touched) id.value = slug(title.value); });
-      id.addEventListener("input", function () { id.dataset.touched = "1"; });
-      var scene = h("select", null, S.state.scenes.map(function (n) { return h("option", { value: n }, n); }));
-      var langs = h("input", { type: "text" }); langs.value = (S.state.brief.languages.length ? S.state.brief.languages : [S.lang || "en"]).join(", ");
-      var msg = h("div", { class: "msg" });
-      body.appendChild(h("p", null, "It starts empty: add its steps in the Timeline."));
-      body.appendChild(h("div", { class: "fields" }, h("label", { class: "lab" }, "Title", title), h("label", { class: "lab" }, "Id", id), h("label", { class: "lab" }, "First screen (scene)", scene), h("label", { class: "lab" }, "Languages, separated by commas", langs)));
-      body.appendChild(h("div", { class: "row" },
-        h("button", { class: "btn primary", onclick: function () {
-          api("/api/guide-create", { method: "POST", body: { id: id.value.trim(), title: title.value.trim(), scene: scene.value, languages: langs.value.split(",").map(function (x) { return x.trim(); }).filter(Boolean) } })
-            .then(function (r) { S.guideId = r.id; S.step = 0; close(); return loadState(); }).then(function () { showPage("timeline"); })
-            .catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
-        } }, "Create"), h("button", { class: "btn", onclick: close }, "Cancel")));
-      body.appendChild(msg);
+  /* "+ New": first what kind of thing, then the few facts; with the person's own assistant it creates nothing here but asks it */
+  var KINDS = [
+    { kind: "video", title: "Video tutorial", text: "Narrated and animated, made of screens of your product." },
+    { kind: "guide", title: "Written guide", text: "A page of text with sections, on the dashboard." },
+    { kind: "soon", title: "Coming soon", text: "Announce on the dashboard a guide that is not ready yet." }
+  ];
+  var useAgent = function () { try { return localStorage.getItem("cueflow-studio-use-agent") !== "0"; } catch (e) { return true; } };
+  var rememberAgent = function (v) { try { localStorage.setItem("cueflow-studio-use-agent", v ? "1" : "0"); } catch (e) { /* private window */ } };
+  function newDialog() {
+    dialog("New", function (body, close) {
+      var show = function (kind) {
+        body.textContent = "";
+        if (!kind) {
+          body.appendChild(h("p", null, "What do you want to make?"));
+          KINDS.forEach(function (k) { body.appendChild(h("button", { class: "kindcard", onclick: function () { show(k.kind); } }, h("b", null, k.title), h("span", null, k.text))); });
+          body.appendChild(h("div", { class: "row" }, h("button", { class: "btn", onclick: close }, "Cancel")));
+          return;
+        }
+        var c = catalog(), rows = c ? c.rows : [];
+        var f = {};
+        var input = function (k, label, ph, tag) { var el = h(tag || "input", tag ? { rows: 2, placeholder: ph } : { type: "text", placeholder: ph }); f[k] = el; return h("label", { class: "lab" }, label, el); };
+        var fields = [input("title", "Title", kind === "video" ? "How to … (the title)" : kind === "soon" ? "What it will explain" : "How to … (the title)"), input("id", "Id", "letters, digits, - (the address of its page)")];
+        f.title.addEventListener("input", function () { if (!f.id.dataset.touched) f.id.value = slug(f.title.value); });
+        f.id.addEventListener("input", function () { f.id.dataset.touched = "1"; });
+        if (kind === "video") {
+          f.scene = h("select", null, [h("option", { value: "" }, S.state.scenes.length ? "(choose, or leave it to the assistant)" : "(no screens yet: the assistant makes them)")].concat(S.state.scenes.map(function (n) { return h("option", { value: n }, n); })));
+          fields.push(h("label", { class: "lab" }, "First screen", f.scene));
+          f.langs = h("input", { type: "text" }); f.langs.value = (S.state.brief.languages.length ? S.state.brief.languages : [S.lang || "en"]).join(", ");
+          fields.push(h("label", { class: "lab" }, "Languages, separated by commas", f.langs));
+        } else {
+          fields.push(input("kicker", "Category (optional)", "e.g. Documents"), input("desc", "Description (optional)", "One or two sentences", "textarea"));
+          if (rows.length) {
+            var pref = kind === "soon" ? (rows.filter(function (r) { return /soon|arriv|coming|next/i.test(r.id); })[0] || rows[rows.length - 1]) : rows[0];
+            f.row = h("select", null, rows.map(function (r) { return h("option", { value: r.id, selected: pref && r.id === pref.id }, text(r.title, S.lang) + " (" + r.id + ")"); }));
+            fields.push(h("label", { class: "lab" }, "Row of the home page", f.row));
+          }
+        }
+        var k0 = KINDS.filter(function (k) { return k.kind === kind; })[0];
+        body.appendChild(h("p", null, h("b", null, k0.title), " — " + k0.text));
+        body.appendChild(h("div", { class: "fields" }, fields));
+        var agent = h("input", { type: "checkbox" }); agent.checked = useAgent();
+        var msg = h("div", { class: "msg" });
+        var go = h("button", { class: "btn primary" });
+        var label = function () { go.textContent = !agent.checked ? "Create" : (S.agent && S.agent.connected ? "Send to my assistant" : "Get the prompt for my assistant"); };
+        agent.addEventListener("change", function () { rememberAgent(agent.checked); label(); });
+        label();
+        body.appendChild(h("label", { class: "agentbox" }, agent, h("span", null, h("b", null, "Create it with my local assistant"), h("small", null, "Nothing is created here: you get (or send) a request for your assistant, which asks what you want to make and does it. Remembered for next time."))));
+        var request = function () {
+          return { kind: kind, title: f.title.value.trim() || undefined, id: f.id.value.trim() || undefined, scene: f.scene && f.scene.value || undefined,
+            languages: f.langs ? f.langs.value.split(",").map(function (x) { return x.trim(); }).filter(Boolean) : undefined,
+            kicker: f.kicker && f.kicker.value.trim() || undefined, desc: f.desc && f.desc.value.trim() || undefined, row: f.row && f.row.value || undefined };
+        };
+        go.addEventListener("click", function () {
+          msg.className = "msg"; msg.textContent = "";
+          if (agent.checked) {
+            var showPrompt = function () {
+              api("/api/agent/request-prompt", { method: "POST", body: { request: request(), lang: S.lang } }).then(function (r) { close(); promptDialog(r.prompt); }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+            };
+            if (!(S.agent && S.agent.connected)) return showPrompt();
+            return api("/api/agent/send", { method: "POST", body: { request: request(), lang: S.lang } })
+              .then(function () { close(); flash("Sent to your assistant: it will ask you what you want to make.", "ok"); agentDialog(); })
+              .catch(function (e) { if (e.status === 409) showPrompt(); else { msg.className = "msg err"; msg.textContent = e.message; } });
+          }
+          var t = f.title.value.trim(), id = f.id.value.trim();
+          var done = function (r, after) { close(); return loadState().then(after); };
+          if (kind === "video") {
+            api("/api/guide-create", { method: "POST", body: { id: id, title: t, scene: f.scene.value, languages: f.langs.value.split(",").map(function (x) { return x.trim(); }).filter(Boolean) } })
+              .then(function (r) { S.guideId = r.id; S.step = 0; S.kind = "video"; leaveDocMode(); return done(r, function () { showPage("timeline"); }); }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+          } else {
+            api("/api/article-create", { method: "POST", body: { id: id, title: t, kicker: f.kicker.value.trim(), desc: f.desc.value.trim(), row: rows.length ? f.row.value : undefined, status: kind } })
+              .then(function (r) { return done(r, function () { if (kind !== "soon") { D.page = "write"; selectDoc(r.id); } else flash("Announced on the dashboard.", "ok"); }); }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+          }
+        });
+        body.appendChild(h("div", { class: "row" }, go, h("button", { class: "btn", onclick: function () { show(null); } }, "Back"), h("button", { class: "btn", onclick: close }, "Cancel")));
+        body.appendChild(msg);
+      };
+      show(null);
+    });
+  }
+  function promptDialog(prompt) {
+    dialog("Paste this into your assistant", function (body, close) {
+      body.parentNode.classList.add("big");
+      body.appendChild(h("p", null, "Open your assistant (Claude Code, in the terminal or in VS Code, or another) in your project, and paste it. It connects to Cueflow, asks you what you want to make, and does it: you see the result here as it appears."));
+      var pre = h("pre", { class: "prompt" }, prompt);
+      body.appendChild(pre);
+      body.appendChild(h("div", { class: "row" }, h("button", { class: "btn primary", onclick: function () { copyText(prompt, "Prompt copied.", pre); } }, "Copy the prompt"), h("button", { class: "btn", onclick: close }, "Close")));
     });
   }
   function uniqueStepId(base) {
@@ -408,14 +576,24 @@
     var area = h("textarea", { placeholder: "e.g. Make this step shorter, and zoom on the upload button" });
     var out = h("div", { class: "msg" });
     p.appendChild(area);
-    p.appendChild(h("div", { class: "row" }, h("button", { class: "btn primary", onclick: function () {
+    var buildReq = function () {
+      var g = S.guide, st = g && g.steps[S.step];
+      return "In the Cueflow kit at " + S.state.kitRoot + (g ? ", video \"" + g.id + "\", step " + (S.step + 1) + " (" + st.id + "), language " + S.lang : "") + ": " + (area.value.trim() || "…") +
+        "\nUse the Cueflow tools; then validate_guide and look at preview_frame before telling me it is done.";
+    };
+    var connected = S.agent && S.agent.connected;
+    p.appendChild(h("div", { class: "row" }, h("button", { class: "btn" + (connected ? " primary" : ""), disabled: !connected, title: connected ? "Goes straight to your assistant" : "No assistant connected: use the AI button, or copy the request", onclick: function () {
+      if (!area.value.trim()) { out.className = "msg warn"; out.textContent = "Write what you want first."; return; }
+      api("/api/agent/send", { method: "POST", body: { title: "Request from Studio", text: buildReq() } }).then(function () { out.className = "msg ok"; out.textContent = "Sent to your assistant."; area.value = ""; })
+        .catch(function (e) { out.className = "msg warn"; out.textContent = e.message; });
+    } }, "Send to the assistant"), h("button", { class: "btn" + (connected ? "" : " primary"), onclick: function () {
       var g = S.guide, st = g && g.steps[S.step];
       var req = "In the Cueflow kit at " + S.state.kitRoot + (g ? ", video \"" + g.id + "\", step " + (S.step + 1) + " (" + st.id + "), language " + S.lang : "") + ": " + (area.value.trim() || "…") +
         "\nUse the Cueflow tools; then validate_guide and look at preview_frame before telling me it is done.";
       (navigator.clipboard ? navigator.clipboard.writeText(req) : Promise.reject()).then(function () { out.className = "msg ok"; out.textContent = "Copied. Paste it in your assistant."; }, function () { out.className = "msg warn"; out.textContent = req; });
     } }, "Copy the request")));
     p.appendChild(out);
-    p.appendChild(h("p", { style: "margin-top:16px" }, "Not connected yet? In a terminal, inside the project: claude mcp add cueflow -- cueflow mcp"));
+    p.appendChild(h("p", { style: "margin-top:16px" }, connected ? "Your assistant is connected: what you send arrives at once." : "No assistant is connected yet: the AI button (top) gives the prompt that connects one."));
   }
 
   /* ---------- actions ---------- */
@@ -874,6 +1052,13 @@
       });
     }).catch(function (e) { flash(e.message, "err"); });
   }
+  /* the counter in the header follows the notes at once, without reloading the page */
+  function refreshNotes() {
+    return api("/api/changes").then(function (list) {
+      S.state.pending = list.length;
+      var chip = $("#notes"); chip.hidden = !list.length; chip.textContent = "✎ " + list.length + " note" + (list.length === 1 ? "" : "s") + " for the assistant";
+    });
+  }
   function notesDialog() {
     api("/api/changes").then(function (list) {
       dialog("Edits the assistant has not read yet", function (body, close) {
@@ -881,7 +1066,7 @@
         body.appendChild(h("p", null, "Delete a note when the assistant should not read it: the edit itself stays saved."));
         var box = h("div", { class: "notes" }), empty = h("p", { class: "empty" }, "None.");
         var discard = function (body2) {
-          return api("/api/changes/discard", { method: "POST", body: body2 }).then(function () { if (!box.children.length) { box.replaceWith(empty); all.disabled = true; } }).catch(function (e) { flash(e.message, "err"); });
+          return api("/api/changes/discard", { method: "POST", body: body2 }).then(function () { if (!box.children.length) { box.replaceWith(empty); all.disabled = true; } return refreshNotes(); }).catch(function (e) { flash(e.message, "err"); });
         };
         list.forEach(function (c) {
           var row = h("div", { class: "note" }, h("span", null, c.sentence));
@@ -1332,68 +1517,27 @@
     fr.src = "/article-frame?lang=" + encodeURIComponent(S.lang) + "&t=" + Date.now();
   }
 
-  /* --- creating guides and announcing what is coming --- */
-  function newDocDialog(status) {
-    var c = catalog();
-    dialog(status === "soon" ? "Announce a guide that is coming" : "New written guide", function (body, close) {
-      var title = h("input", { type: "text", placeholder: status === "soon" ? "What it will explain" : "How to … (the title)" });
-      var id = h("input", { type: "text", placeholder: "id: letters, digits, - (the address of its page)" });
-      title.addEventListener("input", function () { if (!id.dataset.touched) id.value = slug(title.value); });
-      id.addEventListener("input", function () { id.dataset.touched = "1"; });
-      var kicker = h("input", { type: "text", placeholder: "optional" });
-      var desc = h("textarea", { rows: 2, placeholder: "One or two sentences" });
-      var rows = c ? c.rows : [];
-      var pref = status === "soon" ? (rows.filter(function (r) { return /soon|arriv|coming|next/i.test(r.id); })[0] || rows[rows.length - 1]) : rows[0];
-      var row = h("select", null, rows.map(function (r) { return h("option", { value: r.id, selected: pref && r.id === pref.id }, text(r.title, S.lang) + " (" + r.id + ")"); }));
-      var msg = h("div", { class: "msg" });
-      body.appendChild(h("p", null, status === "soon" ? "It appears on the dashboard as coming soon. When you start writing it, it becomes a written guide." : "A page of text, with sections, on the dashboard. You write it here; a video can be added later."));
-      body.appendChild(h("div", { class: "fields" }, h("label", { class: "lab" }, "Title (in “" + (c ? c.lang : S.lang) + "”)", title), h("label", { class: "lab" }, "Id", id), h("label", { class: "lab" }, "Kicker", kicker), h("label", { class: "lab" }, "Description", desc), rows.length ? h("label", { class: "lab" }, "Row of the home page", row) : null));
-      body.appendChild(h("div", { class: "row" },
-        h("button", { class: "btn primary", onclick: function () {
-          api("/api/article-create", { method: "POST", body: { id: id.value.trim(), title: title.value.trim(), kicker: kicker.value.trim(), desc: desc.value.trim(), row: rows.length ? row.value : undefined, status: status } })
-            .then(function (r) { close(); return loadState().then(function () { if (status !== "soon") { D.page = "write"; selectDoc(r.id); } else flash("Announced on the dashboard.", "ok"); }); })
-            .catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
-        } }, status === "soon" ? "Announce" : "Create"), h("button", { class: "btn", onclick: close }, "Cancel")));
-      body.appendChild(msg);
-    });
-  }
   function startWriting(it) {
     api("/api/item/" + it.id, { method: "POST", body: { lang: S.lang, status: "guide" } }).then(function () { return loadState(); }).then(function () { D.page = "write"; selectDoc(it.id); }).catch(function (e) { flash(e.message, "err"); });
   }
 
-  /* the written guides and what is coming, under the videos in the strip on the left */
-  function renderDocFilm(film) {
-    var c = catalog();
-    film.appendChild(h("div", { class: "group" }, "Written guides"));
-    if (c) c.items.filter(function (it) { return it.status !== "soon" && hasArticle(it); }).forEach(function (it) {
-      var on = S.kind === "doc" && it.id === D.id;
-      var missing = c.languages.filter(function (l) { return !it.files[l]; });
-      film.appendChild(h("button", { class: "tile" + (on ? " on" : ""), title: text(it.title, S.lang), onclick: function () { if (S.kind !== "doc" || D.id !== it.id) { D.page = "write"; selectDoc(it.id); } } },
-        h("div", { class: "thumb doc" }, it.kicker ? h("i", null, text(it.kicker, S.lang)) : null, h("b", null, text(it.title, S.lang))),
-        h("span", { class: "cap" }, text(it.title, S.lang), it.status === "video" ? h("span", { class: "badge" }, "with video") : null),
-        h("span", { class: "sub" }, missing.length ? "not yet in: " + missing.join(", ") : "in " + c.languages.join(", "))));
-    });
-    film.appendChild(h("button", { class: "tile add", title: "New written guide", onclick: function () { newDocDialog("guide"); } }, h("div", { class: "thumb" }, "+"), h("span", { class: "cap" }, "New written guide")));
-    if (!c) return;
-    film.appendChild(h("div", { class: "group" }, "Coming soon"));
-    var list = h("div", { class: "soonlist" });
-    c.items.filter(function (it) { return it.status === "soon"; }).forEach(function (it) {
-      list.appendChild(h("div", { class: "soon", title: text(it.desc, S.lang) },
-        h("span", null, text(it.title, S.lang)),
-        h("button", { title: "Start writing it: it becomes a written guide", onclick: function () { if (confirmLeave()) startWriting(it); } }, "Write"),
-        h("button", { title: "Edit how it is announced", onclick: function () { D.page = "details"; selectDoc(it.id); } }, "Edit"),
-        h("button", { title: "Take it off the dashboard", "aria-label": "Take it off the dashboard", onclick: function () { deleteItemDialog(it); } }, "×")));
-    });
-    list.appendChild(h("button", { class: "addline", onclick: function () { newDocDialog("soon"); } }, "+ Announce one"));
-    film.appendChild(list);
-  }
-
   /* ---------- wiring ---------- */
+  (function () {
+    var film = $("#film");
+    film.addEventListener("dragover", function (e) {
+      if (!S.dragItem) return;
+      e.preventDefault(); e.dataTransfer.dropEffect = "move";
+      var t = dropTarget(e), line = film.querySelector(".filmline"); if (!line) return;
+      var y = t.before ? t.before.offsetTop - 6 : (t.prev ? t.prev.offsetTop + t.prev.offsetHeight + 4 : 56);
+      line.hidden = false; line.style.top = y + "px";
+    });
+    film.addEventListener("drop", function (e) { if (!S.dragItem) return; e.preventDefault(); moveOnDashboard(e); });
+  })();
   document.querySelectorAll(".docbar button").forEach(function (b) { b.addEventListener("click", function () { showDocPage(b.getAttribute("data-docpage")); }); });
   document.querySelectorAll(".tabs button").forEach(function (b) { b.addEventListener("click", function () { S.tab = b.getAttribute("data-tab"); renderPanel(); }); });
   $("#ai").addEventListener("click", aiDialog);
   $("#welcome-copy").addEventListener("click", function () { copyText(S.welcomePrompt || "", "Prompt copied. Paste it in your assistant.", $("#welcome-prompt")); });
-  $("#welcome-new").addEventListener("click", function () { if (S.state.scenes.length) newTutorialDialog(); else flash("There are no screens yet: the assistant creates them from your site. Paste the prompt in it first.", ""); });
+  $("#welcome-new").addEventListener("click", function () { newDialog(); });
   $("#project").addEventListener("click", projectDialog);
   $("#dashboard").addEventListener("click", dashboardDialog);
   $("#notes").addEventListener("click", notesDialog);
@@ -1422,5 +1566,6 @@
     if (S.dirty || (S.kind === "doc" && D.dirty)) { var b = $("#banner"); b.hidden = false; b.className = "banner"; b.textContent = "The kit changed on disk. Save or discard your edit, then reload this page."; return; }
     loadState().then(function () { viewKey = ""; prevKey = ""; renderView(true); flash("The kit changed: updated.", "ok"); });
   };
-  loadState().catch(function (e) { document.body.textContent = "Studio could not load: " + e.message; });
+  events.addEventListener("agent", function () { refreshAgent(); });
+  loadState().then(refreshAgent).catch(function (e) { document.body.textContent = "Studio could not load: " + e.message; });
 })();

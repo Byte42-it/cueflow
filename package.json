@@ -16,7 +16,8 @@
     "build": "rm -rf build && tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
     "prepack": "npm run build",
     "build:demo": "node src/cli.ts build upload --kit examples/demo-kit",
-    "mcp": "node src/cli.ts mcp"
+    "mcp": "node src/cli.ts mcp",
+    "studio": "node src/cli.ts studio"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",

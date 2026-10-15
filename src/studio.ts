@@ -1,16 +1,19 @@
 import { execFile } from "node:child_process";
+import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { chmod, mkdir, readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ArticleError, catalogOverview, createArticle, deleteItem, readArticle, startTranslation, updateItem, writeArticle } from "./articles.ts";
+import { ArticleError, catalogOverview, createArticle, deleteItem, readArticle, reorderItems, startTranslation, updateItem, writeArticle } from "./articles.ts";
 import { Brief, loadBrief, updateBrief } from "./brief.ts";
 import { buildGuide, estimateStepDuration, renderGuideHtml, writeAtomic } from "./build.ts";
 import { checkLayout } from "./layout.ts";
 import { buildSite, loadSite, setSiteText, siteFile, syncSite } from "./site.ts";
 import { loadTheme } from "./theme.ts";
 import { describeChange, discardChanges, pendingChanges, recordChange } from "./changes.ts";
-import { agentPrompt } from "./prompt.ts";
+import { agentPrompt, requestPrompt, type NewRequest, type StudioLink } from "./prompt.ts";
+import { AgentBridge } from "./agent.ts";
+import { METHOD } from "./method.ts";
 import { deleteTutorial } from "./trash.ts";
 import { editSceneElement } from "./sceneedit.ts";
 import { deleteMediaFile, mediaOverview, saveMediaFile, areaDir, safeRel, type Area } from "./media.ts";
@@ -134,7 +137,9 @@ body.cf-site { display: block; }
 </style></head><body class="cf-site"><main class="cf-main"><div class="cf-article" id="doc"></div></main></body></html>`;
 }
 
-async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clients: Set<ServerResponse>) {
+type Ctx = { bridge: AgentBridge; link: () => StudioLink };
+
+async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clients: Set<ServerResponse>, ctx: Ctx) {
   Object.assign(kit, openKit(kit.root)); // cueflow.json may have been changed by someone else
   const url = new URL(req.url ?? "/", "http://localhost");
   const p = url.pathname;
@@ -150,6 +155,9 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     req.on("close", () => clients.delete(res));
     return;
   }
+
+  // Studio's door for an assistant (curl): its own key, not the page's header
+  if (p.startsWith("/agent/")) return agentRoutes(req, res, url, ctx);
 
   if (req.method !== "GET" && req.headers["x-cueflow"] !== "studio") throw new HttpError(403, "not allowed from this page");
 
@@ -174,6 +182,13 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
   }
   am = /^\/api\/article-translate\/([\w-]+)$/.exec(p);
   if (am && req.method === "POST") return json(res, await startTranslation(kit, am[1]!, String(lang)));
+  if (p === "/api/order" && req.method === "POST") {
+    // the order the tutorials are listed in, in Studio and on the dashboard: the videos that are not on it yet join it first
+    const b = await readBody(req);
+    await syncSite(kit);
+    if (!Array.isArray(b.ids)) throw new HttpError(400, "ids must be the list of item ids in the new order");
+    return json(res, await reorderItems(kit, b.ids.map(String), b.moved ? { id: String(b.moved), row: b.row ? String(b.row) : undefined } : undefined));
+  }
   if (p === "/api/article-create" && req.method === "POST") {
     const b = await readBody(req);
     if (!(await readFile(siteFile(kit)).then(() => true, () => false))) await syncSite(kit); // the first written guide starts the dashboard
@@ -194,7 +209,36 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
   am = /^\/api\/item\/([\w-]+)$/.exec(p);
   if (am && req.method === "POST") return json(res, await updateItem(kit, am[1]!, await readBody(req)));
   if (am && req.method === "DELETE") return json(res, await deleteItem(kit, am[1]!));
-  if (p === "/api/agent-prompt") return json(res, { prompt: await agentPrompt(kit, { guide: url.searchParams.get("guide") ?? undefined, step: url.searchParams.get("step") ? Number(url.searchParams.get("step")) : undefined, lang }) });
+  if (p === "/api/agent-prompt") return json(res, { prompt: await agentPrompt(kit, { guide: url.searchParams.get("guide") ?? undefined, step: url.searchParams.get("step") ? Number(url.searchParams.get("step")) : undefined, lang }, ctx.link()) });
+  // what the page asks of the assistant: the state of the door, a request to send, or a prompt to copy
+  if (p === "/api/agent" && req.method === "GET") return json(res, ctx.bridge.state());
+  if (p === "/api/agent/request-prompt" && req.method === "POST") {
+    const b = await readBody(req);
+    return json(res, { prompt: await requestPrompt(kit, b.request as NewRequest, { lang: b.lang }, ctx.link()) });
+  }
+  if (p === "/api/agent/send" && req.method === "POST") {
+    const b = await readBody(req);
+    let title: string, prompt: string, kind: string;
+    if (b.request) {
+      const r = b.request as NewRequest;
+      kind = "new-" + r.kind;
+      title = `New ${r.kind === "video" ? "video tutorial" : r.kind === "guide" ? "written guide" : "announcement"}${r.title ? `: ${r.title}` : ""}`;
+      prompt = await requestPrompt(kit, r, { lang: b.lang }, ctx.link(), true);
+    } else {
+      kind = "message";
+      title = String(b.title ?? "A request from Studio").slice(0, 120);
+      prompt = String(b.text ?? "").slice(0, 8000);
+      if (!prompt.trim()) throw new HttpError(400, "write what you want the assistant to do");
+    }
+    const task = ctx.bridge.send(kind, title, prompt);
+    if (!task) throw new HttpError(409, "no assistant is connected to Studio: copy the prompt and paste it in your assistant instead");
+    return json(res, { task });
+  }
+  if (p === "/api/agent/cancel" && req.method === "POST") {
+    const b = await readBody(req);
+    return json(res, { cancelled: ctx.bridge.cancel(String(b.task)) });
+  }
+
   if (p === "/api/changes" && req.method === "GET") return json(res, (await pendingChanges(kit)).map((c) => ({ ...c, sentence: describeChange(c) })));
   if (p === "/api/changes/discard" && req.method === "POST") {
     const b = await readBody(req);
@@ -418,13 +462,77 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
   throw new HttpError(404, "not found");
 }
 
+
+const authOk = (req: IncomingMessage, url: URL, token: string) => {
+  const given = (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "") || url.searchParams.get("token") || "";
+  return given.length === token.length && timingSafeEqual(Buffer.from(given), Buffer.from(token));
+};
+
+/** The HTTP door of an assistant: everything under /agent/, with Studio's key. */
+async function agentRoutes(req: IncomingMessage, res: ServerResponse, url: URL, ctx: Ctx) {
+  const { bridge } = ctx;
+  if (!authOk(req, url, bridge.token)) throw new HttpError(401, "missing or wrong key: use the header Authorization: Bearer <key> given in the prompt of Studio (the key changes each time Studio starts)");
+  bridge.lastSeen = Date.now();
+  const p = url.pathname;
+
+  if (p === "/agent/help") {
+    const tools = await bridge.listTools();
+    const base = ctx.link().url.replace(/\/$/, "");
+    return send(res, 200, [
+      "Cueflow Studio: the door for an assistant. Valid while Studio runs, on this computer. Every call carries the header Authorization: Bearer <key>.",
+      "",
+      `GET  ${base}/agent/help          this text`,
+      `GET  ${base}/agent/method        how to make good tutorials with Cueflow: read it before starting`,
+      `GET  ${base}/agent/tools         the tools, with their arguments (JSON)`,
+      `POST ${base}/agent/call/<tool>   body: the arguments as JSON ({} if none) → {"ok":…,"result":…}; a picture comes back as a file path`,
+      `GET  ${base}/agent/next?wait=540 LISTEN: returns {"task":{id,title,prompt}} when the person sends you something from Studio, or {"task":null} after the wait. Run it in the background and run it again each time.`,
+      `POST ${base}/agent/say           {"text":"…","task":"<id>"} what you are doing, shown in Studio`,
+      `POST ${base}/agent/done          {"task":"<id>","summary":"…"} when a task is finished`,
+      "",
+      "Start with the method, then the tool get_brief: it says where the kit stands and what comes next.",
+      "",
+      "Tools: " + tools.map((t) => t.name).join(", ")
+    ].join("\n"), "text/plain; charset=utf-8");
+  }
+  if (p === "/agent/method") return send(res, 200, METHOD, "text/plain; charset=utf-8");
+  if (p === "/agent/tools") return json(res, await bridge.listTools());
+
+  const call = /^\/agent\/call\/([\w-]+)$/.exec(p);
+  if (call && req.method === "POST") {
+    const args = await readBody(req);
+    return json(res, await bridge.call(call[1]!, args));
+  }
+
+  if (p === "/agent/next" && req.method === "GET") {
+    const wait = Math.min(Math.max(Number(url.searchParams.get("wait") ?? 60), 1), 540) * 1000;
+    const { promise, abort } = bridge.next(wait);
+    req.on("close", abort); // the assistant hung up (it was stopped): it is not waiting any more
+    return json(res, { task: await promise });
+  }
+  if (p === "/agent/say" && req.method === "POST") {
+    const b = await readBody(req);
+    bridge.say(String(b.text ?? ""), b.task ? String(b.task) : undefined);
+    return json(res, { ok: true });
+  }
+  if (p === "/agent/done" && req.method === "POST") {
+    const b = await readBody(req);
+    if (!bridge.done(String(b.task), b.summary ? String(b.summary) : undefined)) throw new HttpError(404, `no task "${b.task}"`);
+    return json(res, { ok: true });
+  }
+  throw new HttpError(404, "no such call: GET /agent/help lists them");
+}
+
 /** Cueflow Studio: a local page to look at and edit a kit. It binds to this computer only. */
-export async function startStudio(kit: Kit, opts: { port?: number; open?: boolean } = {}): Promise<{ url: string; close: () => void }> {
+export async function startStudio(kit: Kit, opts: { port?: number; open?: boolean } = {}): Promise<{ url: string; link: StudioLink; bridge: AgentBridge; close: () => void }> {
   const clients = new Set<ServerResponse>();
+  const bridge = new AgentBridge(kit);
+  let link: StudioLink = { url: "", token: bridge.token };
+  const ctx: Ctx = { bridge, link: () => link };
+  bridge.onChange = () => { for (const c of clients) c.write("event: agent\ndata: changed\n\n"); };
   const server = createServer((req, res) => {
     // only this computer, under its own name: a web page elsewhere must not be able to drive the kit
     if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host ?? "")) return send(res, 403, "forbidden", "text/plain");
-    handle(kit, req, res, clients).catch((e) => {
+    handle(kit, req, res, clients, ctx).catch((e) => {
       const status = e instanceof HttpError || e instanceof ArticleError ? e.status : e?.name === "ZodError" ? 422 : 500;
       const message = e?.name === "ZodError" ? e.issues.map((i: any) => `${i.path.join(".")}: ${i.message}`).join("; ") : e instanceof Error ? e.message : String(e);
       if (!res.headersSent) json(res, { error: message }, status);
@@ -450,8 +558,9 @@ export async function startStudio(kit: Kit, opts: { port?: number; open?: boolea
     tryPort(start);
   });
   const url = `http://localhost:${port}/`;
+  link = { url, token: bridge.token };
   if (opts.open !== false) openBrowser(url);
-  return { url, close: () => { clearInterval(timer); for (const c of clients) c.end(); server.close(); } };
+  return { url, link, bridge, close: () => { clearInterval(timer); for (const c of clients) c.end(); server.close(); } };
 }
 
 function openBrowser(url: string) {

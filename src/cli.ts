@@ -6,6 +6,7 @@ import { captureScenes } from "./capture.ts";
 import { initKit } from "./brief.ts";
 import { findKitRoot, loadGuide, openKit } from "./kit.ts";
 import { startStudio } from "./studio.ts";
+import { agentPrompt } from "./prompt.ts";
 import { voiceOptions, voiceTable } from "./voices.ts";
 import { checkLayout } from "./layout.ts";
 import { startMcp } from "./mcp.ts";
@@ -113,7 +114,7 @@ try {
     console.log(`${project.root}  (output: ${project.out})\nNext: put OPENAI_API_KEY in .cueflow/.env only if you choose an external voice; connect your assistant with the MCP server (see README).`);
   } else if (command === "studio") {
     const studio = await startStudio(kit, { port: values.port ? Number(values.port) : undefined, open: !values["no-open"] });
-    console.log(`Cueflow Studio: ${studio.url}\nKit: ${kit.root}\nCtrl+C to stop.`);
+    console.log(`Cueflow Studio: ${studio.url}\nKit: ${kit.root}\nCtrl+C to stop.\n\nTo work with an AI assistant, paste this into it (the key is valid until Studio stops; it is also in Studio, button AI):\n\n${await agentPrompt(kit, {}, studio.link)}\n`);
     await new Promise(() => {}); // runs until stopped
   } else if (command === "voices") {
     for (const o of voiceOptions()) console.log(`${o.available ? "●" : "○"} ${o.provider.padEnd(8)} ${o.title}\n    ${o.summary}\n    needs: ${o.needs}; cost: ${o.cost}`);

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
 import * as fs from "node:fs/promises";
 import http from "node:http";
@@ -12,6 +13,8 @@ import { startStudio } from "../src/studio.ts";
 let dir: string;
 let url: string;
 let close: () => void;
+let token: string;
+let bridge: { lastSeen: number };
 const H = { "x-cueflow": "studio", "content-type": "application/json" };
 
 before(async () => {
@@ -20,7 +23,7 @@ before(async () => {
   await cp(path.join(import.meta.dirname, "..", "examples", "demo-kit"), root, { recursive: true, filter: (s) => !/[\\/](dist|audio)([\\/]|$)/.test(s) });
   const kit = openKit(root);
   await initKit(kit);
-  ({ url, close } = await startStudio(kit, { port: 4400 + Math.floor(Math.random() * 400), open: false }));
+  ({ url, close, link: { token }, bridge } = await startStudio(kit, { port: 4400 + Math.floor(Math.random() * 400), open: false }));
 });
 after(async () => {
   close();
@@ -227,6 +230,87 @@ describe("studio", () => {
     assert.equal((await fetch(url + "api/guide/gone")).status, 500, "and is gone from the kit");
     assert.ok(!JSON.parse(await readFile(path.join(dir, ".cueflow", "site.json"), "utf8")).items.some((i: any) => i.guide === "gone"));
     assert.equal((await fetch(url + "api/guide/gone", { method: "DELETE", headers: H })).status, 404);
+  });
+
+  it("is a door for an assistant that uses curl: a key, the tools, and the same results as MCP", async () => {
+    const auth = { authorization: `Bearer ${token}` };
+    assert.equal((await fetch(url + "agent/help")).status, 401, "without the key nothing opens");
+    assert.equal((await fetch(url + "agent/help", { headers: { authorization: "Bearer nope" } })).status, 401);
+    const help = await (await fetch(url + "agent/help", { headers: auth })).text();
+    assert.match(help, /agent\/next/);
+    assert.match(await (await fetch(url + "agent/method", { headers: auth })).text(), /How to make tutorials/);
+    const tools = (await (await fetch(url + "agent/tools", { headers: auth })).json()) as any[];
+    assert.ok(["get_brief", "create_guide", "create_article", "write_article", "get_changes"].every((n) => tools.some((t) => t.name === n)));
+    const call = (name: string, body: object = {}) => fetch(url + "agent/call/" + name, { method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json()) as Promise<any>;
+    const brief = await call("get_brief");
+    assert.equal(brief.ok, true);
+    assert.ok(JSON.parse(brief.result).guides.includes("upload"));
+    const bad = await call("add_step", { guide: "upload", step: { id: "x", camera: { target: "#nope" }, actions: [], narration: {} } });
+    assert.equal(bad.ok, false, "a step on something that does not exist is refused, as over MCP");
+    const art = await call("create_article", { id: "from-curl", title: "From curl", status: "guide" });
+    assert.equal(art.ok, true);
+    assert.match((await call("read_article", { id: "from-curl", lang: "en" })).result, /From curl/);
+  });
+
+  it("talks both ways: Studio sends a request to a waiting assistant, which answers", async () => {
+    const auth = { authorization: `Bearer ${token}` };
+    const st = (path: string, body?: object) => fetch(url + path, { method: body ? "POST" : "GET", headers: { ...auth, "x-cueflow": "studio", "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    // nobody waits yet (the calls of the test before do not count any more): the page is told to fall back to copy and paste
+    bridge.lastSeen = 0;
+    const early = await st("api/agent/send", { text: "hello" });
+    assert.equal(early.status, 409);
+    assert.equal(((await (await st("api/agent")).json()) as any).connected, false);
+
+    const waiting = fetch(url + "agent/next?wait=20", { headers: auth }).then((r) => r.json()) as Promise<any>;
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal(((await (await st("api/agent")).json()) as any).connected, true, "an assistant that waits is connected");
+    const sent = await st("api/agent/send", { request: { kind: "video", title: "Send an invoice", languages: ["en"] } });
+    assert.equal(sent.status, 200);
+    const { task } = await waiting;
+    assert.match(task.prompt, /NEW REQUEST: I want a new VIDEO tutorial/);
+    assert.match(task.prompt, /title: Send an invoice/);
+    assert.match(task.prompt, /ask me/i);
+    await st("agent/say", { text: "reading the site", task: task.id });
+    await st("agent/done", { task: task.id, summary: "made it" });
+    const state = (await (await st("api/agent")).json()) as any;
+    assert.equal(state.tasks.at(-1).status, "done");
+    assert.ok(state.log.some((l: any) => l.text === "reading the site"));
+  });
+
+  it("builds the prompts the page copies: a request for each kind of thing, with the way to connect", async () => {
+    const r = (await (await fetch(url + "api/agent/request-prompt", { method: "POST", headers: H, body: JSON.stringify({ request: { kind: "guide", title: "Billing" } }) })).json()) as any;
+    assert.match(r.prompt, /WRITTEN guide/);
+    assert.match(r.prompt, new RegExp(`Bearer ${token}`));
+    assert.match(r.prompt, /\.mcp\.json/);
+    assert.match(r.prompt, /BEFORE you create anything, ask me/);
+  });
+
+  it("reorders the dashboard by dragging, and the built site follows", async () => {
+    await fetch(url + "api/export-all", { method: "POST", headers: H, body: "{}" });
+    const siteFile = path.join(dir, ".cueflow", "site.json");
+    const items = () => (JSON.parse(readFileSync(siteFile, "utf8")).items as any[]);
+    const ids = items().map((i) => i.id);
+    assert.ok(ids.length >= 3);
+    const reversed = [...ids].reverse();
+    const r = await fetch(url + "api/order", { method: "POST", headers: H, body: JSON.stringify({ ids: reversed }) });
+    assert.equal(r.status, 200);
+    assert.deepEqual(items().map((i) => i.id), reversed);
+    await fetch(url + "api/build", { method: "POST", headers: H, body: JSON.stringify({ target: "site" }) });
+    const home = await (await fetch(url + "out/site/index.html")).text();
+    const data = JSON.parse(/window\.CUEFLOW_SITE = (\{.*\});<\/script>/s.exec(home)![1]!.replace(/\\u003c/g, "<"));
+    assert.deepEqual(data.catalog.items.map((i: any) => i.id), reversed, "the home page lists them in the order chosen");
+    // dropped in another row: the item moves to it
+    const raw = JSON.parse(readFileSync(siteFile, "utf8"));
+    raw.rows.push({ id: "later", title: "Later" });
+    await fs.writeFile(siteFile, JSON.stringify(raw));
+    const rows = raw.rows as any[];
+    const moved = items().find((i) => i.row !== rows[1].id)!;
+    const r2 = await fetch(url + "api/order", { method: "POST", headers: H, body: JSON.stringify({ ids: items().map((i) => i.id), moved: moved.id, row: rows[1].id }) });
+    assert.equal(r2.status, 200);
+    assert.equal(items().find((i) => i.id === moved.id)!.row, rows[1].id);
+    assert.equal((await fetch(url + "api/order", { method: "POST", headers: H, body: JSON.stringify({ ids: ["x"], moved: moved.id, row: "nope" }) })).status, 400);
+    const notes = (await (await fetch(url + "api/changes")).json()) as any[];
+    assert.ok(notes.some((c) => c.kind === "catalog" && c.target === "order"), "the assistant is told the order changed");
   });
 
   it("refuses something that does not look like an OpenAI key", async () => {
