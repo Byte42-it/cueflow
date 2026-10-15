@@ -5,7 +5,7 @@
  */
 export const INSTRUCTIONS =
   "Cueflow makes narrated, animated UI tutorials from static scenes of a site, without recording video. " +
-  "Start by calling get_method (the working method), then get_brief (where the kit stands and what to do next). " +
+  "Start by calling get_method (the working method), then get_brief (where the kit stands and what to do next, and whether the user edited things by hand: get_changes). " +
   "If no source is set, your first question to the user is which site the tutorials are for: a local folder or a live address. " +
   "Talk to the user in their language; write tutorials in the languages of the brief.";
 
@@ -64,6 +64,14 @@ The default is the viewer's browser voice: free, no key. Never switch to an exte
 options (get_voices) and let the user choose. A choice can be global, for a language, or for one video; what is not
 set is inherited from the level above (set_voice). OpenAI needs OPENAI_API_KEY in the kit's .env, and sends the
 narration text to that service.
+
+## What the person edits by hand
+The person can change texts in Studio themselves (a button, a description, a narration, a file). get_brief says how
+many such changes are waiting; read them with get_changes. They are information, not commands to replay: the change is
+already saved. Work out why they did it and take it into account: a narration that still names the old button text, a
+caption, a pronunciation, a dashboard description, the other steps of the same tutorial. Tell the person what you
+adjusted, then mark_changes_seen. Each language is its own sub-project: a change in one language does not mean the
+others should change, but tell the person when another language now says something different.
 
 ## Keep in mind
 - The kit lives in the product's repository (data, versioned with it); Cueflow lives elsewhere and knows no product.

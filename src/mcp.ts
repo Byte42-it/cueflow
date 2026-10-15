@@ -3,6 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { buildGuide } from "./build.ts";
 import { Brief, initKit, kitStatus, updateBrief } from "./brief.ts";
+import { describeChange, markSeen, pendingChanges } from "./changes.ts";
 import { INSTRUCTIONS, METHOD } from "./method.ts";
 import { VoiceSpec } from "./settings.ts";
 import { setVoice, voiceOptions, voiceTable } from "./voices.ts";
@@ -89,6 +90,27 @@ export function createServer(kit: Kit): McpServer {
       await updateBrief(kit, Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)));
       return text(await kitStatus(kit));
     })
+  );
+
+  server.registerTool(
+    "get_changes",
+    {
+      description:
+        "What the user changed BY HAND in Studio since you last looked (a button's text, a description, a narration, a file), each as a plain sentence. This is information, not a list to replay: the changes are already saved. Understand why the person made them and take them into account: e.g. a narration that still names the old button text, a caption, a pronunciation, a dashboard description. Fix what should follow, tell the user what you adjusted, then call mark_changes_seen."
+    },
+    safe(async () => {
+      const list = await pendingChanges(kit);
+      return text({ count: list.length, changes: list.map((c) => ({ ...c, sentence: describeChange(c) })) });
+    })
+  );
+
+  server.registerTool(
+    "mark_changes_seen",
+    {
+      description: "Mark hand edits as read, after taking them into account. `note` says in a few words what you did about them (kept for whoever reads the inbox).",
+      inputSchema: { ids: z.array(z.string()).optional().describe("ids from get_changes; omit for all"), note: z.string().optional() }
+    },
+    safe(async ({ ids, note }) => text({ marked: await markSeen(kit, ids ?? "all", note) }))
   );
 
   server.registerTool(

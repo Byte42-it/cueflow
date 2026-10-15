@@ -6,11 +6,13 @@ import { fileURLToPath } from "node:url";
 import { Brief, loadBrief, updateBrief } from "./brief.ts";
 import { buildGuide, estimateStepDuration, renderGuideHtml, writeAtomic } from "./build.ts";
 import { checkLayout } from "./layout.ts";
-import { buildSite, syncSite } from "./site.ts";
+import { buildSite, loadSite, setSiteText, syncSite } from "./site.ts";
+import { describeChange, pendingChanges, recordChange } from "./changes.ts";
+import { editSceneElement } from "./sceneedit.ts";
 import { deleteMediaFile, mediaOverview, saveMediaFile, areaDir, safeRel, type Area } from "./media.ts";
 import { listGuides, listScenes, loadGuide, openKit, readScene, saveGuide, guideFile, type Kit } from "./kit.ts";
 import { describeScene, inlineScene } from "./scene.ts";
-import { Guide } from "./schema.ts";
+import { Guide, pick } from "./schema.ts";
 import { narrationAudio, providerFromSpec, audioMime } from "./tts.ts";
 import { VoiceSpec } from "./settings.ts";
 import { validateGuide } from "./validate.ts";
@@ -65,6 +67,15 @@ async function readRaw(req: IncomingMessage, max = 25_000_000): Promise<Buffer> 
   return Buffer.concat(chunks);
 }
 
+/** A file name from the page, or a 400 that says what is wrong with it. */
+function cleanName(raw: string): string {
+  try {
+    return safeRel(raw);
+  } catch (e) {
+    throw new HttpError(400, e instanceof Error ? e.message : String(e));
+  }
+}
+
 const mtime = (file: string) => stat(file).then((s) => s.mtimeMs, () => 0);
 
 /** What changed on disk, as one string: when it differs from the last one, somebody (an assistant, an editor) edited the kit. */
@@ -73,7 +84,7 @@ async function signature(kit: Kit): Promise<string> {
   for (const dir of ["guides", "scenes", "scenes/it", "scenes/en"]) {
     for (const f of await readdir(path.join(kit.root, dir)).catch(() => [] as string[])) parts.push(`${dir}/${f}:${await mtime(path.join(kit.root, dir, f))}`);
   }
-  for (const f of ["cueflow.json", "brief.json"]) parts.push(`${f}:${await mtime(path.join(kit.root, f))}`);
+  for (const f of ["cueflow.json", "brief.json", "changes.json", "site.json"]) parts.push(`${f}:${await mtime(path.join(kit.root, f))}`);
   return parts.join("|");
 }
 
@@ -87,7 +98,7 @@ async function state(kit: Kit) {
     for (const lang of g.languages) timing[lang] = g.steps.map((s) => estimateStepDuration(s, lang));
     guides.push({ id, title: g.title, languages: g.languages, scene: g.scene, viewport: g.viewport, timing, steps: g.steps.map((s) => ({ id: s.id, title: s.title ?? null, narration: s.narration, actions: s.actions.map((a) => ({ do: a.do, at: "at" in a ? a.at : 0, duration: "duration" in a ? a.duration : undefined })) })) });
   }
-  return { kitRoot: kit.root, outDir: kit.out, brief: await loadBrief(kit), guides, scenes: await listScenes(kit), hasKey: Boolean(process.env.OPENAI_API_KEY) };
+  return { kitRoot: kit.root, outDir: kit.out, brief: await loadBrief(kit), pending: (await pendingChanges(kit)).length, guides, scenes: await listScenes(kit), hasKey: Boolean(process.env.OPENAI_API_KEY) };
 }
 
 async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clients: Set<ServerResponse>) {
@@ -110,6 +121,7 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
   if (req.method !== "GET" && req.headers["x-cueflow"] !== "studio") throw new HttpError(403, "not allowed from this page");
 
   if (p === "/api/state") return json(res, await state(kit));
+  if (p === "/api/changes") return json(res, (await pendingChanges(kit)).map((c) => ({ ...c, sentence: describeChange(c) })));
 
   let m = /^\/api\/guide\/([\w-]+)$/.exec(p);
   if (m && req.method === "GET") return json(res, { guide: await loadGuide(kit, m[1]!), version: await mtime(guideFile(kit, m[1]!)) });
@@ -121,7 +133,19 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     if (guide.id !== id) throw new HttpError(400, "the guide's id cannot change here");
     const report = await validateGuide(kit, guide);
     if (report.errors.length) return json(res, { saved: false, errors: report.errors, warnings: report.warnings }, 422);
+    // what the person changed in the words of the video: noted for the assistant
+    const old = await loadGuide(kit, id).catch(() => null);
     await saveGuide(kit, guide);
+    if (old) {
+      for (const st of guide.steps) {
+        const o = old.steps.find((x) => x.id === st.id);
+        if (!o) continue;
+        for (const lang of guide.languages) {
+          await recordChange(kit, { kind: "narration", tutorial: id, lang, target: st.id, before: o.narration[lang] ?? "", after: st.narration[lang] ?? "" });
+          await recordChange(kit, { kind: "title", tutorial: id, lang, target: st.id, before: pick(o.title, lang) ?? "", after: pick(st.title, lang) ?? "" });
+        }
+      }
+    }
     return json(res, { saved: true, warnings: report.warnings, version: await mtime(guideFile(kit, id)) });
   }
 
@@ -164,13 +188,50 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
       throw new HttpError(404, "no such file");
     }
   }
+  if (p === "/api/scene-edit" && req.method === "POST") {
+    const b = await readBody(req);
+    if (!b.lang) throw new HttpError(400, "choose the language to edit in (the selector at the top)");
+    const r = await editSceneElement(kit, String(b.scene), String(b.lang), String(b.selector), { text: b.text, attrs: b.attrs }, b.tutorial ? String(b.tutorial) : undefined).catch((e) => { throw new HttpError(422, e.message); });
+    return json(res, { saved: true, changed: r.changed });
+  }
+  if (p === "/api/media-text" && req.method === "PUT") {
+    const area = url.searchParams.get("area") as Area;
+    const guide = url.searchParams.get("guide") ?? undefined;
+    const name = cleanName(url.searchParams.get("name") ?? "");
+    if (![".css", ".js"].includes(path.extname(name).toLowerCase())) throw new HttpError(400, "only stylesheets and scripts can be edited as text");
+    const file = path.join(areaDir(kit, area, guide), name);
+    const before = await read(file, "utf8").catch(() => "");
+    const after = (await readRaw(req, 2_000_000)).toString("utf8");
+    await writeAtomic(file, after);
+    const a = before.split("\n"), c = after.split("\n");
+    let diff = 0, first = "";
+    for (let i = 0; i < Math.max(a.length, c.length); i++) if (a[i] !== c[i]) { diff += 1; if (!first) first = `line ${i + 1}: “${(a[i] ?? "").trim().slice(0, 80)}” → “${(c[i] ?? "").trim().slice(0, 80)}”`; }
+    if (diff) await recordChange(kit, { kind: "file-edited", tutorial: guide, target: `${area === "shared" ? "shared" : "media/" + guide}/${name}`, after: `${diff} line(s) differ; first: ${first}` });
+    return json(res, { saved: true, lines: diff });
+  }
+  if (p === "/api/site" && req.method === "GET") {
+    await syncSite(kit);
+    return json(res, await loadSite(kit));
+  }
+  if (p === "/api/site-text" && req.method === "POST") {
+    const b = await readBody(req);
+    if (!["title", "kicker", "desc"].includes(b.field)) throw new HttpError(400, "field must be title, kicker or desc");
+    await setSiteText(kit, String(b.id), b.field, String(b.lang), String(b.value ?? "")).catch((e) => { throw new HttpError(422, e.message); });
+    return json(res, { saved: true });
+  }
+
   m = /^\/api\/media\/([\w-]+)$/.exec(p);
   if (m && req.method === "GET") return json(res, await mediaOverview(kit, m[1]!));
   if (p === "/api/media-file" && req.method === "POST") {
     const area = url.searchParams.get("area") as Area;
     if (area !== "shared" && area !== "media") throw new HttpError(400, "area must be shared or media");
-    const name = await saveMediaFile(kit, area, url.searchParams.get("guide") ?? undefined, url.searchParams.get("name") ?? "", await readRaw(req)).catch((e) => { throw new HttpError(400, e.message); });
-    return json(res, { saved: name });
+    const guide = url.searchParams.get("guide") ?? undefined;
+    const data = await readRaw(req);
+    const rel = cleanName(url.searchParams.get("name") ?? "");
+    const existing = await stat(path.join(areaDir(kit, area, guide), rel)).then((s) => s.size, () => null);
+    const name = await saveMediaFile(kit, area, guide, rel, data).catch((e) => { throw new HttpError(400, e.message); });
+    if (existing !== null) await recordChange(kit, { kind: "file-replaced", tutorial: guide, target: `${area === "shared" ? "shared" : "media/" + guide}/${name}`, before: `${existing} bytes`, after: `${data.length} bytes` });
+    return json(res, { saved: name, replaced: existing !== null });
   }
   if (p === "/api/media-file" && req.method === "DELETE") {
     const area = url.searchParams.get("area") as Area;
