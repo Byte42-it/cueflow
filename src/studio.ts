@@ -3,14 +3,17 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { chmod, readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadBrief } from "./brief.ts";
-import { renderGuideHtml, writeAtomic } from "./build.ts";
-import { listGuides, listScenes, loadGuide, openKit, saveGuide, guideFile, type Kit } from "./kit.ts";
-import { inlineScene } from "./scene.ts";
+import { Brief, loadBrief, updateBrief } from "./brief.ts";
+import { buildGuide, estimateStepDuration, renderGuideHtml, writeAtomic } from "./build.ts";
+import { checkLayout } from "./layout.ts";
+import { buildSite } from "./site.ts";
+import { listGuides, listScenes, loadGuide, openKit, readScene, saveGuide, guideFile, type Kit } from "./kit.ts";
+import { describeScene, inlineScene } from "./scene.ts";
 import { Guide } from "./schema.ts";
 import { narrationAudio, providerFromSpec, audioMime } from "./tts.ts";
 import { VoiceSpec } from "./settings.ts";
 import { validateGuide } from "./validate.ts";
+import { readFile as read } from "node:fs/promises";
 import { setVoice, voiceOptions, voiceTable } from "./voices.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -67,7 +70,10 @@ async function state(kit: Kit) {
   for (const id of await listGuides(kit)) {
     const g = await loadGuide(kit, id).catch(() => null);
     if (!g) continue;
-    guides.push({ id, title: g.title, languages: g.languages, scene: g.scene, steps: g.steps.map((s) => ({ id: s.id, title: s.title ?? null, narration: s.narration })) });
+    // estimated lengths (ms) per language, as the player computes them for a silent build: the timeline is drawn from these
+    const timing: Record<string, { narration: number; total: number }[]> = {};
+    for (const lang of g.languages) timing[lang] = g.steps.map((s) => estimateStepDuration(s, lang));
+    guides.push({ id, title: g.title, languages: g.languages, scene: g.scene, timing, steps: g.steps.map((s) => ({ id: s.id, title: s.title ?? null, narration: s.narration, actions: s.actions.map((a) => ({ do: a.do, at: "at" in a ? a.at : 0, duration: "duration" in a ? a.duration : undefined })) })) });
   }
   return { kitRoot: kit.root, outDir: kit.out, brief: await loadBrief(kit), guides, scenes: await listScenes(kit), hasKey: Boolean(process.env.OPENAI_API_KEY) };
 }
@@ -115,6 +121,61 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
   }
   m = /^\/scene\/([\w-]+)$/.exec(p);
   if (m) return send(res, 200, await inlineScene(kit, m[1]!, lang), "text/html; charset=utf-8");
+
+  // built files, so that a built video or site can be opened from Studio
+  if (p.startsWith("/out/") && req.method === "GET") {
+    const file = path.resolve(kit.out, "." + decodeURIComponent(p.slice(4)));
+    if (file !== kit.out && !file.startsWith(kit.out + path.sep)) throw new HttpError(403, "outside the output folder");
+    const type = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".svg": "image/svg+xml", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".json": "application/json" }[path.extname(file)] ?? "application/octet-stream";
+    try {
+      return send(res, 200, await read(file), type);
+    } catch {
+      throw new HttpError(404, "not built yet");
+    }
+  }
+
+  if (p === "/api/check" && req.method === "POST") {
+    const b = await readBody(req);
+    const report = await validateGuide(kit, await loadGuide(kit, String(b.guide)));
+    const out: { errors: string[]; warnings: string[]; layout?: string[]; layoutError?: string } = { ...report };
+    if (b.layout && !report.errors.length) {
+      try {
+        out.layout = await checkLayout(kit, String(b.guide), { lang: b.lang ? String(b.lang) : undefined });
+      } catch (e) {
+        out.layoutError = `The layout check needs a browser (Playwright): ${e instanceof Error ? e.message : e}`;
+      }
+    }
+    return json(res, out);
+  }
+
+  if (p === "/api/build" && req.method === "POST") {
+    // builds with the voices chosen in cueflow.json: an external voice is called here, deliberately
+    const b = await readBody(req);
+    if (b.target === "site") {
+      const r = await buildSite(kit, { posters: b.posters === true });
+      return json(res, { target: "site", url: "/out/site/index.html", pages: r.pages.length, warnings: r.warnings });
+    }
+    const id = String(b.guide);
+    const r = await buildGuide(kit, id);
+    return json(res, { target: "guide", url: `/out/${id}.html`, audioFiles: r.audioFiles, silent: r.silent, warnings: r.warnings });
+  }
+
+  if (p === "/api/guide-create" && req.method === "POST") {
+    const b = await readBody(req);
+    if ((await listGuides(kit)).includes(String(b.id))) throw new HttpError(409, `a video "${b.id}" already exists`);
+    if (!(await listScenes(kit)).includes(String(b.scene))) throw new HttpError(400, `the scene "${b.scene}" does not exist (available: ${(await listScenes(kit)).join(", ") || "none"})`);
+    const guide = Guide.parse({ id: b.id, title: b.title, scene: b.scene, languages: b.languages?.length ? b.languages : ["en"], steps: [] });
+    await saveGuide(kit, guide);
+    return json(res, { id: guide.id });
+  }
+
+  m = /^\/api\/elements\/([\w-]+)$/.exec(p);
+  if (m) return json(res, describeScene(await readScene(kit, m[1]!, lang)));
+  if (p === "/api/brief" && req.method === "POST") {
+    const b = await readBody(req);
+    const patch = Brief.partial().parse(b);
+    return json(res, await updateBrief(kit, patch));
+  }
 
   if (p === "/api/voices") return json(res, { options: voiceOptions(), current: kit.settings.voices, table: await voiceTable(kit), hasKey: Boolean(process.env.OPENAI_API_KEY) });
   if (p === "/api/voice" && req.method === "POST") {

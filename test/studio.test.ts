@@ -70,6 +70,38 @@ describe("studio", () => {
     assert.equal(status, 403);
   });
 
+  it("gives the timeline its estimated lengths and the actions of each step", async () => {
+    const st = (await (await fetch(url + "api/state")).json()) as any;
+    const g = st.guides[0];
+    assert.equal(g.timing.en.length, g.steps.length);
+    assert.ok(g.timing.en[0].total > g.timing.en[0].narration - 1);
+    assert.ok(g.steps[0].actions.length > 0 && g.steps[0].actions[0].do);
+  });
+
+  it("lists the elements of a scene and saves the brief", async () => {
+    const els = (await (await fetch(url + "api/elements/upload")).json()) as any[];
+    assert.ok(els.some((e) => e.selector === "#nav-documents"));
+    const r = await fetch(url + "api/brief", { method: "POST", headers: H, body: JSON.stringify({ tone: "calm", rules: ["no real data"] }) });
+    assert.equal(r.status, 200);
+    assert.equal(((await r.json()) as any).tone, "calm");
+  });
+
+  it("creates a video, refuses a duplicate and an unknown scene", async () => {
+    const make = (body: object) => fetch(url + "api/guide-create", { method: "POST", headers: H, body: JSON.stringify(body) });
+    assert.equal((await make({ id: "second", title: "Second", scene: "upload", languages: ["en"] })).status, 200);
+    assert.equal((await make({ id: "second", title: "Second", scene: "upload" })).status, 409);
+    assert.equal((await make({ id: "third", title: "Third", scene: "nope" })).status, 400);
+  });
+
+  it("checks a video and builds it, then serves what was built", async () => {
+    const check = await (await fetch(url + "api/check", { method: "POST", headers: H, body: JSON.stringify({ guide: "upload" }) })).json() as any;
+    assert.deepEqual(check.errors, []);
+    const built = await (await fetch(url + "api/build", { method: "POST", headers: H, body: JSON.stringify({ target: "guide", guide: "upload" }) })).json() as any;
+    assert.equal(built.url, "/out/upload.html");
+    assert.match(await (await fetch(url + "out/upload.html")).text(), /Cueflow/);
+    assert.equal((await fetch(url + "out/..%2fcueflow.json")).status, 403);
+  });
+
   it("refuses something that does not look like an OpenAI key", async () => {
     const r = await fetch(url + "api/key", { method: "POST", headers: H, body: JSON.stringify({ key: "hello" }) });
     assert.equal(r.status, 400);

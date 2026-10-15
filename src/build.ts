@@ -87,19 +87,19 @@ const MS_PER_CHAR = 65; // as in the player: narration length estimate when ther
  * How long a guide plays in a language, in ms, computed like the player does for a silent build: each step lasts
  * its narration (estimated from its length) or until its last action ends, whichever is later, plus its hold.
  */
-export function estimateDuration(guide: Guide, lang = guide.languages[0]!): number {
-  let total = 0;
-  for (const step of guide.steps) {
-    const text = step.narration[lang] ?? "";
-    const narr = Math.max(1500, text.length * MS_PER_CHAR);
-    let end = 0;
-    for (const a of step.actions) {
-      const at = typeof a.at === "string" ? (parseFloat(a.at) / 100) * narr : a.at;
-      end = Math.max(end, at + ("duration" in a ? a.duration : a.do === "click" ? 350 : 0));
-    }
-    total += Math.max(narr, end) + step.hold;
+export function estimateStepDuration(step: Guide["steps"][number], lang: string): { narration: number; total: number } {
+  const text = step.narration[lang] ?? "";
+  const narr = Math.max(1500, text.length * MS_PER_CHAR);
+  let end = 0;
+  for (const a of step.actions) {
+    const at = typeof a.at === "string" ? (parseFloat(a.at) / 100) * narr : a.at;
+    end = Math.max(end, at + ("duration" in a ? a.duration : a.do === "click" ? 350 : 0));
   }
-  return total;
+  return { narration: narr, total: Math.max(narr, end) + step.hold };
+}
+
+export function estimateDuration(guide: Guide, lang = guide.languages[0]!): number {
+  return guide.steps.reduce((sum, step) => sum + estimateStepDuration(step, lang).total, 0);
 }
 
 /** The player's script and stylesheet, with the kit's theme after the defaults. */
