@@ -57,18 +57,24 @@ this repository, `npm install && npm run build`, and run `node <clone>/build/cli
 
 ### Cueflow Studio
 
-`cueflow studio` opens an editor in your browser (it listens on this computer only). Videos and their steps on the
-left, the video playing in the middle, and on the right:
+`cueflow studio` opens an editor in your browser (it listens on this computer only), dark by default (the ◐ button
+switches to light). Like a video editor, it has a bar of **pages** at the bottom:
 
-- **Narration**: edit what a step says, save (it is checked first, and you get the same warnings as `validate`), listen to it;
-- **Pick an element**: click anything in the screen of the step to get its selector, and frame it with the camera in one click;
-- **Voices**: choose who reads the tutorials, in plain words, for everything, a language or one video; a voice can be tried
-  before it is saved; an OpenAI key is typed here once and kept in the kit's `.env`, never shown again;
-- **Assistant**: write what you want changed and copy the request to your own assistant. Studio does not embed one:
-  your assistant edits the same files through Cueflow's tools, and Studio shows its changes as they happen. If you edit
-  something that an assistant changed meanwhile, the save is refused with a message instead of overwriting.
+- **Media**: the screens (scenes) the videos are made of, with their targetable elements (click one to copy its
+  selector), and *the project*: audience, tone, languages, rules and pronunciation (`brief.json`).
+- **Timeline**: videos and steps on the left (add, move, delete, rename), the video in the middle, and at the bottom
+  the timeline: steps, narration and action markers drawn to scale (click to select, zoom with − / +). On the right,
+  *Narration* (text and title of a step, checked when saved), *Actions* (the actions of the step with their time and
+  duration; add one by picking an element in the screen) and *Assistant* (write what you want changed and copy the
+  request to your own assistant: Studio does not embed one, your assistant edits the same files through Cueflow's
+  tools and Studio shows its changes as they happen).
+- **Voice**: who reads the tutorials, in plain words, for everything, a language or one video; a voice can be tried
+  before it is saved; an OpenAI key is typed here once and kept in the kit's `.env`, never shown again.
+- **Export**: check a video (also its layout, in a browser) and build it or the whole site; built files open from here.
+  Building uses the chosen voices: an external voice is called then, and the page says so before.
 
-It is a first version: there is no timeline yet, actions are not edited by hand, and scenes are not captured from here.
+If you edit something that an assistant changed meanwhile, the save is refused with a message instead of overwriting.
+First version: the timeline shows but does not yet drag; scenes are not captured from the page.
 
 ### Voices
 
