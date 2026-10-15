@@ -81,6 +81,22 @@ of **pages for the selected tutorial** sits at the bottom, as in a video editor:
 - **Preview**: the tutorial as viewers get it, large; with the working copy (browser voice) or built with the final voices.
 - **Export**: check this tutorial (also its layout, in a browser) and build it; built files open from here.
 
+**Written guides** have their own tools, not the video ones. Under the videos, the strip lists the written guides of the
+dashboard (an item `guide`, or the written part of an item `video`), with `+` to start one, and **Coming soon**: what is
+announced, to *Write* (it becomes a written guide with a first section), *Edit* or take off. A written guide has three
+pages:
+
+- **Write**: the sections on the left (drag to reorder, `+ Section`, `+ Opening` for a text before the first one, ×
+  to delete) and the selected section on paper, with the site's stylesheet and the kit's theme, so it looks as it will
+  be read. Text tools only: paragraph, subheading (an `h3`, listed in the side index of the site), quote, bold, italic,
+  lists, link, image (saved in `pages/img/`), and `</>` for the HTML of the section (for blocks the toolbar does not
+  make). Sections numbered with a `.num` in their title are renumbered when moved; every subheading gets an id. Each
+  language is its own file (`pages/<lang>/`): a missing one starts as a copy of the site's language, to translate in
+  place. Saving writes the whole file (refused if it changed on disk meanwhile) and leaves a note for the assistant.
+- **Details**: how the dashboard presents it, per language: title, kicker, description, what it contains, row, status
+  (written guide or coming soon), order in its row; and taking it off the dashboard (its texts go to `trash/`).
+- **Preview**: the whole guide, read-only, as it will be read; and the page as last built.
+
 Top right: **AI** (a graduation-cap button: a prompt to paste into your assistant, rewritten with the current state, to carry on in a new session without starting over), **Dashboard** (the title, category and description of each tutorial in the home and its page, per language), **Project** (audience, tone, languages, rules, pronunciation: `brief.json`) and **Build**, which
 builds every tutorial and the **dashboard** that gathers them (`site.json` is created, or completed with the new
 tutorials, never rewritten). An external voice is called only then, and the page says so before.

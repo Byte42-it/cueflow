@@ -2,7 +2,7 @@
 (function () {
   "use strict";
 
-  var S = { state: null, guideId: null, guide: null, version: 0, step: 0, lang: null, mode: "video", tab: "narration", dirty: false, picked: null, voices: null, page: "timeline", pending: null, draft: null, zoom: 60, scene: null, check: null, busy: null };
+  var S = { kind: "video", state: null, guideId: null, guide: null, version: 0, step: 0, lang: null, mode: "video", tab: "narration", dirty: false, picked: null, voices: null, page: "timeline", pending: null, draft: null, zoom: 60, scene: null, check: null, busy: null };
   var $ = function (s) { return document.querySelector(s); };
 
   function h(tag, props) {
@@ -45,7 +45,12 @@
       var chip = $("#notes"); chip.hidden = !st.pending; chip.textContent = "✎ " + st.pending + " note" + (st.pending === 1 ? "" : "s") + " for the assistant";
       if (!S.guideId || !video()) S.guideId = st.guides[0] ? st.guides[0].id : null;
       return S.guideId ? loadGuide(S.guideId) : null;
-    }).then(function () { renderAll(); });
+    }).then(function () {
+      renderAll();
+      if (S.kind !== "doc") return;
+      if (!docItem()) { leaveDocMode(); renderAll(); return; }
+      return (D.dirty ? Promise.resolve() : loadDoc()).then(renderDocAll);
+    });
   }
   function loadGuide(id) {
     return api("/api/guide/" + id).then(function (r) {
@@ -87,7 +92,7 @@
     if (name !== S.page && !confirmLeave()) return;
     S.page = name;
     document.querySelectorAll(".page").forEach(function (el) { el.hidden = el.id !== "page-" + name; });
-    document.querySelectorAll(".pagebar button").forEach(function (b) { b.className = b.getAttribute("data-page") === name ? "on" : ""; });
+    document.querySelectorAll(".videobar button").forEach(function (b) { b.className = b.getAttribute("data-page") === name ? "on" : ""; });
     renderPage();
   }
   function renderPage() {
@@ -100,14 +105,16 @@
     var sel = $("#lang"); sel.textContent = "";
     var all = {};
     S.state.guides.forEach(function (g) { g.languages.forEach(function (l) { all[l] = 1; }); });
+    if (S.state.catalog && S.state.catalog.languages) S.state.catalog.languages.forEach(function (l) { all[l] = 1; });
     Object.keys(all).forEach(function (l) { sel.appendChild(h("option", { value: l, selected: l === S.lang }, l)); });
   }
   function renderSide() { renderFilm(); }
   /* all the tutorials as thumbnails, like the slides of a presentation */
   function renderFilm() {
     var film = $("#film"); film.textContent = "";
+    film.appendChild(h("div", { class: "group" }, "Videos"));
     S.state.guides.forEach(function (g, i) {
-      var on = g.id === S.guideId;
+      var on = S.kind !== "doc" && g.id === S.guideId;
       var vp = g.viewport || { width: 1280, height: 720 };
       var thumb = h("div", { class: "thumb", style: "aspect-ratio:" + vp.width + " / " + vp.height });
       var fr = h("iframe", { src: "/scene/" + g.scene + "?lang=" + S.lang, loading: "lazy", tabindex: "-1", title: "" });
@@ -121,7 +128,9 @@
       film.appendChild(h("div", { class: "tilewrap" }, tile, del));
       requestAnimationFrame(function () { fr.style.transform = "scale(" + thumb.clientWidth / vp.width + ")"; });
     });
-    film.appendChild(h("button", { class: "tile add", title: "New tutorial", onclick: newTutorialDialog }, h("div", { class: "thumb" }, "+"), h("span", { class: "cap" }, "New tutorial")));
+    film.appendChild(h("button", { class: "tile add", title: "New video tutorial", onclick: newTutorialDialog }, h("div", { class: "thumb" }, "+"), h("span", { class: "cap" }, "New video")));
+    renderDocFilm(film);
+    if (S.kind === "doc") return;
     var g = video();
     $("#current").textContent = g ? text(g.title, S.lang) : "";
   }
@@ -217,11 +226,15 @@
   /* ---------- actions ---------- */
   function selectGuide(id) {
     if (!confirmLeave()) return;
+    if (S.kind === "doc") { leaveDocMode(); if (S.guideId === id) { renderAll(); return; } }
     S.guideId = id; S.step = 0; S.picked = null; S.sel = null; S.check = null; mediaData = null; prevKey = "";
     loadGuide(id).then(function () { renderAll(); });
   }
   function selectStep(i) { if (!confirmLeave()) return; S.msg = null; S.draft = null; S.pending = null; S.step = i; S.dirty = false; S.picked = null; renderSide(); renderView(false); renderPanel(); pickInfo(); }
-  function confirmLeave() { return !S.dirty || confirm("The narration of this step has changes you have not saved. Leave without saving?"); }
+  function confirmLeave() {
+    if (S.kind === "doc") { pullEditor(); return !D.dirty || confirm("This written guide has changes you have not saved. Leave without saving?"); }
+    return !S.dirty || confirm("The narration of this step has changes you have not saved. Leave without saving?");
+  }
   function setMode(m) {
     S.mode = m; viewKey = "";
     $("#m-video").className = m === "video" ? "on" : ""; $("#m-pick").className = m === "pick" ? "on" : "";
@@ -960,7 +973,423 @@
     checkTab(holder);
   }
 
+  /* ---------- written guides: a text editor, not a timeline ---------- */
+  /*
+   * A written guide is an article in pages/: <section id data-title> blocks with an h2 and h3[id] subheadings,
+   * optionally an opening before the first section. It is edited one section at a time, in a frame that carries the
+   * docs site's stylesheet and the kit's theme, so it looks as it will be read. Saving writes the whole file back.
+   */
+  var D = { id: null, page: "write", src: null, parts: null, sel: 0, dirty: false, html: false, frameLang: null };
+  var catalog = function () { return S.state && S.state.catalog && S.state.catalog.exists ? S.state.catalog : null; };
+  var docItem = function () { var c = catalog(); return c && c.items.filter(function (i) { return i.id === D.id; })[0]; };
+  var hasArticle = function (it) { return it.status === "guide" || Object.keys(it.files).some(function (l) { return it.files[l]; }); };
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+
+  /* the article, as parts: an opening (what comes before the first section) and the sections */
+  function parseArticle(html) {
+    var box = document.createElement("div"); box.innerHTML = html;
+    var opening = [], sections = [];
+    Array.prototype.forEach.call(box.childNodes, function (n) {
+      if (n.nodeType === 1 && n.tagName === "SECTION" && n.id) {
+        var attrs = {};
+        Array.prototype.forEach.call(n.attributes, function (a) { if (a.name !== "id" && a.name !== "data-title") attrs[a.name] = a.value; });
+        sections.push({ id: n.id, dataTitle: n.getAttribute("data-title"), attrs: attrs, html: n.innerHTML.replace(/^\s+|\s+$/g, "") });
+      } else if (!sections.length) opening.push(n.nodeType === 1 ? n.outerHTML : n.textContent);
+    });
+    if (!sections.length && box.innerHTML.trim()) return { opening: null, sections: [{ id: "article", dataTitle: null, attrs: {}, html: box.innerHTML.trim() }] };
+    var op = opening.join("").trim();
+    return { opening: op ? op : null, sections: sections };
+  }
+  /* the h2 of a section, and the title a reader sees for it (a numbered h2 keeps its "N · " in the index) */
+  function sectionTitle(s) {
+    var box = document.createElement("div"); box.innerHTML = s.html;
+    var h2 = box.querySelector("h2");
+    if (!h2) return s.dataTitle || s.id;
+    var num = h2.querySelector(".num"), words = h2.textContent.replace(num ? num.textContent : "", "").trim();
+    return num ? num.textContent.trim() + " · " + words : words;
+  }
+  function serialize(parts) {
+    var used = {};
+    var out = parts.opening ? [parts.opening, ""] : [];
+    // numbered sections (an h2 with a .num) are renumbered in their order, so a move keeps 1, 2, 3
+    var n = 0;
+    parts.sections.forEach(function (s) {
+      var box = document.createElement("div"); box.innerHTML = s.html;
+      var num = box.querySelector("h2 .num");
+      if (num) num.textContent = String(++n);
+      // every subheading needs an id: the side index of the site links to it
+      Array.prototype.forEach.call(box.querySelectorAll("h3"), function (h3) {
+        var id = h3.id || (s.id + "-" + slug(h3.textContent || "part"));
+        var base = id, k = 2; while (used[id]) id = base + "-" + k++;
+        used[id] = 1; h3.id = id;
+      });
+      s.html = box.innerHTML.trim();
+      var attrs = Object.keys(s.attrs).map(function (k) { return " " + k + '="' + esc(s.attrs[k]) + '"'; }).join("");
+      out.push('<section id="' + esc(s.id) + '" data-title="' + esc(sectionTitle(s)) + '"' + attrs + ">\n" + s.html + "\n</section>", "");
+    });
+    return out.join("\n");
+  }
+
+  function selectDoc(id) {
+    if (!confirmLeave()) return;
+    S.kind = "doc"; D.id = id; D.sel = 0; D.html = false;
+    document.body.classList.add("doc-mode");
+    var it = docItem();
+    if (it && !hasArticle(it)) D.page = "details";
+    loadDoc().then(renderDocAll);
+  }
+  function leaveDocMode() { S.kind = "video"; D.id = null; document.body.classList.remove("doc-mode"); }
+  function loadDoc() {
+    var c = catalog();
+    if (!c || !D.id) return Promise.resolve();
+    if (!S.lang || c.languages.indexOf(S.lang) < 0) S.lang = c.lang;
+    return api("/api/article/" + D.id + "?lang=" + S.lang).then(function (r) {
+      D.src = r; D.parts = parseArticle(r.html); D.dirty = false;
+      if (D.sel >= D.parts.sections.length + (D.parts.opening ? 1 : 0)) D.sel = 0;
+    });
+  }
+  function renderDocAll() {
+    var it = docItem();
+    $("#current").textContent = it ? text(it.title, S.lang) : "";
+    document.querySelectorAll(".docbar button").forEach(function (b) { b.className = b.getAttribute("data-docpage") === D.page ? "on" : ""; });
+    $("#doc-write").hidden = D.page !== "write"; $("#doc-details").hidden = D.page !== "details"; $("#doc-preview").hidden = D.page !== "preview";
+    renderFilm();
+    if (D.page === "write") renderWrite(); else if (D.page === "details") renderDetails(); else renderDocPreview();
+  }
+  function showDocPage(name) {
+    if (name === D.page) return;
+    pullEditor();
+    D.page = name; renderDocAll();
+  }
+
+  /* --- write --- */
+  // index of the selected part: with an opening, 0 is the opening and sections start at 1
+  var selSection = function () { return D.parts.opening != null ? D.sel - 1 : D.sel; };
+  function renderOutline() {
+    var nav = $("#doc-outline"); nav.textContent = "";
+    nav.appendChild(h("h4", null, "Sections"));
+    if (D.parts.opening != null) nav.appendChild(h("div", { class: "osec" + (D.sel === 0 ? " on" : ""), onclick: function () { pickPart(0); } }, h("span", { class: "grip" }, " "), h("span", { class: "t" }, "Opening", h("small", null, "before the first section"))));
+    var off = D.parts.opening != null ? 1 : 0;
+    D.parts.sections.forEach(function (s, i) {
+      var row = h("div", { class: "osec" + (D.sel === i + off ? " on" : ""), draggable: "true", onclick: function () { pickPart(i + off); } },
+        h("span", { class: "grip", title: "Drag to move" }, "⋮⋮"), h("span", { class: "t" }, sectionTitle(s) || s.id),
+        h("button", { class: "x", title: "Delete this section", "aria-label": "Delete this section", onclick: function (e) { e.stopPropagation(); deleteSection(i); } }, "×"));
+      row.addEventListener("dragstart", function (e) { pullEditor(); D.drag = i; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i)); });
+      row.addEventListener("dragover", function (e) { if (D.drag == null) return; e.preventDefault(); row.classList.add("drop-before"); });
+      row.addEventListener("dragleave", function () { row.classList.remove("drop-before"); });
+      row.addEventListener("drop", function (e) { e.preventDefault(); row.classList.remove("drop-before"); moveSection(D.drag, i); D.drag = null; });
+      nav.appendChild(row);
+    });
+    var end = h("div", { class: "oend" }); // drop here to move a section to the end
+    end.addEventListener("dragover", function (e) { if (D.drag == null) return; e.preventDefault(); end.classList.add("drop-before"); });
+    end.addEventListener("dragleave", function () { end.classList.remove("drop-before"); });
+    end.addEventListener("drop", function (e) { e.preventDefault(); end.classList.remove("drop-before"); moveSection(D.drag, D.parts.sections.length); D.drag = null; });
+    nav.appendChild(end);
+    nav.appendChild(h("div", { class: "side-actions" },
+      h("button", { class: "btn", onclick: addSection }, "+ Section"),
+      D.parts.opening == null ? h("button", { class: "btn", title: "A short introduction before the first section", onclick: function () { pullEditor(); D.parts.opening = "<p></p>"; D.sel = 0; markDirty(); renderWrite(); } }, "+ Opening") : null));
+  }
+  function pickPart(i) { pullEditor(); D.sel = i; renderWrite(); }
+  function addSection() {
+    var title = prompt("Title of the new section:");
+    if (title === null || !title.trim()) return;
+    pullEditor();
+    var ids = D.parts.sections.map(function (s) { return s.id; }), id = slug(title) || "section", base = id, k = 2;
+    while (ids.indexOf(id) >= 0) id = base + "-" + k++;
+    var numbered = D.parts.sections.some(function (s) { return /<h2[^>]*>\s*<span class="num">/.test(s.html); });
+    var at = Math.max(0, selSection() + 1);
+    D.parts.sections.splice(at, 0, { id: id, dataTitle: null, attrs: {}, html: "<h2>" + (numbered ? '<span class="num">0</span> ' : "") + esc(title.trim()) + "</h2>\n<p></p>" });
+    D.parts.sections = parseArticle(serialize(D.parts)).sections; // numbered sections get their number at once
+    D.sel = at + (D.parts.opening != null ? 1 : 0);
+    markDirty(); renderWrite();
+  }
+  function deleteSection(i) {
+    pullEditor();
+    if (!confirm("Delete the section “" + sectionTitle(D.parts.sections[i]) + "”? It leaves the guide when you save.")) return;
+    D.parts.sections.splice(i, 1);
+    D.sel = Math.max(0, Math.min(D.sel, D.parts.sections.length - 1 + (D.parts.opening != null ? 1 : 0)));
+    markDirty(); renderWrite();
+  }
+  function moveSection(from, before) {
+    if (from == null) return;
+    var to = before > from ? before - 1 : before;
+    if (to === from) return;
+    var s = D.parts.sections.splice(from, 1)[0]; D.parts.sections.splice(to, 0, s);
+    D.sel = to + (D.parts.opening != null ? 1 : 0);
+    var fresh = parseArticle(serialize(D.parts)); D.parts.sections = fresh.sections; // renumbers at once, so the outline shows it
+    markDirty(); renderWrite();
+  }
+  function markDirty() { D.dirty = true; var st = $("#doc-tools .state"); if (st) { st.textContent = "Unsaved changes"; st.className = "state dirty"; } }
+
+  var docFrame = $("#doc-frame");
+  function frameDoc() { try { return docFrame.contentDocument; } catch (e) { return null; } }
+  /* what the editor shows goes back into the parts (before switching section, page or saving) */
+  function pullEditor() {
+    if (!D.parts || D.page !== "write") return;
+    var html;
+    if (D.html) { var ta = $("#doc-paper textarea"); if (!ta) return; html = ta.value; }
+    else { var d = frameDoc(), box = d && d.getElementById("doc"); if (!box || !box.firstChild || box.dataset.part !== String(D.sel)) return; html = box.firstChild.innerHTML; }
+    html = html.replace(/^\s+|\s+$/g, "");
+    if (D.parts.opening != null && D.sel === 0) D.parts.opening = html;
+    else if (D.parts.sections[selSection()]) D.parts.sections[selSection()].html = html;
+  }
+  function currentPartHtml() { return D.parts.opening != null && D.sel === 0 ? D.parts.opening : (D.parts.sections[selSection()] || { html: "" }).html; }
+
+  function renderWrite() {
+    var it = docItem(), c = catalog(), paper = $("#doc-paper");
+    renderTools();
+    $("#doc-outline").textContent = "";
+    if (!it) { paper.textContent = ""; paper.appendChild(h("div", { class: "notice" }, "Select a written guide.")); return; }
+    if (!D.src.exists) {
+      paper.textContent = "";
+      var box = h("div", { class: "notice" });
+      if (S.lang !== c.lang && it.files[c.lang]) {
+        box.appendChild(h("p", null, "There is no “" + S.lang + "” version of this guide yet: readers in “" + S.lang + "” see the “" + c.lang + "” text."));
+        box.appendChild(h("button", { class: "btn primary", onclick: function () {
+          api("/api/article-translate/" + D.id + "?lang=" + S.lang, { method: "POST" }).then(function (r) { D.src = r; D.parts = parseArticle(r.html); D.sel = 0; return loadState(); }).then(function () { flash("A copy of the “" + c.lang + "” text to translate, section by section.", "ok"); }).catch(function (e) { flash(e.message, "err"); });
+        } }, "Start the “" + S.lang + "” version from the “" + c.lang + "” text"));
+      } else {
+        box.appendChild(h("p", null, "This item has no written guide yet."));
+        box.appendChild(h("button", { class: "btn primary", onclick: function () { D.parts = { opening: null, sections: [] }; D.src.exists = true; addSection(); } }, "Start writing"));
+      }
+      paper.appendChild(box);
+      return;
+    }
+    renderOutline();
+    if (D.html) {
+      paper.textContent = "";
+      var ta = h("textarea", { spellcheck: "false", "aria-label": "HTML of this section" }); ta.value = currentPartHtml();
+      ta.addEventListener("input", markDirty);
+      paper.appendChild(ta);
+      return;
+    }
+    if (!paper.contains(docFrame)) { paper.textContent = ""; paper.appendChild(docFrame); }
+    var fill = function () {
+      var d = frameDoc(), box = d && d.getElementById("doc");
+      if (!box) return;
+      box.textContent = "";
+      var part = d.createElement(D.parts.opening != null && D.sel === 0 ? "div" : "section");
+      part.className = "cf-section";
+      part.innerHTML = currentPartHtml();
+      part.contentEditable = "true";
+      box.dataset.part = String(D.sel);
+      box.appendChild(part);
+      if (!d.__cfWired) {
+        d.__cfWired = true;
+        try { d.execCommand("defaultParagraphSeparator", false, "p"); } catch (e) { /* older engines */ }
+        d.addEventListener("input", function () { markDirty(); if (d.activeElement && d.activeElement.closest && d.querySelector("h2")) refreshOutlineTitle(); });
+        d.addEventListener("keydown", function (e) { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); saveDoc(); } });
+        d.addEventListener("selectionchange", paintTools);
+      }
+      part.focus();
+    };
+    if (D.frameLang !== S.lang || !frameDoc() || !frameDoc().getElementById("doc")) { D.frameLang = S.lang; docFrame.onload = fill; docFrame.src = "/article-frame?lang=" + encodeURIComponent(S.lang); }
+    else fill();
+  }
+  function refreshOutlineTitle() {
+    var d = frameDoc(), part = d && d.getElementById("doc").firstChild;
+    var i = selSection(); if (!part || i < 0 || !D.parts.sections[i]) return;
+    var t = sectionTitle({ html: part.innerHTML, id: D.parts.sections[i].id });
+    var row = $("#doc-outline").querySelectorAll(".osec")[D.sel];
+    if (row && row.querySelector(".t")) row.querySelector(".t").textContent = t;
+  }
+
+  /* the toolbar: text tools only */
+  var TOOLS = [
+    ["undo", "↶", "Undo"], ["redo", "↷", "Redo"], null,
+    ["p", "¶", "Paragraph"], ["h3", "H3", "Subheading (listed in the side index)"], ["quote", "❝", "Quote"], null,
+    ["bold", "B", "Bold"], ["italic", "I", "Italic"], null,
+    ["ul", "•", "Bulleted list"], ["ol", "1.", "Numbered list"], null,
+    ["link", "🔗", "Link"], ["image", "🖼", "Image"], ["clear", "⌫", "Clear formatting"]
+  ];
+  function renderTools() {
+    var bar = $("#doc-tools"); bar.textContent = "";
+    if (!docItem() || !D.src || !D.src.exists) return;
+    TOOLS.forEach(function (t) {
+      if (!t) { bar.appendChild(h("span", { class: "sep" })); return; }
+      var b = h("button", { title: t[2], "aria-label": t[2], "data-cmd": t[0], disabled: D.html, onmousedown: function (e) { e.preventDefault(); }, onclick: function () { command(t[0]); } }, t[1]);
+      if (t[0] === "bold") b.style.fontWeight = "700"; if (t[0] === "italic") b.style.fontStyle = "italic";
+      bar.appendChild(b);
+    });
+    bar.appendChild(h("span", { class: "sep" }));
+    bar.appendChild(h("button", { class: D.html ? "on" : "", title: "Edit the HTML of this section (for blocks the toolbar does not make)", onclick: function () { pullEditor(); D.html = !D.html; renderWrite(); } }, "</>"));
+    bar.appendChild(h("span", { class: "grow" }));
+    bar.appendChild(h("span", { class: "state" + (D.dirty ? " dirty" : "") }, D.dirty ? "Unsaved changes" : "Saved"));
+    bar.appendChild(h("button", { class: "btn", title: "Throw away what is not saved", onclick: function () { if (!D.dirty || confirm("Discard the changes not saved?")) loadDoc().then(renderDocAll); } }, "Discard"));
+    bar.appendChild(h("button", { class: "btn primary", title: "Save (Ctrl+S)", onclick: saveDoc }, "Save"));
+  }
+  function paintTools() {
+    var d = frameDoc(); if (!d) return;
+    ["bold", "italic"].forEach(function (c) { var b = $('#doc-tools [data-cmd="' + c + '"]'); if (b) b.classList.toggle("on", !!d.queryCommandState(c)); });
+  }
+  function command(c) {
+    var d = frameDoc(); if (!d) return;
+    var run = function (name, arg) { d.execCommand(name, false, arg); markDirty(); refreshOutlineTitle(); };
+    if (c === "undo" || c === "redo" || c === "bold" || c === "italic") run(c);
+    else if (c === "p") run("formatBlock", "<p>");
+    else if (c === "h3") run("formatBlock", "<h3>");
+    else if (c === "quote") run("formatBlock", "<blockquote>");
+    else if (c === "ul") run("insertUnorderedList");
+    else if (c === "ol") run("insertOrderedList");
+    else if (c === "clear") run("removeFormat");
+    else if (c === "link") { var u = prompt("Address of the link (https://…, or #section-id for a part of this guide):"); if (u) run("createLink", u); }
+    else if (c === "image") {
+      var input = h("input", { type: "file", accept: "image/*" });
+      input.addEventListener("change", function () {
+        var f = input.files[0]; if (!f) return;
+        S.ownSave = Date.now();
+        fetch("/api/article-image?name=" + encodeURIComponent(f.name), { method: "POST", headers: { "x-cueflow": "studio" }, body: f })
+          .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error); return j; }); })
+          .then(function (j) { var c2 = catalog(); d.body.focus(); run("insertImage", (S.lang === c2.lang ? "" : "../") + j.path); })
+          .catch(function (e) { flash(e.message, "err"); });
+      });
+      input.click();
+    }
+    paintTools();
+  }
+  function saveDoc() {
+    pullEditor();
+    var html = serialize(D.parts);
+    return api("/api/article/" + D.id + "?lang=" + S.lang, { method: "PUT", body: { html: html, version: D.src.version } }).then(function (r) {
+      D.src.version = r.version; D.src.html = html; D.dirty = false; D.parts = parseArticle(html);
+      flash("Saved in " + r.file + ".", "ok");
+      return loadState();
+    }).catch(function (e) { flash(e.message, "err"); });
+  }
+
+  /* --- details: what the dashboard says about the guide --- */
+  function renderDetails() {
+    var body = $("#doc-details-body"); body.textContent = "";
+    var it = docItem(), c = catalog();
+    if (!it) { body.appendChild(h("p", { class: "empty" }, "Select a written guide.")); return; }
+    body.appendChild(h("h3", null, "On the dashboard, in “" + S.lang + "”"));
+    body.appendChild(h("p", { style: "color:var(--muted)" }, "How the guide is presented on the home page and in its preview. The other languages keep their own texts."));
+    var f = {};
+    var field = function (k, label, hint, val, area) { var el = h(area ? "textarea" : "input", area ? { rows: area } : { type: "text" }); el.value = val || ""; f[k] = el; return h("label", { class: "lab" + (area ? " full" : "") }, label, hint ? h("span", { class: "hint" }, hint) : null, el); };
+    var contents = it.contents ? (Array.isArray(it.contents) ? it.contents : it.contents[S.lang] || it.contents[c.lang] || []) : [];
+    var row = h("select", null, c.rows.map(function (r) { return h("option", { value: r.id, selected: r.id === it.row }, text(r.title, S.lang) + " (" + r.id + ")"); }));
+    var status = h("select", { disabled: it.status === "video" },
+      it.status === "video" ? h("option", { value: "video", selected: true }, "Video with its written guide") : null,
+      h("option", { value: "guide", selected: it.status === "guide" }, "Written guide (published)"),
+      h("option", { value: "soon", selected: it.status === "soon" }, "Coming soon (announced, no page yet)"));
+    body.appendChild(h("div", { class: "fieldgrid" },
+      field("title", "Title", null, text(it.title, S.lang)),
+      field("kicker", "Kicker", "a short category above the title", text(it.kicker, S.lang)),
+      field("desc", "Description", "one or two sentences: what the reader learns", text(it.desc, S.lang), 3),
+      field("contents", "What it contains", "one line each, listed in the preview of the home page", contents.join("\n"), 4),
+      it.status === "video" ? field("duration", "Duration", "as people read it, e.g. about 1 min", text(it.duration, S.lang)) : null,
+      h("label", { class: "lab" }, "Row of the home page", row),
+      h("label", { class: "lab" }, "Status", status)));
+    var msg = h("div", { class: "msg" });
+    body.appendChild(h("div", { class: "row" },
+      h("button", { class: "btn primary", onclick: function () {
+        var texts = { title: f.title.value.trim(), kicker: f.kicker.value.trim(), desc: f.desc.value.trim() };
+        if (f.duration) texts.duration = f.duration.value.trim();
+        if (!texts.title) { msg.className = "msg err"; msg.textContent = "The title cannot be empty."; return; }
+        var patch = { lang: S.lang, texts: texts, contents: f.contents.value.split("\n"), row: row.value };
+        if (it.status !== "video") patch.status = status.value;
+        api("/api/item/" + it.id, { method: "POST", body: patch }).then(function () { return loadState(); }).then(function () { flash("Saved.", "ok"); renderDocAll(); }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+      } }, "Save"),
+      h("button", { class: "btn", title: "Earlier in its row", onclick: function () { moveItem(-1); } }, "← Earlier in its row"),
+      h("button", { class: "btn", title: "Later in its row", onclick: function () { moveItem(1); } }, "Later in its row →")));
+    body.appendChild(msg);
+    if (it.status !== "video") {
+      body.appendChild(h("div", { class: "danger-zone" },
+        h("p", null, "Taking the guide off the dashboard moves its text (every language) to the trash folder of the kit: nothing is erased."),
+        h("button", { class: "btn danger", onclick: function () { deleteItemDialog(it); } }, "Delete this guide")));
+    }
+  }
+  function moveItem(dir) { api("/api/item/" + D.id, { method: "POST", body: { move: dir } }).then(function () { return loadState(); }).then(function () { flash(dir < 0 ? "Moved earlier." : "Moved later.", "ok"); }).catch(function (e) { flash(e.message, "err"); }); }
+  function deleteItemDialog(it) {
+    dialog("Delete “" + text(it.title, S.lang) + "”?", function (body, close) {
+      body.appendChild(h("p", null, it.status === "soon" ? "It leaves the “coming soon” list of the dashboard." : "It leaves the dashboard, and its text in every language moves to the trash folder of the kit (trash/). You can put it back from there."));
+      var msg = h("div", { class: "msg" });
+      body.appendChild(h("div", { class: "row" },
+        h("button", { class: "btn danger", onclick: function () {
+          api("/api/item/" + it.id, { method: "DELETE" }).then(function (r) {
+            close();
+            if (D.id === it.id) { leaveDocMode(); }
+            return loadState().then(function () { flash(r.trash ? "Moved to " + r.trash + "." : "Removed from the dashboard.", "ok"); });
+          }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+        } }, "Delete"), h("button", { class: "btn", onclick: close }, "Cancel")));
+      body.appendChild(msg);
+    });
+  }
+
+  /* --- preview: the whole guide, read-only, as it will be read --- */
+  function renderDocPreview() {
+    var bar = $("#doc-prev-bar"), fr = $("#doc-prev"), it = docItem();
+    bar.textContent = "";
+    if (!it) return;
+    bar.appendChild(h("b", null, text(it.title, S.lang)));
+    bar.appendChild(h("span", { class: "hint" }, D.dirty ? "Shows your unsaved changes too." : "The guide as readers will see it, in “" + S.lang + "”."));
+    bar.appendChild(h("a", { class: "btn", href: "/out/site/" + it.id + "/index.html", target: "_blank", rel: "noopener", title: "The page as last built (Build)" }, "Open the built page"));
+    var html = D.parts ? serialize(JSON.parse(JSON.stringify(D.parts))) : "";
+    fr.onload = function () {
+      var d = fr.contentDocument, box = d && d.getElementById("doc"); if (!box) return;
+      box.innerHTML = "<h1>" + esc(text(it.title, S.lang)) + "</h1>" + (D.src && D.src.exists ? html : "<p>There is no text in “" + esc(S.lang) + "” yet.</p>");
+    };
+    fr.src = "/article-frame?lang=" + encodeURIComponent(S.lang) + "&t=" + Date.now();
+  }
+
+  /* --- creating guides and announcing what is coming --- */
+  function newDocDialog(status) {
+    var c = catalog();
+    dialog(status === "soon" ? "Announce a guide that is coming" : "New written guide", function (body, close) {
+      var title = h("input", { type: "text", placeholder: status === "soon" ? "What it will explain" : "How to … (the title)" });
+      var id = h("input", { type: "text", placeholder: "id: letters, digits, - (the address of its page)" });
+      title.addEventListener("input", function () { if (!id.dataset.touched) id.value = slug(title.value); });
+      id.addEventListener("input", function () { id.dataset.touched = "1"; });
+      var kicker = h("input", { type: "text", placeholder: "optional" });
+      var desc = h("textarea", { rows: 2, placeholder: "One or two sentences" });
+      var rows = c ? c.rows : [];
+      var pref = status === "soon" ? (rows.filter(function (r) { return /soon|arriv|coming|next/i.test(r.id); })[0] || rows[rows.length - 1]) : rows[0];
+      var row = h("select", null, rows.map(function (r) { return h("option", { value: r.id, selected: pref && r.id === pref.id }, text(r.title, S.lang) + " (" + r.id + ")"); }));
+      var msg = h("div", { class: "msg" });
+      body.appendChild(h("p", null, status === "soon" ? "It appears on the dashboard as coming soon. When you start writing it, it becomes a written guide." : "A page of text, with sections, on the dashboard. You write it here; a video can be added later."));
+      body.appendChild(h("div", { class: "fields" }, h("label", { class: "lab" }, "Title (in “" + (c ? c.lang : S.lang) + "”)", title), h("label", { class: "lab" }, "Id", id), h("label", { class: "lab" }, "Kicker", kicker), h("label", { class: "lab" }, "Description", desc), rows.length ? h("label", { class: "lab" }, "Row of the home page", row) : null));
+      body.appendChild(h("div", { class: "row" },
+        h("button", { class: "btn primary", onclick: function () {
+          api("/api/article-create", { method: "POST", body: { id: id.value.trim(), title: title.value.trim(), kicker: kicker.value.trim(), desc: desc.value.trim(), row: rows.length ? row.value : undefined, status: status } })
+            .then(function (r) { close(); return loadState().then(function () { if (status !== "soon") { D.page = "write"; selectDoc(r.id); } else flash("Announced on the dashboard.", "ok"); }); })
+            .catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+        } }, status === "soon" ? "Announce" : "Create"), h("button", { class: "btn", onclick: close }, "Cancel")));
+      body.appendChild(msg);
+    });
+  }
+  function startWriting(it) {
+    api("/api/item/" + it.id, { method: "POST", body: { lang: S.lang, status: "guide" } }).then(function () { return loadState(); }).then(function () { D.page = "write"; selectDoc(it.id); }).catch(function (e) { flash(e.message, "err"); });
+  }
+
+  /* the written guides and what is coming, under the videos in the strip on the left */
+  function renderDocFilm(film) {
+    var c = catalog();
+    film.appendChild(h("div", { class: "group" }, "Written guides"));
+    if (c) c.items.filter(function (it) { return it.status !== "soon" && hasArticle(it); }).forEach(function (it) {
+      var on = S.kind === "doc" && it.id === D.id;
+      var missing = c.languages.filter(function (l) { return !it.files[l]; });
+      film.appendChild(h("button", { class: "tile" + (on ? " on" : ""), title: text(it.title, S.lang), onclick: function () { if (S.kind !== "doc" || D.id !== it.id) { D.page = "write"; selectDoc(it.id); } } },
+        h("div", { class: "thumb doc" }, it.kicker ? h("i", null, text(it.kicker, S.lang)) : null, h("b", null, text(it.title, S.lang))),
+        h("span", { class: "cap" }, text(it.title, S.lang), it.status === "video" ? h("span", { class: "badge" }, "with video") : null),
+        h("span", { class: "sub" }, missing.length ? "not yet in: " + missing.join(", ") : "in " + c.languages.join(", "))));
+    });
+    film.appendChild(h("button", { class: "tile add", title: "New written guide", onclick: function () { newDocDialog("guide"); } }, h("div", { class: "thumb" }, "+"), h("span", { class: "cap" }, "New written guide")));
+    if (!c) return;
+    film.appendChild(h("div", { class: "group" }, "Coming soon"));
+    var list = h("div", { class: "soonlist" });
+    c.items.filter(function (it) { return it.status === "soon"; }).forEach(function (it) {
+      list.appendChild(h("div", { class: "soon", title: text(it.desc, S.lang) },
+        h("span", null, text(it.title, S.lang)),
+        h("button", { title: "Start writing it: it becomes a written guide", onclick: function () { if (confirmLeave()) startWriting(it); } }, "Write"),
+        h("button", { title: "Edit how it is announced", onclick: function () { D.page = "details"; selectDoc(it.id); } }, "Edit"),
+        h("button", { title: "Take it off the dashboard", "aria-label": "Take it off the dashboard", onclick: function () { deleteItemDialog(it); } }, "×")));
+    });
+    list.appendChild(h("button", { class: "addline", onclick: function () { newDocDialog("soon"); } }, "+ Announce one"));
+    film.appendChild(list);
+  }
+
   /* ---------- wiring ---------- */
+  document.querySelectorAll(".docbar button").forEach(function (b) { b.addEventListener("click", function () { showDocPage(b.getAttribute("data-docpage")); }); });
   document.querySelectorAll(".tabs button").forEach(function (b) { b.addEventListener("click", function () { S.tab = b.getAttribute("data-tab"); renderPanel(); }); });
   $("#ai").addEventListener("click", aiDialog);
   $("#welcome-copy").addEventListener("click", function () { copyText(S.welcomePrompt || "", "Prompt copied. Paste it in your assistant.", $("#welcome-prompt")); });
@@ -969,7 +1398,7 @@
   $("#dashboard").addEventListener("click", dashboardDialog);
   $("#notes").addEventListener("click", notesDialog);
   $("#exportall").addEventListener("click", exportAll);
-  document.querySelectorAll(".pagebar button").forEach(function (b) { b.addEventListener("click", function () { showPage(b.getAttribute("data-page")); }); });
+  document.querySelectorAll(".videobar button").forEach(function (b) { b.addEventListener("click", function () { showPage(b.getAttribute("data-page")); }); });
   $("#theme").addEventListener("click", function () {
     var next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
     document.documentElement.dataset.theme = next;
@@ -977,12 +1406,20 @@
   });
   $("#m-video").addEventListener("click", function () { setMode("video"); });
   $("#m-pick").addEventListener("click", function () { setMode("pick"); });
-  $("#lang").addEventListener("change", function (e) { S.lang = e.target.value; S.msg = null; viewKey = ""; $("#mview").dataset.key = ""; renderSide(); renderView(false); renderPanel(); renderStrip(); renderPage(); });
+  $("#lang").addEventListener("change", function (e) {
+    if (S.kind === "doc") {
+      if (!confirmLeave()) { e.target.value = S.lang; return; }
+      S.lang = e.target.value; D.sel = 0; D.html = false;
+      loadDoc().then(renderDocAll);
+      return;
+    }
+    S.lang = e.target.value; S.msg = null; viewKey = ""; $("#mview").dataset.key = ""; renderSide(); renderView(false); renderPanel(); renderStrip(); renderPage(); });
   var events = new EventSource("/events");
   events.onmessage = function () {
     // someone else changed the kit (an assistant, an editor); the file watcher also reports our own saves, which we skip
     if (S.ownSave && Date.now() - S.ownSave < 2500) return;
-    if (S.dirty) { var b = $("#banner"); b.hidden = false; b.className = "banner"; b.textContent = "The kit changed on disk. Save or discard your edit, then reload this page."; return; }
+    if (S.kind === "doc") pullEditor();
+    if (S.dirty || (S.kind === "doc" && D.dirty)) { var b = $("#banner"); b.hidden = false; b.className = "banner"; b.textContent = "The kit changed on disk. Save or discard your edit, then reload this page."; return; }
     loadState().then(function () { viewKey = ""; prevKey = ""; renderView(true); flash("The kit changed: updated.", "ok"); });
   };
   loadState().catch(function (e) { document.body.textContent = "Studio could not load: " + e.message; });
