@@ -57,24 +57,30 @@ this repository, `npm install && npm run build`, and run `node <clone>/build/cli
 
 ### Cueflow Studio
 
-`cueflow studio` opens an editor in your browser (it listens on this computer only), dark by default (the ◐ button
-switches to light). Like a video editor, it has a bar of **pages** at the bottom:
+`cueflow studio` opens an editor in your browser (it listens on this computer only), dark by default (◐ switches to
+light). On the left, **all your tutorials as thumbnails**, like the slides of a presentation, with “+” to add one. A bar
+of **pages for the selected tutorial** sits at the bottom, as in a video editor:
 
-- **Media**: the screens (scenes) the videos are made of, with their targetable elements (click one to copy its
-  selector), and *the project*: audience, tone, languages, rules and pronunciation (`brief.json`).
-- **Timeline**: videos and steps on the left (add, move, delete, rename), the video in the middle, and at the bottom
-  the timeline: steps, narration and action markers drawn to scale (click to select, zoom with − / +). On the right,
-  *Narration* (text and title of a step, checked when saved), *Actions* (the actions of the step with their time and
-  duration; add one by picking an element in the screen) and *Assistant* (write what you want changed and copy the
-  request to your own assistant: Studio does not embed one, your assistant edits the same files through Cueflow's
-  tools and Studio shows its changes as they happen).
-- **Voice**: who reads the tutorials, in plain words, for everything, a language or one video; a voice can be tried
-  before it is saved; an OpenAI key is typed here once and kept in the kit's `.env`, never shown again.
-- **Export**: check a video (also its layout, in a browser) and build it or the whole site; built files open from here.
-  Building uses the chosen voices: an external voice is called then, and the page says so before.
+- **Media**: the files of *this* tutorial (screens used only by it, pictures and logos in `media/<tutorial>/`) apart from
+  **Shared media** (what several tutorials use: `shared/` styles, fonts, icons, and screens used by more than one). Each
+  file says who uses it; drop files to upload; a file that a screen uses cannot be deleted. Click an element of a screen to
+  copy its selector.
+- **Timeline**: the video, and at the bottom the timeline drawn to scale (steps, narration, action markers; zoom with
+  − / +). **Drag a step to change the order**; `+ Step` and `Delete` act on the selected one. On the right, *Narration*
+  (text and title of a step, checked when saved), *Actions* (time and duration of each; add one by picking an element in
+  the screen) and *Assistant* (write what you want changed and copy the request to your own assistant: Studio does not
+  embed one, your assistant edits the same files through Cueflow's tools and Studio shows its changes as they happen).
+- **Voice**: who reads this tutorial, in plain words, for everything, a language or one video; try a voice before saving
+  it; an OpenAI key is typed here once and kept in the kit's `.env`, never shown again.
+- **Preview**: the tutorial as viewers get it, large; with the working copy (browser voice) or built with the final voices.
+- **Export**: check this tutorial (also its layout, in a browser) and build it; built files open from here.
+
+Top right: **Project** (audience, tone, languages, rules, pronunciation: `brief.json`) and **Export everything**, which
+builds every tutorial and the **dashboard** that gathers them (`site.json` is created, or completed with the new
+tutorials, never rewritten). An external voice is called only then, and the page says so before.
 
 If you edit something that an assistant changed meanwhile, the save is refused with a message instead of overwriting.
-First version: the timeline shows but does not yet drag; scenes are not captured from the page.
+First version: the timeline does not yet drag actions; scenes are not captured from the page.
 
 ### Voices
 

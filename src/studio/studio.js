@@ -61,12 +61,15 @@
     if (name !== S.page && !confirmLeave()) return;
     S.page = name;
     document.querySelectorAll(".page").forEach(function (el) { el.hidden = el.id !== "page-" + name; });
-    document.querySelectorAll(".pagebar button").forEach(function (b) { b.className = b.getAttribute("data-page") === name ? "on" : ""; });
+    $("#project").addEventListener("click", projectDialog);
+  $("#exportall").addEventListener("click", exportAll);
+  document.querySelectorAll(".pagebar button").forEach(function (b) { b.className = b.getAttribute("data-page") === name ? "on" : ""; });
     renderPage();
   }
   function renderPage() {
     if (S.page === "media") renderMedia();
     else if (S.page === "voice") voicesTab($("#voice-body"));
+    else if (S.page === "preview") renderPreview();
     else if (S.page === "export") renderExport();
   }
   function renderLang() {
@@ -75,52 +78,55 @@
     S.state.guides.forEach(function (g) { g.languages.forEach(function (l) { all[l] = 1; }); });
     Object.keys(all).forEach(function (l) { sel.appendChild(h("option", { value: l, selected: l === S.lang }, l)); });
   }
-  function renderSide() {
-    var side = $("#side"); side.textContent = "";
-    side.appendChild(h("button", { class: "btn newvid", onclick: newVideoForm }, "+ New video"));
-    if (!S.state.guides.length) { side.appendChild(h("p", { class: "empty" }, "No videos in this kit yet. Create one, or ask your assistant.")); return; }
-    S.state.guides.forEach(function (g) {
+  function renderSide() { renderFilm(); }
+  /* all the tutorials as thumbnails, like the slides of a presentation */
+  function renderFilm() {
+    var film = $("#film"); film.textContent = "";
+    S.state.guides.forEach(function (g, i) {
       var on = g.id === S.guideId;
-      var box = h("div", { class: "vid" + (on ? " on" : "") },
-        h("button", { onclick: function () { selectGuide(g.id); } }, text(g.title, S.lang), h("small", null, g.steps.length + " steps · " + g.languages.join(", "))));
-      if (on) {
-        var ol = h("ol", { class: "steps" });
-        g.steps.forEach(function (s, i) {
-          var li = h("li", { class: i === S.step ? "on" : "" },
-            h("button", { onclick: function () { selectStep(i); } }, h("span", { class: "n" }, String(i + 1)), h("span", { class: "t" }, text(s.title, S.lang) || text(s.narration, S.lang) || s.id)));
-          if (i === S.step) li.appendChild(h("div", { class: "stepctl" },
-            h("button", { title: "Move up", disabled: i === 0, onclick: function () { moveStep(i, -1); } }, "↑"),
-            h("button", { title: "Move down", disabled: i === g.steps.length - 1, onclick: function () { moveStep(i, 1); } }, "↓"),
-            h("button", { title: "Delete this step", onclick: function () { deleteStep(i); } }, "✕")));
-          ol.appendChild(li);
-        });
-        ol.appendChild(h("li", null, h("button", { class: "add", onclick: addStep }, h("span", { class: "n" }, "+"), h("span", { class: "t" }, "Add a step"))));
-        box.appendChild(ol);
-      }
-      side.appendChild(box);
+      var vp = g.viewport || { width: 1280, height: 720 };
+      var thumb = h("div", { class: "thumb", style: "aspect-ratio:" + vp.width + " / " + vp.height });
+      var fr = h("iframe", { src: "/scene/" + g.scene + "?lang=" + S.lang, loading: "lazy", tabindex: "-1", title: "" });
+      fr.style.width = vp.width + "px"; fr.style.height = vp.height + "px";
+      thumb.appendChild(fr);
+      var total = (g.timing[S.lang] || g.timing[g.languages[0]] || []).reduce(function (n, t) { return n + t.total; }, 0);
+      var tile = h("button", { class: "tile" + (on ? " on" : ""), title: text(g.title, S.lang), onclick: function () { selectGuide(g.id); } },
+        thumb, h("span", { class: "cap" }, (i + 1) + ". " + text(g.title, S.lang)), h("span", { class: "sub" }, g.steps.length + " steps · " + fmt(total)));
+      film.appendChild(tile);
+      requestAnimationFrame(function () { fr.style.transform = "scale(" + thumb.clientWidth / vp.width + ")"; });
     });
+    film.appendChild(h("button", { class: "tile add", title: "New tutorial", onclick: newTutorialDialog }, h("div", { class: "thumb" }, "+"), h("span", { class: "cap" }, "New tutorial")));
+    var g = video();
+    $("#current").textContent = g ? text(g.title, S.lang) : "";
+  }
+  function dialog(title, build) {
+    var d = $("#dlg"); d.textContent = "";
+    d.appendChild(h("h3", null, title));
+    var body = h("div"); d.appendChild(body);
+    build(body, function () { d.close(); });
+    if (!d.open) d.showModal();
+    return d;
   }
   var slug = function (t) { return String(t).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40); };
-  function newVideoForm() {
-    var p = $("#panel"); S.tab = "narration";
-    var title = h("input", { type: "text", placeholder: "How to … (the title of the video)" });
-    var id = h("input", { type: "text", placeholder: "id (letters, digits, -)" });
-    title.addEventListener("input", function () { if (!id.dataset.touched) id.value = slug(title.value); });
-    id.addEventListener("input", function () { id.dataset.touched = "1"; });
-    var scene = h("select", null, S.state.scenes.map(function (n) { return h("option", { value: n }, n); }));
-    var langs = h("input", { type: "text" }); langs.value = (S.state.brief.languages.length ? S.state.brief.languages : [S.lang || "en"]).join(", ");
-    var msg = h("div", { class: "msg" });
-    document.querySelectorAll(".tabs button").forEach(function (b) { b.className = ""; });
-    p.textContent = "";
-    p.appendChild(h("h3", null, "New video"));
-    p.appendChild(h("p", null, "It starts empty: add its steps from the list on the left."));
-    p.appendChild(h("div", { class: "fields" }, h("label", null, "Title", title), h("label", null, "Id", id), h("label", null, "First screen (scene)", scene), h("label", null, "Languages, separated by commas", langs)));
-    p.appendChild(h("div", { class: "row" }, h("button", { class: "btn primary", onclick: function () {
-      api("/api/guide-create", { method: "POST", body: { id: id.value.trim(), title: title.value.trim(), scene: scene.value, languages: langs.value.split(",").map(function (x) { return x.trim(); }).filter(Boolean) } })
-        .then(function (r) { S.guideId = r.id; S.step = 0; return loadState(); })
-        .catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
-    } }, "Create")));
-    p.appendChild(msg);
+  function newTutorialDialog() {
+    dialog("New tutorial", function (body, close) {
+      var title = h("input", { type: "text", placeholder: "How to … (the title)" });
+      var id = h("input", { type: "text", placeholder: "id (letters, digits, -)" });
+      title.addEventListener("input", function () { if (!id.dataset.touched) id.value = slug(title.value); });
+      id.addEventListener("input", function () { id.dataset.touched = "1"; });
+      var scene = h("select", null, S.state.scenes.map(function (n) { return h("option", { value: n }, n); }));
+      var langs = h("input", { type: "text" }); langs.value = (S.state.brief.languages.length ? S.state.brief.languages : [S.lang || "en"]).join(", ");
+      var msg = h("div", { class: "msg" });
+      body.appendChild(h("p", null, "It starts empty: add its steps in the Timeline."));
+      body.appendChild(h("div", { class: "fields" }, h("label", { class: "lab" }, "Title", title), h("label", { class: "lab" }, "Id", id), h("label", { class: "lab" }, "First screen (scene)", scene), h("label", { class: "lab" }, "Languages, separated by commas", langs)));
+      body.appendChild(h("div", { class: "row" },
+        h("button", { class: "btn primary", onclick: function () {
+          api("/api/guide-create", { method: "POST", body: { id: id.value.trim(), title: title.value.trim(), scene: scene.value, languages: langs.value.split(",").map(function (x) { return x.trim(); }).filter(Boolean) } })
+            .then(function (r) { S.guideId = r.id; S.step = 0; close(); return loadState(); }).then(function () { showPage("timeline"); })
+            .catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+        } }, "Create"), h("button", { class: "btn", onclick: close }, "Cancel")));
+      body.appendChild(msg);
+    });
   }
   function uniqueStepId(base) {
     var ids = S.guide.steps.map(function (s) { return s.id; }), id = base || "step", n = 2;
@@ -137,7 +143,12 @@
       g.steps.splice(at, 0, { id: uniqueStepId(slug(title)), title: t, actions: [], narration: n, hold: 600 });
     }).then(function () { S.step = at; S.tab = "narration"; renderAll(); }).catch(function (e) { flash(e.message, "err"); });
   }
-  function moveStep(i, d) { save(function (g) { var x = g.steps.splice(i, 1)[0]; g.steps.splice(i + d, 0, x); }).then(function () { S.step = i + d; renderAll(); }).catch(function (e) { flash(e.message, "err"); }); }
+  /* drag and drop: move step i so that it comes before the one that is now at `before` (the end is steps.length) */
+  function moveStepTo(i, before) {
+    var to = before > i ? before - 1 : before;
+    if (to === i) return;
+    save(function (g) { var x = g.steps.splice(i, 1)[0]; g.steps.splice(to, 0, x); }).then(function () { S.step = to; renderAll(); }).catch(function (e) { flash(e.message, "err"); });
+  }
   function deleteStep(i) {
     if (!confirm("Delete step " + (i + 1) + "? Its narration and actions are removed from the video.")) return;
     save(function (g) { g.steps.splice(i, 1); }).then(function () { S.step = Math.max(0, i - 1); renderAll(); }).catch(function (e) { flash(e.message, "err"); });
@@ -164,7 +175,7 @@
   /* ---------- actions ---------- */
   function selectGuide(id) {
     if (!confirmLeave()) return;
-    S.guideId = id; S.step = 0; S.picked = null;
+    S.guideId = id; S.step = 0; S.picked = null; S.sel = null; S.check = null; mediaData = null; prevKey = "";
     loadGuide(id).then(function () { renderAll(); });
   }
   function selectStep(i) { if (!confirmLeave()) return; S.msg = null; S.draft = null; S.pending = null; S.step = i; S.dirty = false; S.picked = null; renderSide(); renderView(false); renderPanel(); pickInfo(); }
@@ -179,7 +190,7 @@
     mutate(g);
     return api("/api/guide/" + S.guideId, { method: "PUT", body: { guide: g, version: S.version } }).then(function (r) {
       S.guide = g; S.version = r.version; S.dirty = false; S.ownSave = Date.now();
-      return loadState().then(function () { viewKey = ""; renderView(true); return r; });
+      return loadState().then(function () { viewKey = ""; prevKey = ""; renderView(true); return r; });
     });
   }
 
@@ -515,14 +526,18 @@
   function renderStrip() {
     var strip = $("#strip"); strip.textContent = "";
     var g = video();
-    if (!g || !g.steps.length) { strip.appendChild(h("div", { class: "stripbar" }, "Timeline: add a step to see it here.")); return; }
+    if (!g) { strip.appendChild(h("div", { class: "stripbar" }, "Create a tutorial with “+” on the left.")); return; }
     var timing = g.timing[S.lang] || g.timing[g.languages[0]];
     var total = timing.reduce(function (n, t) { return n + t.total; }, 0);
     var px = S.zoom / 1000;
-    strip.appendChild(h("div", { class: "stripbar" }, h("b", null, text(g.title, S.lang)), "· " + fmt(total) + " (estimated: the real length is the length of the voice)",
+    strip.appendChild(h("div", { class: "stripbar" }, h("b", null, text(g.title, S.lang)), "· " + fmt(total) + " (estimated: the real length is that of the voice)",
       h("span", { style: "flex:1" }),
+      h("span", null, g.steps.length ? "Drag a step to change the order" : ""),
+      h("button", { class: "wide", title: "Add a step after the selected one", onclick: addStep }, "+ Step"),
+      h("button", { class: "wide", title: "Delete the selected step", disabled: !g.steps.length, onclick: function () { deleteStep(S.step); } }, "Delete"),
       h("button", { title: "Zoom out", onclick: function () { S.zoom = Math.max(20, S.zoom * 0.7); renderStrip(); } }, "−"),
       h("button", { title: "Zoom in", onclick: function () { S.zoom = Math.min(400, S.zoom * 1.4); renderStrip(); } }, "+")));
+    if (!g.steps.length) { strip.appendChild(h("div", { class: "stripbar" }, "No steps yet: add the first with “+ Step”.")); return; }
     var lanes = h("div", { class: "lanes", style: "width:" + Math.ceil(total * px + 100) + "px" });
     var ruler = h("div", { class: "ruler" });
     var stepSec = S.zoom >= 120 ? 1 : S.zoom >= 50 ? 5 : 10;
@@ -531,58 +546,133 @@
     var lSteps = h("div", { class: "lane" }, h("span", { class: "lbl" }, "Steps"));
     var lNarr = h("div", { class: "lane" }, h("span", { class: "lbl" }, "Voice"));
     var lAct = h("div", { class: "lane" }, h("span", { class: "lbl" }, "Actions"));
-    var x = 0;
+    var line = h("div", { class: "dropline", hidden: true });
+    var starts = [], x = 0;
     g.steps.forEach(function (st, i) {
+      starts.push(x);
       var tm = timing[i], on = i === S.step;
       var pick = function () { if (!confirmLeave()) return; S.step = i; S.draft = null; S.pending = null; S.msg = null; renderSide(); renderView(false); renderPanel(); renderStrip(); };
-      lSteps.appendChild(h("div", { class: "blk step" + (on ? " on" : ""), style: "left:" + x * px + "px;width:" + Math.max(8, tm.total * px - 2) + "px", title: text(st.title, S.lang) || st.id, onclick: pick }, (i + 1) + " · " + (text(st.title, S.lang) || st.id)));
-      lNarr.appendChild(h("div", { class: "blk narr" + (on ? " on" : ""), style: "left:" + x * px + "px;width:" + Math.max(4, tm.narration * px - 2) + "px", title: text(st.narration, S.lang), onclick: pick }, text(st.narration, S.lang)));
-      st.actions.forEach(function (a, j) {
+      var drag = function (cls, style, label, tip) {
+        var el = h("div", { class: "blk " + cls + (on ? " on" : ""), draggable: "true", style: style, title: tip, onclick: pick }, label);
+        el.addEventListener("dragstart", function (e) { S.dragFrom = i; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i)); el.classList.add("dragging"); });
+        el.addEventListener("dragend", function () { el.classList.remove("dragging"); line.hidden = true; S.dragFrom = null; });
+        return el;
+      };
+      lSteps.appendChild(drag("step", "left:" + x * px + "px;width:" + Math.max(8, tm.total * px - 2) + "px", (i + 1) + " · " + (text(st.title, S.lang) || st.id), (text(st.title, S.lang) || st.id) + " — drag to move"));
+      lNarr.appendChild(drag("narr", "left:" + x * px + "px;width:" + Math.max(4, tm.narration * px - 2) + "px", text(st.narration, S.lang), text(st.narration, S.lang)));
+      st.actions.forEach(function (a) {
         var at = typeof a.at === "string" ? parseFloat(a.at) / 100 * tm.narration : a.at;
-        var mk = h("div", { class: "mk " + a.do + (on ? " on" : ""), style: "left:" + (x + at) * px + "px", title: a.do + " at " + (typeof a.at === "string" ? a.at : Math.round(a.at) + " ms"), onclick: function () { pick(); S.tab = "actions"; renderPanel(); } }, a.do.charAt(0).toUpperCase());
-        lAct.appendChild(mk);
+        lAct.appendChild(h("div", { class: "mk " + a.do + (on ? " on" : ""), style: "left:" + (x + at) * px + "px", title: a.do + " at " + (typeof a.at === "string" ? a.at : Math.round(a.at) + " ms"), onclick: function () { pick(); S.tab = "actions"; renderPanel(); } }, a.do.charAt(0).toUpperCase()));
       });
       x += tm.total;
     });
-    lanes.appendChild(lSteps); lanes.appendChild(lNarr); lanes.appendChild(lAct);
+    starts.push(x);
+    // where a dragged step would land: before the first step whose middle is to the right of the pointer
+    var target = function (e, lane) {
+      var r = lane.getBoundingClientRect(), px0 = e.clientX - r.left;
+      var ms = px0 / px, idx = g.steps.length;
+      for (var k = 0; k < g.steps.length; k++) if (ms < (starts[k] + starts[k + 1]) / 2) { idx = k; break; }
+      return idx;
+    };
+    [lSteps, lNarr].forEach(function (lane) {
+      lane.addEventListener("dragover", function (e) {
+        if (S.dragFrom == null) return;
+        e.preventDefault(); e.dataTransfer.dropEffect = "move";
+        var idx = target(e, lane);
+        line.hidden = false; line.style.left = starts[idx] * px + "px";
+      });
+      lane.addEventListener("drop", function (e) {
+        if (S.dragFrom == null) return;
+        e.preventDefault(); var from = S.dragFrom, idx = target(e, lane); line.hidden = true; S.dragFrom = null;
+        moveStepTo(from, idx);
+      });
+    });
+    var wrap = h("div", { class: "lanewrap" }, line, lSteps, lNarr);
+    lanes.appendChild(wrap); lanes.appendChild(lAct);
     strip.appendChild(h("div", { class: "scroll" }, lanes));
   }
 
-  /* ---------- media: the screens ---------- */
+  /* ---------- media: the files of this tutorial, and the ones shared by all ---------- */
+  var KB = function (n) { return n < 1024 ? n + " B" : n < 1048576 ? Math.round(n / 1024) + " KB" : (n / 1048576).toFixed(1) + " MB"; };
+  var mediaData = null;
   function renderMedia() {
-    var side = $("#media-side"); side.textContent = "";
-    side.appendChild(h("p", { class: "empty", style: "padding:8px 10px;text-align:left" }, "The screens (scenes) the videos are made of."));
-    if (!S.state.scenes.length) side.appendChild(h("p", { class: "empty" }, "No scenes yet. Ask your assistant to capture the site (Assistant tab on the Timeline)."));
-    if (!S.scene || S.state.scenes.indexOf(S.scene) < 0) S.scene = S.state.scenes[0] || null;
-    S.state.scenes.forEach(function (n) { side.appendChild(h("button", { class: "scene" + (n === S.scene ? " on" : ""), onclick: function () { S.scene = n; renderMedia(); } }, n)); });
-    var mv = $("#mview"), key = S.scene + ":" + S.lang;
-    if (S.scene && mv.dataset.key !== key) { mv.dataset.key = key; mv.src = "/scene/" + S.scene + "?lang=" + S.lang; mv.onload = function () { armPicker(mv, function (sel) { showPick(sel); }); }; }
-    var panel = $("#media-panel"); panel.textContent = "";
-    var b = S.state.brief;
-    panel.appendChild(h("h3", null, "The project"));
-    panel.appendChild(h("p", null, "What was agreed with the people who watch these videos. It guides the narration and the voice."));
-    var f = {};
-    var inp = function (k, label, val, tag) { var el = h(tag || "input", tag ? { rows: 3 } : { type: "text" }); el.value = val || ""; f[k] = el; return h("label", { class: "lab" }, label, el); };
-    panel.appendChild(h("div", { class: "fields" },
-      inp("audience", "Who watches", b.audience), inp("tone", "Tone of the narration", b.tone),
-      inp("languages", "Languages (commas; the first is the main)", (b.languages || []).join(", ")),
-      inp("maxSeconds", "Longest video (seconds)", String(b.maxSeconds)),
-      inp("rules", "Rules for every video (one per line)", (b.rules || []).join("\n"), "textarea"),
-      inp("pronunciation", "Pronunciation: written = said (one per line)", Object.keys(b.pronunciation || {}).map(function (k) { return k + " = " + b.pronunciation[k]; }).join("\n"), "textarea")));
-    var msg = h("div", { class: "msg" });
-    panel.appendChild(h("div", { class: "row" }, h("button", { class: "btn primary", onclick: function () {
-      var pron = {}; f.pronunciation.value.split("\n").forEach(function (l) { var i = l.indexOf("="); if (i > 0) pron[l.slice(0, i).trim()] = l.slice(i + 1).trim(); });
-      api("/api/brief", { method: "POST", body: { audience: f.audience.value.trim() || undefined, tone: f.tone.value.trim() || undefined, languages: f.languages.value.split(",").map(function (x) { return x.trim(); }).filter(Boolean), maxSeconds: +f.maxSeconds.value || 90, rules: f.rules.value.split("\n").map(function (x) { return x.trim(); }).filter(Boolean), pronunciation: pron } })
-        .then(function (br) { S.state.brief = br; msg.className = "msg ok"; msg.textContent = "Saved."; }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
-    } }, "Save")));
-    panel.appendChild(msg);
-    panel.appendChild(h("h3", { style: "margin-top:20px" }, "Elements of “" + (S.scene || "") + "”"));
-    var list = h("div", null, h("p", null, "Loading…")); panel.appendChild(list);
-    if (S.scene) api("/api/elements/" + S.scene + "?lang=" + S.lang).then(function (els) {
-      list.textContent = "";
-      els.slice(0, 80).forEach(function (e) { list.appendChild(h("button", { class: "el", title: "Copy the selector", onclick: function () { showPick(e.selector); } }, h("code", null, e.selector), h("span", null, e.text || e.tag))); });
-      if (!els.length) list.appendChild(h("p", null, "No targetable elements: give elements an id or a data-cue."));
+    var side = $("#media-side");
+    var g = video();
+    if (!g) { side.textContent = ""; side.appendChild(h("p", { class: "empty" }, "Select or create a tutorial.")); return; }
+    api("/api/media/" + g.id).then(function (m) { mediaData = m; drawMedia(); }).catch(function (e) { side.textContent = e.message; });
+  }
+  function mediaThumb(area, it) {
+    var t = h("div", { class: "mt" });
+    if (it.kind === "scene") { var fr = h("iframe", { src: "/scene/" + it.name + "?lang=" + S.lang, loading: "lazy", tabindex: "-1" }); t.appendChild(fr); requestAnimationFrame(function () { fr.style.transform = "scale(" + t.clientWidth / 1280 + ")"; }); }
+    else if (it.kind === "image") t.appendChild(h("img", { src: it.url, alt: "" }));
+    else t.textContent = (it.name.split(".").pop() || "").toUpperCase();
+    return t;
+  }
+  function mediaSection(title, note, area, group) {
+    var sec = h("div", { class: "media-sec" }, h("h4", null, title), h("p", null, note));
+    group.scenes.concat(group.files).forEach(function (it) {
+      var on = S.sel && S.sel.area === area && S.sel.name === it.name && S.sel.kind === it.kind;
+      var users = it.usedBy.length ? "used by " + it.usedBy.join(", ") : "not used yet";
+      sec.appendChild(h("button", { class: "mitem" + (on ? " on" : ""), onclick: function () { S.sel = { area: area, kind: it.kind, name: it.name }; drawMedia(); } },
+        mediaThumb(area, it), h("span", { class: "mn" }, h("b", null, it.kind === "scene" ? it.name + " (screen)" : it.name), h("small", null, KB(it.size) + " · " + users))));
     });
+    if (!group.scenes.length && !group.files.length) sec.appendChild(h("p", null, "Nothing here yet."));
+    var input = h("input", { type: "file", multiple: true, hidden: true });
+    var drop = h("div", { class: "drop" }, "Drop files here or ", h("button", { onclick: function () { input.click(); } }, "choose"), input);
+    var send = function (files) {
+      Promise.all(Array.prototype.map.call(files, function (f) {
+        return fetch("/api/media-file?area=" + area + "&guide=" + encodeURIComponent(S.guideId) + "&name=" + encodeURIComponent(f.name), { method: "POST", headers: { "x-cueflow": "studio" }, body: f })
+          .then(function (r) { return r.ok ? null : r.json().then(function (d) { throw new Error(d.error); }); });
+      })).then(function () { flash("Uploaded.", "ok"); renderMedia(); }).catch(function (e) { flash(e.message, "err"); });
+    };
+    input.addEventListener("change", function () { send(input.files); });
+    drop.addEventListener("dragover", function (e) { e.preventDefault(); drop.classList.add("over"); });
+    drop.addEventListener("dragleave", function () { drop.classList.remove("over"); });
+    drop.addEventListener("drop", function (e) { e.preventDefault(); drop.classList.remove("over"); send(e.dataTransfer.files); });
+    sec.appendChild(drop);
+    return sec;
+  }
+  function drawMedia() {
+    var g = video(), m = mediaData; if (!g || !m) return;
+    var side = $("#media-side"); side.textContent = "";
+    side.appendChild(mediaSection("Media — " + text(g.title, S.lang), "Only this tutorial uses these.", "media", m.media));
+    side.appendChild(mediaSection("Shared media", "Used by several tutorials: the site's styles, fonts, icons, shared screens.", "shared", m.shared));
+    if (!S.sel) { var first = m.media.scenes[0] || m.shared.scenes[0]; if (first) S.sel = { area: m.media.scenes[0] ? "media" : "shared", kind: "scene", name: first.name }; }
+    var item = S.sel && (S.sel.area === "media" ? m.media : m.shared)[S.sel.kind === "scene" ? "scenes" : "files"].filter(function (x) { return x.name === S.sel.name; })[0];
+    if (!item) { S.sel = null; item = null; }
+    var stage = $("#mstage"), panel = $("#media-panel"); panel.textContent = ""; $("#mpick").textContent = "";
+    var mv = $("#mview");
+    if (item && item.kind === "scene") {
+      stage.querySelectorAll(".imgview,.filebox").forEach(function (n) { n.remove(); }); mv.hidden = false;
+      var key = item.name + ":" + S.lang;
+      if (mv.dataset.key !== key) { mv.dataset.key = key; mv.src = "/scene/" + item.name + "?lang=" + S.lang; mv.onload = function () { armPicker(mv, function (sel) { showPick(sel); }); }; }
+      $("#mpick").appendChild(h("span", null, "Click an element in the screen to get its selector."));
+    } else {
+      mv.hidden = true; mv.dataset.key = ""; stage.querySelectorAll(".imgview,.filebox").forEach(function (n) { n.remove(); });
+      if (!item) stage.appendChild(h("div", { class: "filebox" }, "Select a screen or a file."));
+      else if (item.kind === "image") stage.appendChild(h("div", { class: "imgview" }, h("img", { src: item.url, alt: item.name })));
+      else if (item.kind === "audio") stage.appendChild(h("div", { class: "filebox" }, h("audio", { controls: true, src: item.url })));
+      else if (item.kind === "font") { stage.appendChild(h("div", { class: "filebox" }, h("style", null, "@font-face{font-family:cfprev;src:url('" + item.url + "')}"), h("div", { style: "font:48px cfprev,serif;color:var(--ink)" }, "Aa Bb Cc 0123"))); }
+      else { var pre = h("pre", { class: "filebox", style: "overflow:auto;height:100%;margin:0;white-space:pre-wrap;font-size:12px" }, "Loading…"); stage.appendChild(pre); fetch(item.url).then(function (r) { return r.text(); }).then(function (t) { pre.textContent = t.slice(0, 20000); }); }
+    }
+    if (!item) return;
+    panel.appendChild(h("h3", null, item.name));
+    panel.appendChild(h("p", null, (item.kind === "scene" ? "A screen of the product" : item.kind) + " · " + KB(item.size) + " · " + (S.sel.area === "media" ? "only in this tutorial" : "shared")));
+    panel.appendChild(h("p", null, item.usedBy.length ? "Used by: " + item.usedBy.join(", ") + "." : "No tutorial uses it yet."));
+    if (item.languages && item.languages.length) panel.appendChild(h("p", null, "Translated screens: " + item.languages.join(", ")));
+    if (item.kind !== "scene") panel.appendChild(h("div", { class: "row" }, h("button", { class: "btn", disabled: item.usedBy.length > 0, title: item.usedBy.length ? "A tutorial uses it: remove it from the scene first" : "", onclick: function () {
+      if (!confirm("Delete " + item.name + "?")) return;
+      api("/api/media-file?area=" + S.sel.area + "&guide=" + encodeURIComponent(S.guideId) + "&name=" + encodeURIComponent(item.name), { method: "DELETE" }).then(function () { S.sel = null; renderMedia(); }).catch(function (e) { flash(e.message, "err"); });
+    } }, "Delete")));
+    if (item.kind === "scene") {
+      panel.appendChild(h("h3", { style: "margin-top:18px" }, "Elements"));
+      var list = h("div", null, h("p", null, "Loading…")); panel.appendChild(list);
+      api("/api/elements/" + item.name + "?lang=" + S.lang).then(function (els) {
+        list.textContent = "";
+        els.slice(0, 80).forEach(function (e) { list.appendChild(h("button", { class: "el", title: "Copy the selector", onclick: function () { showPick(e.selector); } }, h("code", null, e.selector), h("span", null, e.text || e.tag))); });
+        if (!els.length) list.appendChild(h("p", null, "No targetable elements: give elements an id or a data-cue."));
+      });
+    } else panel.appendChild(h("p", { style: "margin-top:12px" }, S.sel.area === "media" ? "Refer to it from a screen as ../media/" + S.guideId + "/" + item.name : "Refer to it from a screen as ../shared/" + item.name));
   }
   function showPick(sel) {
     var box = $("#mpick"); box.textContent = "";
@@ -590,14 +680,79 @@
     box.appendChild(h("button", { class: "btn", onclick: function () { navigator.clipboard && navigator.clipboard.writeText(sel); flash("Copied " + sel, "ok"); } }, "Copy"));
   }
 
+  /* ---------- the project (brief) and the whole export ---------- */
+  function projectDialog() {
+    dialog("The project", function (body, close) {
+      var b = S.state.brief, f = {};
+      var inp = function (k, label, val, tag) { var el = h(tag || "input", tag ? { rows: 3 } : { type: "text" }); el.value = val || ""; f[k] = el; return h("label", { class: "lab" }, label, el); };
+      body.appendChild(h("p", null, "What was agreed with the people who watch these videos. It guides the narration and the voice for every tutorial."));
+      body.appendChild(h("div", { class: "fields" },
+        inp("audience", "Who watches", b.audience), inp("tone", "Tone of the narration", b.tone),
+        inp("languages", "Languages (commas; the first is the main)", (b.languages || []).join(", ")),
+        inp("maxSeconds", "Longest video (seconds)", String(b.maxSeconds)),
+        inp("rules", "Rules for every video (one per line)", (b.rules || []).join("\n"), "textarea"),
+        inp("pronunciation", "Pronunciation: written = said (one per line)", Object.keys(b.pronunciation || {}).map(function (k) { return k + " = " + b.pronunciation[k]; }).join("\n"), "textarea")));
+      var msg = h("div", { class: "msg" });
+      body.appendChild(h("div", { class: "row" },
+        h("button", { class: "btn primary", onclick: function () {
+          var pron = {}; f.pronunciation.value.split("\n").forEach(function (l) { var i = l.indexOf("="); if (i > 0) pron[l.slice(0, i).trim()] = l.slice(i + 1).trim(); });
+          api("/api/brief", { method: "POST", body: { audience: f.audience.value.trim() || undefined, tone: f.tone.value.trim() || undefined, languages: f.languages.value.split(",").map(function (x) { return x.trim(); }).filter(Boolean), maxSeconds: +f.maxSeconds.value || 90, rules: f.rules.value.split("\n").map(function (x) { return x.trim(); }).filter(Boolean), pronunciation: pron } })
+            .then(function (br) { S.state.brief = br; close(); flash("Project saved.", "ok"); }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+        } }, "Save"), h("button", { class: "btn", onclick: close }, "Cancel")));
+      body.appendChild(msg);
+    });
+  }
+  function exportAll() {
+    api("/api/voices").then(function (v) {
+      var external = v.table.filter(function (r) { return ["browser", "none"].indexOf(r.provider) < 0; });
+      dialog("Export everything", function (body, close) {
+        body.appendChild(h("p", null, "Builds every tutorial (" + S.state.guides.length + ") and the dashboard that gathers them: the home with all the videos, one page per tutorial. The files go to " + S.state.outDir + "."));
+        if (external.length) body.appendChild(h("p", { class: "msg warn" }, "Audio will be generated with external voices (" + external.map(function (r) { return r.guide + "/" + r.language + ": " + r.provider; }).join(", ") + "): the narration text is sent to that service and it may cost. Texts already generated are not paid again."));
+        var posters = h("input", { type: "checkbox" });
+        body.appendChild(h("label", { class: "lab" }, posters, " Make a cover picture for each tutorial (needs a browser, Playwright)"));
+        var result = h("div", { class: "result" });
+        var go = h("button", { class: "btn primary", onclick: function () {
+          go.disabled = true; result.textContent = "Building…";
+          api("/api/export-all", { method: "POST", body: { posters: posters.checked } }).then(function (r) {
+            result.textContent = "";
+            result.appendChild(h("div", { class: "msg ok" }, "✓ " + r.guides.length + " tutorial(s) and " + r.pages + " dashboard page(s) built" + (r.siteCreated ? " (the catalog was created)" : r.siteAdded.length ? " (added to the catalog: " + r.siteAdded.join(", ") + ")" : "") + "."));
+            r.warnings.forEach(function (w) { result.appendChild(h("div", { class: "msg warn" }, "! " + w)); });
+            result.appendChild(h("a", { href: r.url, target: "_blank", rel: "noopener", class: "btn" }, "Open the dashboard"));
+            go.disabled = false;
+          }).catch(function (e) { result.textContent = ""; result.appendChild(h("div", { class: "msg err" }, e.message)); go.disabled = false; });
+        } }, "Export");
+        body.appendChild(h("div", { class: "row" }, go, h("button", { class: "btn", onclick: close }, "Close")));
+        body.appendChild(result);
+      });
+    });
+  }
+
+  /* ---------- preview: the tutorial as it will be seen ---------- */
+  var prevKey = "";
+  function renderPreview() {
+    var bar = $("#prev-bar"), fr = $("#prev-view"), g = video();
+    bar.textContent = "";
+    if (!g) { fr.removeAttribute("src"); prevKey = ""; bar.appendChild(h("span", null, "Select or create a tutorial.")); return; }
+    var key = "draft:" + g.id + ":" + S.lang;
+    if (prevKey !== key && prevKey.indexOf("final:") !== 0) { prevKey = key; fr.src = "/preview/" + g.id + "?lang=" + S.lang; }
+    var external = (S.voicesTable || []).filter(function (r) { return r.guide === g.id && ["browser", "none"].indexOf(r.provider) < 0; });
+    bar.appendChild(h("b", null, text(g.title, S.lang)));
+    bar.appendChild(h("button", { class: "btn", onclick: function () { prevKey = "draft:" + g.id + ":" + S.lang; fr.src = "/preview/" + g.id + "?lang=" + S.lang + "&t=" + Date.now(); } }, "Play from the start (working copy, browser voice)"));
+    bar.appendChild(h("button", { class: "btn", onclick: function () {
+      if (external.length && !confirm("This builds the video with the external voice chosen (" + external.map(function (r) { return r.language + ": " + r.provider; }).join(", ") + "): the narration text is sent to that service and it may cost. Continue?")) return;
+      flash("Building with the final voices…", "");
+      api("/api/build", { method: "POST", body: { target: "guide", guide: g.id } }).then(function (r) { prevKey = "final:" + g.id; fr.src = r.url + "?t=" + Date.now(); flash(r.silent ? "Built: no recorded audio, the browser reads it." : "Built with " + r.audioFiles + " audio file(s).", "ok"); }).catch(function (e) { flash(e.message, "err"); });
+    } }, "With the final voices"));
+    bar.appendChild(h("a", { class: "btn", href: "/preview/" + g.id + "?lang=" + S.lang, target: "_blank", rel: "noopener" }, "Open in a new tab"));
+    bar.appendChild(h("span", { style: "color:var(--muted);font-size:12.5px" }, "Plays exactly what viewers get: scenes, camera, cursor, captions, chapters."));
+    if (!S.voicesTable) api("/api/voices").then(function (v) { S.voicesTable = v.table; });
+  }
+
   /* ---------- export ---------- */
   function renderExport() {
     var body = $("#export-body"); body.textContent = "";
-    body.appendChild(h("h3", null, "Export"));
-    if (!S.state.guides.length) { body.appendChild(h("p", { class: "empty" }, "No videos yet.")); return; }
-    var sel = h("select", null, S.state.guides.map(function (g) { return h("option", { value: g.id, selected: g.id === S.guideId }, text(g.title, S.lang)); }));
-    sel.addEventListener("change", function () { if (!confirmLeave()) return; S.guideId = sel.value; S.step = 0; S.check = null; loadGuide(S.guideId).then(function () { renderAll(); }); });
-    body.appendChild(h("label", { class: "lab" }, "Video", sel));
+    if (!video()) { body.appendChild(h("p", { class: "empty" }, "Select or create a tutorial.")); return; }
+    body.appendChild(h("h3", null, "Export “" + text(video().title, S.lang) + "”"));
     var holder = h("div"); body.appendChild(holder);
     checkTab(holder);
   }
@@ -618,7 +773,7 @@
     // someone else changed the kit (an assistant, an editor); the file watcher also reports our own saves, which we skip
     if (S.ownSave && Date.now() - S.ownSave < 2500) return;
     if (S.dirty) { var b = $("#banner"); b.hidden = false; b.className = "banner"; b.textContent = "The kit changed on disk. Save or discard your edit, then reload this page."; return; }
-    loadState().then(function () { viewKey = ""; renderView(true); flash("The kit changed: updated.", "ok"); });
+    loadState().then(function () { viewKey = ""; prevKey = ""; renderView(true); flash("The kit changed: updated.", "ok"); });
   };
   loadState().catch(function (e) { document.body.textContent = "Studio could not load: " + e.message; });
 })();

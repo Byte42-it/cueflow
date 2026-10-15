@@ -3,7 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseHTML } from "linkedom";
 import { buildGuide, embed, escapeHtml, estimateDuration, guideBundle, playerAssets, writeAtomic } from "./build.ts";
-import { listGuides, type Kit } from "./kit.ts";
+import { loadBrief } from "./brief.ts";
+import { listGuides, loadGuide, type Kit } from "./kit.ts";
 import { renderFrame } from "./preview.ts";
 import { dataUri } from "./scene.ts";
 import { pick, Site, siteLanguages, type Localized, type SiteItem } from "./schema.ts";
@@ -294,4 +295,36 @@ ${body}
     pages.push(`${it.id}/index.html`);
   }
   return { dir: out, pages, posters, warnings };
+}
+
+/**
+ * Makes the catalog follow the tutorials: creates site.json when there is none, and adds an item for every tutorial
+ * that has no entry yet (nothing is removed or rewritten: the catalog is also edited by hand).
+ */
+export async function syncSite(kit: Kit): Promise<{ created: boolean; added: string[] }> {
+  const ids = await listGuides(kit);
+  const guides = await Promise.all(ids.map((id) => loadGuide(kit, id)));
+  const brief = await loadBrief(kit);
+  let created = false;
+  let site: Site;
+  try {
+    site = await loadSite(kit);
+  } catch (e) {
+    if (await readFile(siteFile(kit), "utf8").then(() => true, () => false)) throw e; // invalid, not missing: do not overwrite
+    created = true;
+    const languages = brief.languages.length ? brief.languages : [...new Set(guides.flatMap((g) => g.languages))];
+    site = Site.parse({ title: brief.site ?? "Tutorials", lang: languages[0] ?? "en", languages, rows: [{ id: "tutorials", title: "Tutorials" }] });
+  }
+  const row = site.rows[0]?.id ?? "tutorials";
+  if (!site.rows.length) site.rows.push({ id: row, title: "Tutorials", band: false, askTile: false });
+  const known = new Set(site.items.map((i) => i.guide).filter(Boolean));
+  const added: string[] = [];
+  for (const g of guides) {
+    if (known.has(g.id) || site.items.some((i) => i.id === g.id)) continue;
+    site.items.push({ id: g.id, row, status: "video", guide: g.id, title: g.title, desc: "", contents: [] } as SiteItem);
+    added.push(g.id);
+  }
+  if (!site.featured && site.items[0]) site.featured = site.items[0].id;
+  if (created || added.length || !site.featured) await writeAtomic(siteFile(kit), JSON.stringify(site, null, 2) + "\n");
+  return { created, added };
 }
