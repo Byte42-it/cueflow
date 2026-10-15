@@ -260,6 +260,19 @@ and the printable units. The site is styled with `--cf-site-*` variables (top of
 same `theme/theme.css` as the player; its interface is in English or Italian (`lang`), and `site.json` `labels`
 overrides any word. See `examples/demo-kit`.
 
+### Tutorial requests
+
+With `requestEndpoint` set, the site offers a "request a tutorial" dialog. It sends
+`POST <requestEndpoint>` with `Content-Type: application/json` and
+`{ "topic": "...", "message"?: "...", "name"?: "...", "email"?: "...", "company"?: "...", "page": "/path" }`
+(`company` is a honeypot: a person never fills it, a bot does). A `2xx` answer means sent; `422` tells the visitor
+to check the fields, `429` to retry later. Where the requests go is up to the endpoint: the page never knows.
+
+The endpoint usually lives on the product's own domain, and the docs on another one: then the browser first asks the
+endpoint whether it accepts the docs' origin (a CORS preflight), and refuses to send if it does not. Set `url` in
+`site.json` to where the site is published, and run `node src/cli.ts check-endpoint --kit <kit>` before publishing:
+it sends that same preflight and tells you which origin to allow.
+
 ### Languages
 
 A guide lists its `languages`; every text in it can be one string or one per language: narration, step titles,

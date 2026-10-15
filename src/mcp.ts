@@ -12,7 +12,7 @@ import { listGuides, listScenes, loadGuide, readScene, saveGuide, type Kit } fro
 import { checkLayout } from "./layout.ts";
 import { renderFrame } from "./preview.ts";
 import { describeScene } from "./scene.ts";
-import { buildSite, loadSite, validateSite } from "./site.ts";
+import { buildSite, checkEndpoint, loadSite, validateSite } from "./site.ts";
 import { Guide, Step } from "./schema.ts";
 import { validateGuide } from "./validate.ts";
 
@@ -284,6 +284,15 @@ export function createServer(kit: Kit): McpServer {
     "validate_site",
     { description: "Check the kit's site.json (the docs-site catalog): unique ids, existing rows, guides, articles, posters and icons." },
     safe(async () => text(await validateSite(kit, await loadSite(kit))))
+  );
+
+  server.registerTool(
+    "check_endpoint",
+    {
+      description:
+        "Ask the site's requestEndpoint whether it accepts requests from the site's url (the CORS preflight a browser sends first). Run it before publishing: a refused origin means the request form fails for every visitor."
+    },
+    safe(async () => text(await checkEndpoint(await loadSite(kit))))
   );
 
   server.registerTool(

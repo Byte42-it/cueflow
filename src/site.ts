@@ -84,6 +84,9 @@ export async function validateSite(kit: Kit, site: Site): Promise<{ errors: stri
     if (!f) errors.push(`featured "${site.featured}" is not an item`);
     else if (f.status === "soon") errors.push(`featured "${site.featured}" has no page yet (status soon)`);
   }
+  const cors = corsNeed(site);
+  if (cors) warnings.push(cors);
+  if (site.requestEndpoint && !site.url) warnings.push("requestEndpoint is set but url is not: set url (where the site is published) to check that the endpoint accepts requests from it");
   if (site.brand?.logo && !(await exists(inKit(kit, site.brand.logo)))) errors.push(`brand logo "${site.brand.logo}" not found in the kit`);
   for (const [what, rel] of [["brand logo", site.brand?.logo], ...site.items.map((it) => [`item "${it.id}": icon`, it.icon])] as const) {
     if (rel && !/\.(svg|png|jpe?g|gif|webp)$/i.test(rel)) errors.push(`${what} "${rel}" must be an svg, png, jpg, gif or webp file`);
@@ -350,4 +353,47 @@ export async function setSiteText(kit: Kit, itemId: string, field: "title" | "ki
   Site.parse(raw);
   await writeAtomic(siteFile(kit), JSON.stringify(raw, null, 2) + "\n");
   await recordChange(kit, { kind: "catalog", lang, tutorial: item.guide, target: `${itemId}.${field}`, before, after: value });
+}
+
+/** When the request endpoint lives on another origin than the site, browsers ask it first (CORS preflight). */
+function corsNeed(site: Site): string | null {
+  if (!site.url || !site.requestEndpoint) return null;
+  const from = new URL(site.url).origin, to = new URL(site.requestEndpoint).origin;
+  if (from === to) return null;
+  return `requestEndpoint is on ${to}, the site on ${from}: the endpoint must allow the origin ${from} (CORS, POST with Content-Type: application/json). Check it with \`cueflow check-endpoint\``;
+}
+
+export type EndpointCheck = { ok: boolean; origin: string; endpoint: string; status?: number; allowOrigin?: string | null; message: string };
+
+/**
+ * Asks the request endpoint what a browser on the site would ask before sending the form (the CORS preflight), so a
+ * missing origin is found before publishing, not by the first visitor. Sends no request body and creates nothing.
+ */
+export async function checkEndpoint(site: Site, fetchImpl: typeof fetch = fetch): Promise<EndpointCheck> {
+  if (!site.requestEndpoint) return { ok: true, origin: "", endpoint: "", message: "no requestEndpoint: the request form is not shown" };
+  if (!site.url) throw new Error("site.json has no url: set where the site is published (e.g. https://help.example.com) to check the endpoint from there");
+  const origin = new URL(site.url).origin, endpoint = site.requestEndpoint;
+  if (new URL(endpoint).origin === origin) return { ok: true, origin, endpoint, message: "same origin as the site: no CORS needed" };
+  let res: Response;
+  try {
+    res = await fetchImpl(endpoint, {
+      method: "OPTIONS",
+      headers: { Origin: origin, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type" }
+    });
+  } catch (e) {
+    return { ok: false, origin, endpoint, message: `the endpoint does not answer: ${e instanceof Error ? e.message : e}` };
+  }
+  const allowOrigin = res.headers.get("access-control-allow-origin");
+  const allowHeaders = (res.headers.get("access-control-allow-headers") ?? "").toLowerCase();
+  const originOk = allowOrigin === "*" || allowOrigin === origin;
+  const headersOk = allowHeaders === "*" || allowHeaders.split(",").map((h) => h.trim()).includes("content-type");
+  const ok = res.status < 300 && originOk && headersOk;
+  const message = ok
+    ? `the endpoint accepts requests from ${origin}`
+    : !originOk
+      ? `the endpoint refuses requests from ${origin} (status ${res.status}${allowOrigin ? `, it allows ${allowOrigin}` : ", no Access-Control-Allow-Origin"}): add ${origin} to the origins it allows`
+      : !headersOk
+        ? `the endpoint allows ${origin} but not the Content-Type header: allow it for the preflight`
+        : `the preflight failed with status ${res.status}`;
+  return { ok, origin, endpoint, status: res.status, allowOrigin, message };
 }

@@ -12,6 +12,7 @@
     "en": "Acme Portal — example docs site built with Cueflow",
     "it": "Acme Portal — sito di esempio costruito con Cueflow"
   },
+  "url": "https://example.com/help/",
   "requestEndpoint": "https://example.com/api/tutorial-requests",
   "featured": "upload",
   "rows": [
