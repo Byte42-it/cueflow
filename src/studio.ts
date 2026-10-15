@@ -8,6 +8,7 @@ import { ArticleError, catalogOverview, createArticle, deleteItem, readArticle, 
 import { Brief, loadBrief, updateBrief } from "./brief.ts";
 import { buildGuide, estimateStepDuration, renderGuideHtml, writeAtomic } from "./build.ts";
 import { checkLayout } from "./layout.ts";
+import { buildShare } from "./share.ts";
 import { buildSite, loadSite, setSiteText, siteFile, syncSite } from "./site.ts";
 import { loadTheme } from "./theme.ts";
 import { describeChange, discardChanges, pendingChanges, recordChange } from "./changes.ts";
@@ -17,14 +18,14 @@ import { METHOD } from "./method.ts";
 import { deleteTutorial } from "./trash.ts";
 import { editSceneElement } from "./sceneedit.ts";
 import { deleteMediaFile, mediaOverview, saveMediaFile, areaDir, safeRel, type Area } from "./media.ts";
-import { listGuides, listScenes, loadGuide, openKit, readScene, saveGuide, guideFile, type Kit } from "./kit.ts";
+import { defaultOutDir, listGuides, listScenes, loadGuide, openKit, outDirSetting, projectRoot, readScene, saveGuide, guideFile, type Kit } from "./kit.ts";
 import { describeScene, inlineScene } from "./scene.ts";
 import { Guide, pick } from "./schema.ts";
 import { narrationAudio, providerFromSpec, audioMime, spokenText } from "./tts.ts";
 import { VoiceSpec } from "./settings.ts";
 import { validateGuide } from "./validate.ts";
 import { readFile as read } from "node:fs/promises";
-import { setVoice, voiceFor, voiceOptions, voiceTable } from "./voices.ts";
+import { readRawSettings, setVoice, voiceFor, voiceOptions, voiceTable, writeRawSettings } from "./voices.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS: Record<string, [string, string]> = {
@@ -111,7 +112,7 @@ async function state(kit: Kit) {
     for (const lang of g.languages) timing[lang] = g.steps.map((s) => estimateStepDuration(s, lang));
     guides.push({ id, title: g.title, languages: g.languages, scene: g.scene, viewport: g.viewport, timing, steps: g.steps.map((s) => ({ id: s.id, title: s.title ?? null, narration: s.narration, actions: s.actions.map((a) => ({ do: a.do, at: "at" in a ? a.at : 0, duration: "duration" in a ? a.duration : undefined })) })) });
   }
-  return { kitRoot: kit.root, outDir: kit.out, brief: await loadBrief(kit), pending: (await pendingChanges(kit)).length, guides, scenes: await listScenes(kit), hasKey: Boolean(process.env.OPENAI_API_KEY), catalog: await catalogOverview(kit).catch((e) => ({ exists: false as const, error: e instanceof Error ? e.message : String(e) })) };
+  return { kitRoot: kit.root, projectRoot: projectRoot(kit), outDir: kit.out, outDirShown: path.relative(projectRoot(kit), kit.out).split(path.sep).join("/") || ".", defaultOutDirShown: path.relative(projectRoot(kit), path.resolve(kit.root, defaultOutDir(kit))).split(path.sep).join("/"), brief: await loadBrief(kit), pending: (await pendingChanges(kit)).length, guides, scenes: await listScenes(kit), hasKey: Boolean(process.env.OPENAI_API_KEY), catalog: await catalogOverview(kit).catch((e) => ({ exists: false as const, error: e instanceof Error ? e.message : String(e) })) };
 }
 
 /**
@@ -402,6 +403,27 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     const id = String(b.guide);
     const r = await buildGuide(kit, id);
     return json(res, { target: "guide", url: `/out/${id}.html`, audioFiles: r.audioFiles, silent: r.silent, warnings: r.warnings });
+  }
+
+  if (p === "/api/out-dir" && req.method === "POST") {
+    // where builds write: typed relative to the project (or absolute); empty = back to the default. Files already built stay where they are.
+    const b = await readBody(req);
+    const raw = await readRawSettings(kit);
+    try {
+      raw.outDir = typeof b.outDir === "string" && b.outDir.trim() ? outDirSetting(kit, b.outDir) : defaultOutDir(kit);
+    } catch (e) {
+      throw new HttpError(400, e instanceof Error ? e.message : String(e));
+    }
+    await writeRawSettings(kit, raw);
+    return json(res, { outDir: kit.out });
+  }
+
+  if (p === "/api/share" && req.method === "POST") {
+    // the page of a video for phones; its card language is the one being edited
+    const b = await readBody(req);
+    const id = String(b.guide);
+    const r = await buildShare(kit, id, { lang: b.lang ? String(b.lang) : undefined });
+    return json(res, { url: `/out/share/${id}/index.html`, dir: r.dir, poster: Boolean(r.poster), link: r.link, warnings: r.warnings });
   }
 
   if (p === "/api/guide-create" && req.method === "POST") {

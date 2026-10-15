@@ -10,6 +10,7 @@ import { setVoice, voiceOptions, voiceTable } from "./voices.ts";
 import { captureScenes } from "./capture.ts";
 import { listGuides, listScenes, loadGuide, readScene, saveGuide, type Kit } from "./kit.ts";
 import { checkLayout } from "./layout.ts";
+import { packageVersion } from "./version.ts";
 import { renderFrame } from "./preview.ts";
 import { describeScene } from "./scene.ts";
 import { buildSite, checkEndpoint, loadSite, syncSite, validateSite } from "./site.ts";
@@ -34,7 +35,7 @@ const safe =
   };
 
 export function createServer(kit: Kit): McpServer {
-  const server = new McpServer({ name: "cueflow", version: "0.0.1" }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: "cueflow", version: packageVersion() }, { instructions: INSTRUCTIONS });
   const guideId = z.string().describe("guide id");
 
   server.registerTool(

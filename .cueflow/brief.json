@@ -1,0 +1,15 @@
+{
+  "site": "Cueflow",
+  "source": { "type": "url", "url": "http://localhost:4399" },
+  "audience": "Developers and documentation writers who have just found Cueflow and want to make narrated UI tutorials without recording video. They know HTML and a terminal; they have never used Cueflow.",
+  "tone": "Direct, calm and friendly. Short sentences, impersonal or second person (\"you\").",
+  "languages": ["en", "it"],
+  "rules": [
+    "Show only what Cueflow does today; no promise about future features",
+    "Use the demo kit (the upload tutorial) as the running example; fake data only",
+    "Studio screens are captured from a Studio running on a copy of examples/demo-kit",
+    "Say the product name as Cueflow and the editor as Studio"
+  ],
+  "pronunciation": { "Cueflow": "Q flow", "MCP": "M C P", "HTML": "H T M L", "CSS": "C S S", "curl": "curl" },
+  "maxSeconds": 90
+}

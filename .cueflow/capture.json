@@ -1,0 +1,219 @@
+{
+  "base": "http://localhost:4399",
+  "lang": "en",
+  "scenes": [
+    {
+      "name": "studio-ai",
+      "url": "/",
+      "steps": [
+        {
+          "waitFor": "#film"
+        },
+        {
+          "click": "#ai"
+        },
+        {
+          "wait": 800
+        }
+      ],
+      "script": "capture/inline-frames.js"
+    },
+    {
+      "name": "studio-timeline",
+      "url": "/",
+      "steps": [
+        {
+          "wait": 1200
+        }
+      ],
+      "script": "capture/inline-frames.js"
+    },
+    {
+      "name": "studio-media",
+      "url": "/",
+      "steps": [
+        {
+          "wait": 800
+        },
+        {
+          "click": "[data-page=media]"
+        },
+        {
+          "wait": 1000
+        }
+      ],
+      "script": "capture/inline-frames.js"
+    },
+    {
+      "name": "studio-voice",
+      "url": "/",
+      "steps": [
+        {
+          "wait": 800
+        },
+        {
+          "click": "[data-page=voice]"
+        },
+        {
+          "wait": 1000
+        }
+      ],
+      "script": "capture/inline-frames.js"
+    },
+    {
+      "name": "studio-export",
+      "url": "/",
+      "steps": [
+        {
+          "wait": 800
+        },
+        {
+          "click": "[data-page=export]"
+        },
+        {
+          "wait": 1000
+        }
+      ],
+      "script": "capture/inline-frames.js"
+    },
+    {
+      "name": "studio-write",
+      "url": "/",
+      "steps": [
+        {
+          "wait": 800
+        },
+        {
+          "click": "text=Written part"
+        },
+        {
+          "wait": 1500
+        }
+      ],
+      "script": "capture/inline-frames.js"
+    },
+    {
+      "name": "studio-preview",
+      "url": "/",
+      "steps": [
+        {
+          "wait": 800
+        },
+        {
+          "click": "[data-page=preview]"
+        },
+        {
+          "wait": 1500
+        },
+        {
+          "wait": 1000
+        }
+      ],
+      "script": "capture/inline-frames.js"
+    },
+    {
+      "name": "studio-details",
+      "url": "/",
+      "steps": [
+        {
+          "wait": 800
+        },
+        {
+          "click": "text=Written part"
+        },
+        {
+          "wait": 1200
+        },
+        {
+          "click": "[data-docpage=details]"
+        },
+        {
+          "wait": 1000
+        }
+      ],
+      "script": "capture/inline-frames.js"
+    },
+    {
+      "name": "studio-doc-preview",
+      "url": "/",
+      "steps": [
+        {
+          "wait": 800
+        },
+        {
+          "click": "text=Written part"
+        },
+        {
+          "wait": 1200
+        },
+        {
+          "click": "[data-docpage=preview]"
+        },
+        {
+          "wait": 1500
+        },
+        {
+          "wait": 1000
+        }
+      ],
+      "script": "capture/inline-frames.js"
+    },
+    {
+      "name": "studio-dashboard",
+      "url": "/",
+      "steps": [
+        {
+          "wait": 800
+        },
+        {
+          "click": "#dashboard"
+        },
+        {
+          "wait": 1200
+        },
+        {
+          "wait": 1000
+        }
+      ],
+      "script": "capture/inline-frames.js"
+    },
+    {
+      "name": "studio-project",
+      "url": "/",
+      "steps": [
+        {
+          "wait": 800
+        },
+        {
+          "click": "#project"
+        },
+        {
+          "wait": 1000
+        }
+      ],
+      "script": "capture/inline-frames.js"
+    }
+  ],
+  "replace": [
+    {
+      "text": "<cueflow-folder>",
+      "with": "/path/to/cueflow"
+    },
+    {
+      "text": "<temp-folder>/demo/dist",
+      "with": "/home/you/my-project/cueflow-dist"
+    },
+    {
+      "text": "<temp-folder>/demo",
+      "with": "/home/you/my-project/.cueflow"
+    },
+    {
+      "text": "<studio-session-key>",
+      "with": "YOUR-SESSION-KEY"
+    },
+    {
+      "text": "<studio-session-key>",
+      "with": "YOUR-SESSION-KEY"
+    }
+  ]
+}

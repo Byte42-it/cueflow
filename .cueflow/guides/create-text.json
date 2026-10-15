@@ -1,0 +1,166 @@
+{
+  "id": "create-text",
+  "title": "Create a written guide",
+  "scene": "studio-write",
+  "languages": [
+    "en",
+    "it"
+  ],
+  "steps": [
+    {
+      "id": "pick",
+      "title": {
+        "en": "A guide next to the video",
+        "it": "Una guida accanto al video"
+      },
+      "camera": {
+        "target": "#film",
+        "padding": 20
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#film",
+          "at": "10%",
+          "duration": 900
+        },
+        {
+          "do": "highlight",
+          "to": "#film",
+          "at": "35%",
+          "duration": 2200
+        }
+      ],
+      "narration": {
+        "en": "A written guide is a page of text that sits next to your videos. In the list, it is marked as a written part.",
+        "it": "Una guida scritta è una pagina di testo che sta accanto ai video. Nell'elenco è segnata come parte scritta."
+      },
+      "scene": "studio-write"
+    },
+    {
+      "id": "sections",
+      "title": {
+        "en": "Sections",
+        "it": "Sezioni"
+      },
+      "camera": {
+        "target": "#doc-outline",
+        "padding": 40
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#doc-outline",
+          "at": "10%",
+          "duration": 900
+        },
+        {
+          "do": "highlight",
+          "to": "#doc-outline",
+          "at": "35%",
+          "duration": 2200
+        }
+      ],
+      "narration": {
+        "en": "On the left are the sections. Add one with plus Section, and drag them to change the order.",
+        "it": "A sinistra ci sono le sezioni. Aggiungine una con + Section e trascinale per cambiare l'ordine."
+      },
+      "scene": "studio-write"
+    },
+    {
+      "id": "write",
+      "title": {
+        "en": "Write",
+        "it": "Scrivi"
+      },
+      "camera": {
+        "target": "#doc-tools",
+        "padding": 120
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#doc-tools",
+          "at": "10%",
+          "duration": 900
+        },
+        {
+          "do": "highlight",
+          "to": "#doc-tools",
+          "at": "35%",
+          "duration": 2200
+        }
+      ],
+      "narration": {
+        "en": "Write in the middle, as the reader will see it, with headings, quotes, lists and links from the toolbar. Press Save when you are done.",
+        "it": "Scrivi al centro, come lo vedrà chi legge, con titoli, citazioni, elenchi e link dalla barra. Premi Salva quando hai finito."
+      },
+      "scene": "studio-write"
+    },
+    {
+      "id": "details",
+      "title": {
+        "en": "Details",
+        "it": "Dettagli"
+      },
+      "camera": {
+        "target": {
+          "x": 368,
+          "y": 52,
+          "width": 760,
+          "height": 600
+        },
+        "padding": 20
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#doc-details-body > :first-child",
+          "at": "10%",
+          "duration": 900
+        },
+        {
+          "do": "highlight",
+          "to": "#doc-details-body > :first-child",
+          "at": "35%",
+          "duration": 2200
+        }
+      ],
+      "narration": {
+        "en": "Details holds the title, the category and the description shown on the dashboard of the help site.",
+        "it": "Details contiene il titolo, la categoria e la descrizione mostrati nella pagina iniziale del sito di aiuto."
+      },
+      "scene": "studio-details"
+    },
+    {
+      "id": "preview",
+      "title": {
+        "en": "Preview",
+        "it": "Anteprima"
+      },
+      "camera": {
+        "target": "#doc-preview",
+        "padding": 20
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#doc-preview",
+          "at": "10%",
+          "duration": 900
+        },
+        {
+          "do": "highlight",
+          "to": "#doc-preview",
+          "at": "35%",
+          "duration": 2200
+        }
+      ],
+      "narration": {
+        "en": "Preview shows the page as it will be published. Each language is its own version of the text.",
+        "it": "Preview mostra la pagina come verrà pubblicata. Ogni lingua è una sua versione del testo."
+      },
+      "scene": "studio-doc-preview"
+    }
+  ]
+}

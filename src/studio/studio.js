@@ -41,7 +41,7 @@
   function loadState() {
     return api("/api/state").then(function (st) {
       S.state = st;
-      $("#where").textContent = st.kitRoot + "  →  output: " + st.outDir;
+      $("#where").textContent = st.projectRoot; $("#where").title = "The project. Its Cueflow files are in " + st.kitRoot;
       var chip = $("#notes"); chip.hidden = !st.pending; chip.textContent = "✎ " + st.pending + " note" + (st.pending === 1 ? "" : "s") + " for the assistant";
       if (!S.guideId || !video()) S.guideId = st.guides[0] ? st.guides[0].id : null;
       return S.guideId ? loadGuide(S.guideId) : null;
@@ -516,6 +516,8 @@
     p.appendChild(msg);
   }
   /* the browser's voice, chosen as the player chooses it (same language, a natural voice when there is one) */
+  // the browser loads its voices late: asking once now makes the list ready by the first Listen
+  if (window.speechSynthesis) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = function () {}; }
   function browserVoice(lang) {
     var base = String(lang).slice(0, 2).toLowerCase();
     var mine = speechSynthesis.getVoices().filter(function (v) { return String(v.lang).toLowerCase().indexOf(base) === 0; });
@@ -690,6 +692,16 @@
       btn("Build this video", "", function () { runBuild({ target: "guide", guide: id }); }),
       btn("Build the whole site", "", function () { runBuild({ target: "site" }); })));
     if (external.length) p.appendChild(h("p", { class: "msg warn" }, "Building generates audio with the external voice chosen for this video (" + external.map(function (r) { return r.language + ": " + r.provider; }).join(", ") + "): the narration text is sent to that service, and it may cost. Texts already generated are not paid again."));
+    p.appendChild(h("h3", null, "Page for phones"));
+    p.appendChild(h("p", null, "A page ready to send: the picture fills the screen and turns when the phone turns, with the captions over it. It has its own picture and title for the link card of a chat. Publish the whole folder it makes."));
+    p.appendChild(h("div", { class: "row" }, btn("Make the page for phones", "", function () { runShare(); })));
+    if (S.share) {
+      var sh = h("div", { class: "result" });
+      sh.appendChild(h("div", { class: "msg ok" }, "✓ Ready in " + S.share.dir + (S.share.link ? ". Once published: " + S.share.link : ".")));
+      sh.appendChild(h("a", { href: S.share.url, target: "_blank", rel: "noopener", class: "btn" }, "Open it"));
+      S.share.warnings.forEach(function (x) { sh.appendChild(h("div", { class: "msg warn" }, "! " + x)); });
+      p.appendChild(sh);
+    }
     if (busy) p.appendChild(h("p", { class: "msg" }, busy));
     var c = S.check;
     if (c) {
@@ -712,6 +724,12 @@
     S.busy = layout ? "Playing the video in a browser to check the layout…" : "Checking…"; S.check = null; renderPage();
     api("/api/check", { method: "POST", body: { guide: S.guideId, layout: layout, lang: S.lang } })
       .then(function (r) { S.check = r; }).catch(function (e) { S.check = { errors: [e.message], warnings: [] }; })
+      .then(function () { S.busy = null; renderPage(); });
+  }
+  function runShare() {
+    S.busy = "Making the page for phones…"; S.share = null; renderPage();
+    api("/api/share", { method: "POST", body: { guide: S.guideId, lang: S.lang } })
+      .then(function (r) { S.share = r; }).catch(function (e) { S.check = { errors: [e.message], warnings: [] }; })
       .then(function () { S.busy = null; renderPage(); });
   }
   function runBuild(body) {
@@ -1150,10 +1168,28 @@
   }
 
   /* ---------- export ---------- */
+  /* where the built files go: a folder of the project, cueflow-dist unless changed; files already built stay where they were */
+  function outDirBox(p) {
+    var st = S.state, msg = h("div", { class: "result" });
+    var input = h("input", { type: "text", value: st.outDirShown, spellcheck: "false", style: "min-width:260px" });
+    var save = function (value) {
+      api("/api/out-dir", { method: "POST", body: { outDir: value } }).then(function () { return loadState(); }).then(function () { flash("The files will go to " + S.state.outDir + ".", "ok"); })
+        .catch(function (e) { msg.textContent = ""; msg.appendChild(h("div", { class: "msg err" }, e.message)); });
+    };
+    p.appendChild(h("h3", null, "Where the files go"));
+    p.appendChild(h("p", null, "A folder of the project (" + st.projectRoot + "), " + st.defaultOutDirShown + " unless you choose another. It is where the videos and the site are written, ready to publish."));
+    p.appendChild(h("div", { class: "row" }, input,
+      h("button", { class: "btn", onclick: function () { save(input.value); } }, "Save"),
+      st.outDirShown === st.defaultOutDirShown ? null : h("button", { class: "btn", onclick: function () { save(""); } }, "Back to " + st.defaultOutDirShown)));
+    p.appendChild(h("p", { style: "color:var(--muted);font-size:12.5px" }, "Full path: " + st.outDir + ". Files built before stay in the old folder."));
+    p.appendChild(msg);
+  }
+
   function renderExport() {
     var body = $("#export-body"); body.textContent = "";
     if (!video()) { body.appendChild(h("p", { class: "empty" }, "Select or create a tutorial.")); return; }
     body.appendChild(h("h3", null, "Export “" + text(video().title, S.lang) + "”"));
+    outDirBox(body);
     var holder = h("div"); body.appendChild(holder);
     checkTab(holder);
   }

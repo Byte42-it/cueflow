@@ -120,12 +120,12 @@ export async function writeAtomic(file: string, content: string | Buffer): Promi
 }
 
 /** The page of a guide, as a string. `browserVoice` makes a silent build read its narration with the browser's voice (previews). */
-export async function renderGuideHtml(kit: Kit, id: string, provider?: TtsProvider | null, opts: { browserVoice?: boolean } = {}) {
+export async function renderGuideHtml(kit: Kit, id: string, provider?: TtsProvider | null, opts: { browserVoice?: boolean; extras?: PageExtras } = {}) {
   const bundle = await guideBundle(kit, id, provider);
   if (opts.browserVoice) bundle.guide.player = { ...bundle.guide.player, fallbackVoice: "browser" };
   const { js, css, theme } = await playerAssets(kit);
   const styles = theme.css ? `${css}\n/* kit theme */\n${theme.css}` : css;
-  return { bundle, html: pageHtml(bundle.guide, styles, js, { ...bundle.data, labels: theme.labels }) };
+  return { bundle, html: pageHtml(bundle.guide, styles, js, { ...bundle.data, labels: theme.labels }, opts.extras) };
 }
 
 /** Builds guides/<id>.json into <output>/<id>.html: one self-contained file with player, scenes, timeline and audio. */
@@ -136,19 +136,24 @@ export async function buildGuide(kit: Kit, id: string, provider?: TtsProvider | 
   return { file, scenes: bundle.scenes, audioFiles: bundle.audioFiles, silent: bundle.audioFiles === 0, warnings: bundle.warnings };
 }
 
-function pageHtml(guide: Guide, css: string, player: string, data: unknown): string {
+/** What a variant of the page (the one for phones) adds to the standard one: head tags, css after the theme, a script after the player, and the options passed to mount (a JS expression). */
+export type PageExtras = { head?: string; css?: string; bodyEnd?: string; mountOptions?: string };
+
+function pageHtml(guide: Guide, css: string, player: string, data: unknown, extras: PageExtras = {}): string {
   return `<!doctype html>
 <html lang="${escapeHtml(guide.languages[0]!)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(guide.title)}</title>
-<style>${rawText(css, "style")}</style>
+${extras.head ?? ""}
+<style>${rawText(extras.css ? `${css}\n${extras.css}` : css, "style")}</style>
 </head>
 <body class="cf-page">
 <div id="cueflow"></div>
 <script>${rawText(player, "script")}</script>
-<script>window.__cueflow = Cueflow.mount(document.getElementById("cueflow"), ${embed(data)});</script>
+<script>window.__cueflow = Cueflow.mount(document.getElementById("cueflow"), ${embed(data)}${extras.mountOptions ? `, ${extras.mountOptions}` : ""});</script>
+${extras.bodyEnd ? `<script>${rawText(extras.bodyEnd, "script")}</script>` : ""}
 </body>
 </html>
 `;

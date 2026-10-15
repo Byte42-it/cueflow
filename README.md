@@ -35,7 +35,7 @@ Cueflow is an early open-source prototype. Feedback, example kits, bug reports a
 
 Cueflow is a tool you install once and point at any number of projects. It does not live inside your product.
 
-1. **Install it** (Node.js 22.18 or later): `npm install -g cueflow` — or nothing at all, and use `npx cueflow …`.
+1. **Install it** (Node.js 22 or later): `npm install -g @byte-42/cueflow` — or nothing at all, and use `npx @byte-42/cueflow …`. The command is `cueflow`: on its own, inside your project's folder, it opens Studio in your browser (and creates `.cueflow/` there the first time); `cueflow ../my-project` or `cueflow /full/path/to/project` opens it on another folder.
    Playwright (for capture, previews and posters) is optional: `npx playwright install chromium`.
 2. **In your project's folder, run `cueflow init`.** It creates `.cueflow/`, the kit of the project, and fixes once where
    the result goes: `cueflow-dist/` next to it (change it with `--out-dir`; it is stored in `.cueflow/cueflow.json`

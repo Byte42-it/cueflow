@@ -1,0 +1,202 @@
+{
+  "id": "create-video",
+  "title": "Create a video tutorial",
+  "scene": "studio-timeline",
+  "languages": [
+    "en",
+    "it"
+  ],
+  "steps": [
+    {
+      "id": "overview",
+      "title": {
+        "en": "Three areas",
+        "it": "Tre zone"
+      },
+      "camera": {
+        "target": "#film",
+        "padding": 60
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#view",
+          "at": "10%",
+          "duration": 1000
+        },
+        {
+          "do": "highlight",
+          "to": "#view",
+          "at": "30%",
+          "duration": 2200
+        },
+        {
+          "do": "highlight",
+          "to": "#strip",
+          "at": "60%",
+          "duration": 2200
+        }
+      ],
+      "narration": {
+        "en": "A video is a list of steps. The list of tutorials is on the left, the live preview in the middle, and the timeline of steps at the bottom.",
+        "it": "Un video è un elenco di passi. A sinistra l'elenco dei tutorial, al centro l'anteprima, in basso la linea del tempo dei passi."
+      },
+      "scene": "studio-timeline"
+    },
+    {
+      "id": "narration",
+      "title": {
+        "en": "Narration",
+        "it": "Narrazione"
+      },
+      "camera": {
+        "target": "#panel",
+        "padding": 20
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#panel",
+          "at": "10%",
+          "duration": 900
+        },
+        {
+          "do": "highlight",
+          "to": "#panel",
+          "at": "35%",
+          "duration": 2200
+        }
+      ],
+      "narration": {
+        "en": "Each step has a narration, spoken and shown as captions. Change it here and press Save.",
+        "it": "Ogni passo ha una narrazione, letta e mostrata come sottotitolo. Cambiala qui e premi Save."
+      },
+      "scene": "studio-timeline"
+    },
+    {
+      "id": "actions",
+      "title": {
+        "en": "Actions",
+        "it": "Azioni"
+      },
+      "camera": {
+        "target": "#strip",
+        "padding": 20
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#strip",
+          "at": "10%",
+          "duration": 900
+        },
+        {
+          "do": "highlight",
+          "to": "#strip",
+          "at": "35%",
+          "duration": 2600
+        }
+      ],
+      "narration": {
+        "en": "Under the steps, the actions: the cursor moves, clicks, types and highlights. Each one is placed as a percentage of the narration, so it stays in sync in every language.",
+        "it": "Sotto i passi, le azioni: il cursore si muove, clicca, scrive ed evidenzia. Ognuna è posta come percentuale della narrazione, così resta sincronizzata in ogni lingua."
+      },
+      "scene": "studio-timeline"
+    },
+    {
+      "id": "media",
+      "title": {
+        "en": "Scenes",
+        "it": "Scene"
+      },
+      "camera": {
+        "target": "#media-side",
+        "padding": 20
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#media-side",
+          "at": "10%",
+          "duration": 900
+        },
+        {
+          "do": "highlight",
+          "to": "#media-side",
+          "at": "35%",
+          "duration": 2200
+        }
+      ],
+      "narration": {
+        "en": "The Media page holds the scenes, plain pages with made-up data, so no real document ever appears in a tutorial.",
+        "it": "La pagina Media contiene le scene, semplici pagine con dati inventati, così nei tutorial non compare mai un documento vero."
+      },
+      "scene": "studio-media"
+    },
+    {
+      "id": "voice",
+      "title": {
+        "en": "Voice",
+        "it": "Voce"
+      },
+      "camera": {
+        "target": {
+          "x": 298,
+          "y": 52,
+          "width": 900,
+          "height": 560
+        },
+        "padding": 30
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#voice-body > :first-child",
+          "at": "10%",
+          "duration": 900
+        },
+        {
+          "do": "highlight",
+          "to": "#voice-body > :first-child",
+          "at": "35%",
+          "duration": 2200
+        }
+      ],
+      "narration": {
+        "en": "In Voice you choose who reads it, and the default is the viewer's browser voice. An external voice is always your choice.",
+        "it": "In Voice scegli chi legge, e quella predefinita è la voce del browser di chi guarda. Una voce esterna è sempre una tua scelta."
+      },
+      "scene": "studio-voice"
+    },
+    {
+      "id": "check",
+      "title": {
+        "en": "Check it",
+        "it": "Controllalo"
+      },
+      "camera": {
+        "target": "#export-body",
+        "padding": 60
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#export-body",
+          "at": "10%",
+          "duration": 900
+        },
+        {
+          "do": "highlight",
+          "to": "#export-body",
+          "at": "35%",
+          "duration": 2200
+        }
+      ],
+      "narration": {
+        "en": "On Export, press Check this video: it finds selectors that do not exist and languages without narration. Then watch the result in Preview.",
+        "it": "In Export premi Check this video: trova selettori che non esistono e lingue senza narrazione. Poi guarda il risultato in Preview."
+      },
+      "scene": "studio-export"
+    }
+  ]
+}

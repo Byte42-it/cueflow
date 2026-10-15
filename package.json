@@ -1,14 +1,34 @@
 {
-  "name": "cueflow",
-  "version": "0.0.1",
+  "name": "@byte-42/cueflow",
+  "version": "0.1.42",
   "description": "Build narrated, animated UI walkthroughs from static HTML scenes, driven by an MCP server",
+  "keywords": [
+    "tutorial",
+    "walkthrough",
+    "narration",
+    "ui",
+    "documentation",
+    "mcp",
+    "studio"
+  ],
+  "homepage": "https://github.com/Byte42-it/cueflow#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Byte42-it/cueflow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Byte42-it/cueflow/issues"
+  },
   "type": "module",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "cueflow": "build/cli.js"
   },
   "engines": {
-    "node": ">=22.18"
+    "node": ">=22"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

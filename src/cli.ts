@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { statSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { buildGuide, writeAtomic } from "./build.ts";
@@ -10,15 +11,19 @@ import { agentPrompt } from "./prompt.ts";
 import { voiceOptions, voiceTable } from "./voices.ts";
 import { checkLayout } from "./layout.ts";
 import { startMcp } from "./mcp.ts";
+import { packageVersion } from "./version.ts";
+import { buildShare } from "./share.ts";
 import { openPreview } from "./preview.ts";
 import { buildSite, checkEndpoint, loadSite } from "./site.ts";
 import { validateGuide } from "./validate.ts";
 
 const USAGE = `cueflow — narrated UI walkthroughs from static HTML scenes
 
+  cueflow [folder]                      open Studio on the project in this folder (or the folder given, relative or absolute);
+                                        the browser opens when it is ready, and a project without .cueflow gets one
   cueflow init [--out-dir <dir>]        create .cueflow/ in this folder: the kit of the project, and fix where the output goes
                                         (default ../cueflow-dist, next to .cueflow)
-  cueflow studio [--port <n>] [--no-open]  the editor in your browser: videos, steps, narration, voices, picking elements
+  cueflow studio [folder] [--port <n>] [--no-open]  the same, spelled out: the editor in your browser (videos, steps, narration, voices)
   cueflow voices                        the voices to choose from, and which one each video speaks with
   cueflow capture [--scene <name>]...   capture the scenes described in capture.json from the live site
   cueflow build <guide>                 build <output>/<guide>.html, with narration audio when a voice is set (CUEFLOW_TTS)
@@ -27,11 +32,14 @@ const USAGE = `cueflow — narrated UI walkthroughs from static HTML scenes
   cueflow preview <guide> [--step <n>] [--at <ms|80%>] [--all] [--stage] [--out <file>]
                                         render a frame as PNG in <output>/preview/ (step counted from 1, at default 80%);
                                         --all: one frame per step and a contact sheet of them all
+  cueflow share <guide> [--lang <code>] the page of a video for phones, <output>/share/<guide>/: fills the screen, follows the
+                                        phone's rotation, with the picture and tags for a chat's link card (--lang: card language)
   cueflow site [--posters]              build the docs site from site.json into <output>/site/ (--posters renders guide frames)
   cueflow check-endpoint               ask the request endpoint whether it accepts the site's origin (CORS), before publishing
   cueflow mcp                           start the MCP server on stdio
 
   --kit <dir>    kit folder (default: $CUEFLOW_KIT or the current directory)
+  --version, -v  the installed version
   --lang <code>  language to preview or check (default: the guide's first)
 
   Voice (CUEFLOW_TTS): openai (OPENAI_API_KEY), say (macOS voices), command (CUEFLOW_TTS_COMMAND, e.g. Piper), none
@@ -58,13 +66,37 @@ const { values, positionals } = parseArgs({
     port: { type: "string" },
     "no-open": { type: "boolean" },
     lang: { type: "string" },
+    version: { type: "boolean", short: "v" },
     help: { type: "boolean", short: "h" }
   }
 });
-// the kit: --kit, else CUEFLOW_KIT, else the nearest .cueflow folder upwards, else the current folder
-const kit = openKit(values.kit ?? process.env.CUEFLOW_KIT ?? findKitRoot(process.cwd()) ?? ".");
+if (values.version) {
+  console.log(packageVersion());
+  process.exit(0);
+}
+const COMMANDS = ["init", "studio", "voices", "capture", "build", "validate", "preview", "share", "site", "check-endpoint", "mcp"];
+// `cueflow` alone opens Studio; `cueflow <folder>` and `cueflow studio <folder>` open it on that project
+const isFolder = (p: string | undefined) => p != null && statSync(path.resolve(p), { throwIfNoEntry: false })?.isDirectory() === true;
+const first = positionals[0];
+const studioFolder = first === "studio" ? positionals[1] : first != null && !COMMANDS.includes(first) && isFolder(first) ? first : undefined;
+const opensStudio = !values.help && (first == null || first === "studio" || studioFolder === first);
+if (studioFolder != null && !isFolder(studioFolder)) throw new Error(`"${studioFolder}" is not a folder: write the path of the project, for example cueflow ../my-project`);
+if (first != null && !COMMANDS.includes(first) && studioFolder == null) {
+  console.error(`"${first}" is neither a command nor a folder that exists.\n\n${USAGE}`);
+  process.exit(1);
+}
+
+/** A folder that already is a kit (it has guides/ or cueflow.json at its root), as the examples are. */
+const looksLikeKit = (dir: string) => ["guides", "cueflow.json", "brief.json"].some((f) => statSync(path.join(dir, f), { throwIfNoEntry: false }) != null);
+
+// the kit: --kit, else CUEFLOW_KIT, else the nearest .cueflow upwards from the project folder (like git finds .git), else the current folder
+const projectFolder = path.resolve(studioFolder ?? ".");
+const found = values.kit ?? process.env.CUEFLOW_KIT ?? findKitRoot(projectFolder);
+const kit = openKit(found ?? (opensStudio && !looksLikeKit(projectFolder) ? path.join(projectFolder, ".cueflow") : "."));
+const createdKit = found == null && opensStudio && !looksLikeKit(projectFolder);
+if (createdKit) await initKit(kit); // a first start in a project: its kit is made, nothing else is touched
 loadEnv(path.join(kit.root, ".env"));
-const [command, id] = positionals;
+const [command, id] = opensStudio ? ["studio", undefined] : positionals;
 
 /** "2000" → 2000 ms; "80%" stays a percentage of the step's narration */
 const parseAt = (v: string | undefined): number | string => {
@@ -114,7 +146,7 @@ try {
     console.log(`${project.root}  (output: ${project.out})\nNext: put OPENAI_API_KEY in .cueflow/.env only if you choose an external voice; connect your assistant with the MCP server (see README).`);
   } else if (command === "studio") {
     const studio = await startStudio(kit, { port: values.port ? Number(values.port) : undefined, open: !values["no-open"] });
-    console.log(`Cueflow Studio: ${studio.url}\nKit: ${kit.root}\nCtrl+C to stop.\n\nTo work with an AI assistant, paste this into it (the key is valid until Studio stops; it is also in Studio, button AI):\n\n${await agentPrompt(kit, {}, studio.link)}\n`);
+    console.log(`${createdKit ? `No .cueflow in ${projectFolder}: created ${kit.root}\n` : ""}Cueflow Studio: ${studio.url}\nProject: ${projectFolder}\nKit: ${kit.root}\nCtrl+C to stop.\n\nTo work with an AI assistant, paste this into it (the key is valid until Studio stops; it is also in Studio, button AI):\n\n${await agentPrompt(kit, {}, studio.link)}\n`);
     await new Promise(() => {}); // runs until stopped
   } else if (command === "voices") {
     for (const o of voiceOptions()) console.log(`${o.available ? "●" : "○"} ${o.provider.padEnd(8)} ${o.title}\n    ${o.summary}\n    needs: ${o.needs}; cost: ${o.cost}`);
@@ -144,6 +176,10 @@ try {
     const r = await checkEndpoint(await loadSite(kit));
     console.log(`${r.ok ? "ok" : "error"}: ${r.message}`);
     if (!r.ok) process.exitCode = 1;
+  } else if (command === "share" && id) {
+    const r = await buildShare(kit, id, { lang: values.lang });
+    for (const w of r.warnings) console.log(`warning: ${w}`);
+    console.log(`${r.file}${r.link ? `\nonce published: ${r.link}` : ""}\nPublish the whole folder ${r.dir} (page and picture together).`);
   } else if (command === "site") {
     const r = await buildSite(kit, { posters: values.posters ?? false });
     for (const w of r.warnings) console.log(`warning: ${w}`);

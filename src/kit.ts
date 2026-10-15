@@ -29,6 +29,27 @@ export function findKitRoot(from: string): string | null {
   }
 }
 
+/** The folder of the product the kit belongs to: the parent of `.cueflow`, or the kit folder itself when it has another name. */
+export const projectRoot = (kit: Kit): string => (path.basename(kit.root) === ".cueflow" ? path.dirname(kit.root) : kit.root);
+
+/** Where the output goes unless the person chooses: `cueflow-dist` beside `.cueflow`, or `dist` inside a kit with another name. */
+export const defaultOutDir = (kit: Kit): string => (path.basename(kit.root) === ".cueflow" ? "../cueflow-dist" : "dist");
+
+/**
+ * The output folder a person typed (relative to the project, or absolute), as cueflow.json keeps it (relative to the kit).
+ * Refused when it would be the kit or a folder that holds it: a build would write over the kit's own files.
+ */
+export function outDirSetting(kit: Kit, typed: string): string {
+  const text = typed.trim();
+  if (!text) throw new Error("write the folder where the files should go, for example cueflow-dist");
+  const abs = path.resolve(projectRoot(kit), text);
+  const rel = path.relative(abs, kit.root);
+  if (rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
+    throw new Error(`"${text}" is the kit's folder or one that contains it: a build would write over the kit. Choose another folder, for example cueflow-dist.`);
+  }
+  return path.relative(kit.root, abs).split(path.sep).join("/");
+}
+
 const safeName = (name: string): string => {
   if (!/^[a-z0-9][a-z0-9_-]*$/i.test(name)) throw new Error(`invalid name "${name}" (letters, digits, - and _ only)`);
   return name;

@@ -6,3 +6,8 @@ examples/*/dist
 examples/*/audio
 build
 .claude/
+cueflow-dist
+CLAUDE.local.md
+private/
+*.tgz
+.env.*

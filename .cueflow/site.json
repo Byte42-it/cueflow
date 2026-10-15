@@ -1,0 +1,151 @@
+{
+  "title": {
+    "en": "How Cueflow works",
+    "it": "Come funziona Cueflow"
+  },
+  "lang": "en",
+  "colorScheme": "auto",
+  "brand": {
+    "name": {
+      "en": "Cueflow",
+      "it": "Cueflow"
+    }
+  },
+  "footer": {
+    "en": "Cueflow — narrated UI tutorials without video",
+    "it": "Cueflow — tutorial narrati dell'interfaccia, senza video"
+  },
+  "featured": "setup",
+  "rows": [
+    {
+      "id": "ready",
+      "title": {
+        "en": "Start here",
+        "it": "Inizia da qui"
+      },
+      "note": {
+        "en": "four short videos",
+        "it": "quattro brevi video"
+      }
+    }
+  ],
+  "items": [
+    {
+      "id": "setup",
+      "row": "ready",
+      "status": "video",
+      "guide": "setup",
+      "title": {
+        "en": "Set up Cueflow and connect your assistant",
+        "it": "Installa Cueflow e collega il tuo assistente"
+      },
+      "kicker": {
+        "en": "Getting started",
+        "it": "Per iniziare"
+      },
+      "desc": {
+        "en": "Create the kit, open Studio and connect the assistant that works with you.",
+        "it": "Crea il kit, apri Studio e collega l'assistente che lavora con te."
+      },
+      "contents": {
+        "en": [
+          "Short video with captions",
+          "Transcript to read or download"
+        ],
+        "it": [
+          "Video breve con sottotitoli",
+          "Trascrizione da leggere o scaricare"
+        ]
+      }
+    },
+    {
+      "id": "create-video",
+      "row": "ready",
+      "status": "video",
+      "guide": "create-video",
+      "title": {
+        "en": "Create a video tutorial",
+        "it": "Crea un tutorial video"
+      },
+      "kicker": {
+        "en": "Videos",
+        "it": "Video"
+      },
+      "desc": {
+        "en": "Steps, narration, actions, scenes and voice: from an idea to a checked video.",
+        "it": "Passi, narrazione, azioni, scene e voce: da un'idea a un video controllato."
+      },
+      "contents": {
+        "en": [
+          "Short video with captions",
+          "Transcript to read or download"
+        ],
+        "it": [
+          "Video breve con sottotitoli",
+          "Trascrizione da leggere o scaricare"
+        ]
+      }
+    },
+    {
+      "id": "create-text",
+      "row": "ready",
+      "status": "video",
+      "guide": "create-text",
+      "title": {
+        "en": "Create a written guide",
+        "it": "Crea una guida scritta"
+      },
+      "kicker": {
+        "en": "Written guides",
+        "it": "Guide scritte"
+      },
+      "desc": {
+        "en": "Sections, text and preview: a page of text beside your videos.",
+        "it": "Sezioni, testo e anteprima: una pagina di testo accanto ai video."
+      },
+      "contents": {
+        "en": [
+          "Short video with captions",
+          "Transcript to read or download"
+        ],
+        "it": [
+          "Video breve con sottotitoli",
+          "Trascrizione da leggere o scaricare"
+        ]
+      }
+    },
+    {
+      "id": "publish",
+      "row": "ready",
+      "status": "video",
+      "guide": "publish",
+      "title": {
+        "en": "Publish the project",
+        "it": "Pubblica il progetto"
+      },
+      "kicker": {
+        "en": "Publishing",
+        "it": "Pubblicazione"
+      },
+      "desc": {
+        "en": "Build everything and put the result where your readers are.",
+        "it": "Costruisci tutto e metti il risultato dove sono i tuoi lettori."
+      },
+      "contents": {
+        "en": [
+          "Short video with captions",
+          "Transcript to read or download"
+        ],
+        "it": [
+          "Video breve con sottotitoli",
+          "Trascrizione da leggere o scaricare"
+        ]
+      }
+    }
+  ],
+  "languages": [
+    "en",
+    "it"
+  ],
+  "fallback": "en"
+}

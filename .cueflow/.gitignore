@@ -1,0 +1,5 @@
+# secrets, the voice cache (regenerated, and may be large) and the inbox of hand edits for the assistant
+.env
+audio/
+changes.json
+trash/

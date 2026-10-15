@@ -149,7 +149,9 @@ function freezePage(o: { lang: string; nativeInputs: boolean; replace: { text: s
 
   for (const e of Array.from(root.querySelectorAll("[data-cf-remove]"))) e.remove();
   for (const e of Array.from(root.querySelectorAll<HTMLElement>("[data-cf-hide]"))) (e.style.display = "none", e.removeAttribute("data-cf-hide"));
-  for (const e of Array.from(root.querySelectorAll("script, noscript, iframe, object, embed, link[rel=preload], link[rel=modulepreload], link[rel=prefetch]"))) e.remove();
+  // an iframe with srcdoc is page content (a capture script put it there); it stays, but sandboxed so nothing in it runs
+  for (const e of Array.from(root.querySelectorAll("iframe[srcdoc]"))) e.setAttribute("sandbox", "");
+  for (const e of Array.from(root.querySelectorAll("script, noscript, iframe:not([srcdoc]), object, embed, link[rel=preload], link[rel=modulepreload], link[rel=prefetch]"))) e.remove();
   for (const e of Array.from(root.querySelectorAll("*")))
     for (const a of Array.from(e.attributes)) if (/^on/i.test(a.name) || a.name === "srcset") e.removeAttribute(a.name);
   // a click in a guide is a real click: links and forms must not navigate away from the scene

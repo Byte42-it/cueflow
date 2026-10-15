@@ -130,6 +130,22 @@ describe("studio", () => {
     assert.equal((await fetch(url + "out/..%2fcueflow.json")).status, 403);
   });
 
+  it("shows the project, not the kit, and lets the person choose where the files go", async () => {
+    const post = (outDir: string) => fetch(url + "api/out-dir", { method: "POST", headers: H, body: JSON.stringify({ outDir }) });
+    const state = async () => await (await fetch(url + "api/state")).json() as any;
+    const before = await state();
+    assert.equal(before.projectRoot, path.dirname(before.kitRoot)); // the folder that holds .cueflow
+    assert.equal(before.outDirShown, "cueflow-dist"); // typed and shown relative to the project
+    assert.equal((await post("published")).status, 200);
+    const moved = await state();
+    assert.equal(moved.outDirShown, "published");
+    assert.equal(moved.outDir, path.join(moved.projectRoot, "published"));
+    assert.equal((await post(".cueflow")).status, 400); // the kit itself would be overwritten
+    assert.equal((await post(".")).status, 400); // so would the folder that holds it
+    assert.equal((await post("")).status, 200); // empty = the default again
+    assert.equal((await state()).outDirShown, "cueflow-dist");
+  });
+
   it("tells the media of a tutorial from the media shared by all, and takes uploads and deletions", async () => {
     const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
     const up = (q: string) => fetch(url + "api/media-file?" + q, { method: "POST", headers: { "x-cueflow": "studio" }, body: png });

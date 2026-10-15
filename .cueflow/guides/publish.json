@@ -1,0 +1,166 @@
+{
+  "id": "publish",
+  "title": "Publish the project",
+  "scene": "studio-export",
+  "languages": [
+    "en",
+    "it"
+  ],
+  "steps": [
+    {
+      "id": "build",
+      "title": {
+        "en": "Build one video",
+        "it": "Costruisci un video"
+      },
+      "camera": {
+        "target": "#export-body",
+        "padding": 60
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#export-body",
+          "at": "10%",
+          "duration": 900
+        },
+        {
+          "do": "highlight",
+          "to": "#export-body",
+          "at": "35%",
+          "duration": 2200
+        }
+      ],
+      "narration": {
+        "en": "From Export you can check and build one video. Nothing is sent anywhere: the result is a single H T M L file.",
+        "it": "Da Export puoi controllare e costruire un video. Non viene inviato niente: il risultato è un solo file H T M L."
+      },
+      "scene": "studio-export"
+    },
+    {
+      "id": "dashboard",
+      "title": {
+        "en": "The dashboard",
+        "it": "La pagina iniziale"
+      },
+      "camera": {
+        "target": "#dlg",
+        "padding": 20
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#dlg",
+          "at": "10%",
+          "duration": 900
+        },
+        {
+          "do": "highlight",
+          "to": "#dlg",
+          "at": "35%",
+          "duration": 2200
+        }
+      ],
+      "narration": {
+        "en": "The Dashboard decides what the home page of the help site says: titles, categories and descriptions, one language at a time.",
+        "it": "Dashboard decide cosa dice la home del sito di aiuto: titoli, categorie e descrizioni, una lingua alla volta."
+      },
+      "scene": "studio-dashboard"
+    },
+    {
+      "id": "project",
+      "title": {
+        "en": "The project",
+        "it": "Il progetto"
+      },
+      "camera": {
+        "target": {
+          "x": 360,
+          "y": 0,
+          "width": 560,
+          "height": 720
+        },
+        "padding": 0
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#dlg > :first-child",
+          "at": "10%",
+          "duration": 900
+        },
+        {
+          "do": "highlight",
+          "to": "#dlg > :first-child",
+          "at": "35%",
+          "duration": 2200
+        }
+      ],
+      "narration": {
+        "en": "Project holds the brief: who the tutorials are for, their tone, languages and the words the voice must pronounce differently.",
+        "it": "Project contiene il brief: per chi sono i tutorial, il tono, le lingue e le parole che la voce deve pronunciare diversamente."
+      },
+      "scene": "studio-project"
+    },
+    {
+      "id": "all",
+      "title": {
+        "en": "Build everything",
+        "it": "Costruisci tutto"
+      },
+      "camera": {
+        "target": "#exportall",
+        "padding": 200
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#exportall",
+          "at": "10%",
+          "duration": 900
+        },
+        {
+          "do": "highlight",
+          "to": "#exportall",
+          "at": "35%",
+          "duration": 2200
+        }
+      ],
+      "narration": {
+        "en": "Build in the header does it all: every video, the written guides and the home page, in one go.",
+        "it": "Build nell'intestazione fa tutto: ogni video, le guide scritte e la pagina iniziale, in un colpo solo."
+      },
+      "scene": "studio-timeline"
+    },
+    {
+      "id": "output",
+      "title": {
+        "en": "Where it ends up",
+        "it": "Dove finisce"
+      },
+      "camera": {
+        "target": "#where",
+        "padding": 120
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#where",
+          "at": "10%",
+          "duration": 900
+        },
+        {
+          "do": "highlight",
+          "to": "#where",
+          "at": "35%",
+          "duration": 2200
+        }
+      ],
+      "narration": {
+        "en": "The files land in the cueflow dist folder, next to dot cueflow. Open the home page in a browser, or put the folder on any static server, or inside an iframe of your own help.",
+        "it": "I file finiscono nella cartella cueflow dist, accanto a punto cueflow. Apri la home in un browser, oppure metti la cartella su un server statico, o in un iframe del tuo aiuto."
+      },
+      "scene": "studio-welcome"
+    }
+  ]
+}

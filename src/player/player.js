@@ -384,6 +384,7 @@
     if (synth) { pickVoice(); synth.onvoiceschanged = pickVoice; }
     function speak(c, text) {
       if (!synth || !voiceOn || !text) return;
+      if (!sysVoice) pickVoice(); // the list of voices loads late: ask again before speaking
       synth.cancel();
       var u = new SpeechSynthesisUtterance(spoken(text));
       u.lang = lang;
@@ -504,7 +505,7 @@
     /** Jumps to a point of the timeline (used by previews): replays everything before it instantly. */
     async function seek(i, t, l) {
       setPlaying(false);
-      if (l) { lang = l; langSel.value = l; }
+      if (l) { lang = l; langSel.value = l; pickVoice(); }
       await goTo(i, t);
       app.classList.add("cf-ready");
       return { total: cur.total, narration: cur.narrDur, steps: steps.length };
@@ -682,7 +683,7 @@
     return {
       seek: seek, probe: probe, restart: restart, jump: jump, transcript: transcriptText, downloadTranscript: downloadTranscript,
       element: app, steps: function () { return steps.map(function (st, i) { return stepTitle(st, i); }); },
-      setLang: function (l) { lang = l; langSel.value = l; }
+      setLang: function (l) { lang = l; langSel.value = l; pickVoice(); }
     };
   }
 
