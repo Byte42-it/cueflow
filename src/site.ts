@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { parseHTML } from "linkedom";
 import { buildGuide, embed, escapeHtml, estimateDuration, guideBundle, playerAssets, writeAtomic } from "./build.ts";
 import { loadBrief } from "./brief.ts";
+import { recordChange } from "./changes.ts";
 import { listGuides, loadGuide, type Kit } from "./kit.ts";
 import { renderFrame } from "./preview.ts";
 import { dataUri } from "./scene.ts";
@@ -327,4 +328,26 @@ export async function syncSite(kit: Kit): Promise<{ created: boolean; added: str
   if (!site.featured && site.items[0]) site.featured = site.items[0].id;
   if (created || added.length || !site.featured) await writeAtomic(siteFile(kit), JSON.stringify(site, null, 2) + "\n");
   return { created, added };
+}
+
+/** Changes one text of a catalog item (title, kicker, desc) in one language; other languages keep theirs. */
+export async function setSiteText(kit: Kit, itemId: string, field: "title" | "kicker" | "desc", lang: string, value: string): Promise<void> {
+  const raw = JSON.parse(await readFile(siteFile(kit), "utf8"));
+  const site = Site.parse(raw);
+  const item = (raw.items as any[]).find((i) => i.id === itemId);
+  if (!item) throw new Error(`the dashboard has no item "${itemId}"`);
+  const languages = siteLanguages(site).languages;
+  const old = item[field];
+  const before = pick(old, lang, site.lang) ?? "";
+  let next: any = old;
+  if (typeof old === "object" && old) next = { ...old, [lang]: value };
+  else if (languages.length > 1 || lang !== site.lang) {
+    next = {};
+    for (const l of languages) next[l] = typeof old === "string" ? old : "";
+    next[lang] = value;
+  } else next = value;
+  item[field] = next;
+  Site.parse(raw);
+  await writeAtomic(siteFile(kit), JSON.stringify(raw, null, 2) + "\n");
+  await recordChange(kit, { kind: "catalog", lang, tutorial: item.guide, target: `${itemId}.${field}`, before, after: value });
 }

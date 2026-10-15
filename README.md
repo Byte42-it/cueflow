@@ -61,7 +61,13 @@ this repository, `npm install && npm run build`, and run `node <clone>/build/cli
 light). On the left, **all your tutorials as thumbnails**, like the slides of a presentation, with “+” to add one. A bar
 of **pages for the selected tutorial** sits at the bottom, as in a video editor:
 
-- **Media**: the files of *this* tutorial (screens used only by it, pictures and logos in `media/<tutorial>/`) apart from
+- **Media**: *edit what the viewers read*: click an element of a screen (a button, a description) and change its text or
+  its placeholder, title, alt: it is saved in the version of the language chosen at the top (each language is its own
+  sub-project: `scenes/<lang>/<screen>.html`, created from the base screen the first time, so editing English never
+  touches Italian). A file can be replaced with another, and stylesheets and scripts edited as text. Every such edit is
+  written to `changes.json` as a note for the assistant: *"the button #choose-file was changed from … to …"*. It is
+  information, not a command to replay: the assistant reads it (`get_changes`), works out why the person did it and takes
+  it into account (a narration that still names the old button, a description), then marks it seen. The files of *this* tutorial (screens used only by it, pictures and logos in `media/<tutorial>/`) apart from
   **Shared media** (what several tutorials use: `shared/` styles, fonts, icons, and screens used by more than one). Each
   file says who uses it; drop files to upload; a file that a screen uses cannot be deleted. Click an element of a screen to
   copy its selector.
@@ -75,7 +81,7 @@ of **pages for the selected tutorial** sits at the bottom, as in a video editor:
 - **Preview**: the tutorial as viewers get it, large; with the working copy (browser voice) or built with the final voices.
 - **Export**: check this tutorial (also its layout, in a browser) and build it; built files open from here.
 
-Top right: **Project** (audience, tone, languages, rules, pronunciation: `brief.json`) and **Export everything**, which
+Top right: **Dashboard** (the title, category and description of each tutorial in the home and its page, per language), **Project** (audience, tone, languages, rules, pronunciation: `brief.json`) and **Export everything**, which
 builds every tutorial and the **dashboard** that gathers them (`site.json` is created, or completed with the new
 tutorials, never rewritten). An external voice is called only then, and the page says so before.
 

@@ -23,6 +23,7 @@
   }
   function api(path, opts) {
     opts = opts || {};
+    if (opts.method && opts.method !== "GET") S.ownSave = Date.now();
     var init = { method: opts.method || "GET", headers: { "x-cueflow": "studio" } };
     if (opts.body !== undefined) { init.body = JSON.stringify(opts.body); init.headers["content-type"] = "application/json"; }
     return fetch(path, init).then(function (r) {
@@ -41,6 +42,7 @@
     return api("/api/state").then(function (st) {
       S.state = st;
       $("#where").textContent = st.kitRoot + "  →  output: " + st.outDir;
+      var chip = $("#notes"); chip.hidden = !st.pending; chip.textContent = "✎ " + st.pending + " note" + (st.pending === 1 ? "" : "s") + " for the assistant";
       if (!S.guideId || !video()) S.guideId = st.guides[0] ? st.guides[0].id : null;
       return S.guideId ? loadGuide(S.guideId) : null;
     }).then(function () { renderAll(); });
@@ -62,6 +64,8 @@
     S.page = name;
     document.querySelectorAll(".page").forEach(function (el) { el.hidden = el.id !== "page-" + name; });
     $("#project").addEventListener("click", projectDialog);
+  $("#dashboard").addEventListener("click", dashboardDialog);
+  $("#notes").addEventListener("click", notesDialog);
   $("#exportall").addEventListener("click", exportAll);
   document.querySelectorAll(".pagebar button").forEach(function (b) { b.className = b.getAttribute("data-page") === name ? "on" : ""; });
     renderPage();
@@ -100,7 +104,7 @@
     $("#current").textContent = g ? text(g.title, S.lang) : "";
   }
   function dialog(title, build) {
-    var d = $("#dlg"); d.textContent = "";
+    var d = $("#dlg"); d.textContent = ""; d.className = "";
     d.appendChild(h("h3", null, title));
     var body = h("div"); d.appendChild(body);
     build(body, function () { d.close(); });
@@ -223,7 +227,7 @@
     });
     doc.addEventListener("click", function (e) {
       e.preventDefault(); e.stopPropagation();
-      onPick(uniqueSelector(doc, e.target));
+      onPick(uniqueSelector(doc, e.target), e.target);
     }, true);
   }
   function pickInfo() {
@@ -621,7 +625,7 @@
     var drop = h("div", { class: "drop" }, "Drop files here or ", h("button", { onclick: function () { input.click(); } }, "choose"), input);
     var send = function (files) {
       Promise.all(Array.prototype.map.call(files, function (f) {
-        return fetch("/api/media-file?area=" + area + "&guide=" + encodeURIComponent(S.guideId) + "&name=" + encodeURIComponent(f.name), { method: "POST", headers: { "x-cueflow": "studio" }, body: f })
+        S.ownSave = Date.now(); return fetch("/api/media-file?area=" + area + "&guide=" + encodeURIComponent(S.guideId) + "&name=" + encodeURIComponent(f.name), { method: "POST", headers: { "x-cueflow": "studio" }, body: f })
           .then(function (r) { return r.ok ? null : r.json().then(function (d) { throw new Error(d.error); }); });
       })).then(function () { flash("Uploaded.", "ok"); renderMedia(); }).catch(function (e) { flash(e.message, "err"); });
     };
@@ -645,7 +649,7 @@
     if (item && item.kind === "scene") {
       stage.querySelectorAll(".imgview,.filebox").forEach(function (n) { n.remove(); }); mv.hidden = false;
       var key = item.name + ":" + S.lang;
-      if (mv.dataset.key !== key) { mv.dataset.key = key; mv.src = "/scene/" + item.name + "?lang=" + S.lang; mv.onload = function () { armPicker(mv, function (sel) { showPick(sel); }); }; }
+      if (mv.dataset.key !== key) { mv.dataset.key = key; mv.src = "/scene/" + item.name + "?lang=" + S.lang; mv.onload = function () { armPicker(mv, function (sel, el) { showPick(sel, el); }); }; }
       $("#mpick").appendChild(h("span", null, "Click an element in the screen to get its selector."));
     } else {
       mv.hidden = true; mv.dataset.key = ""; stage.querySelectorAll(".imgview,.filebox").forEach(function (n) { n.remove(); });
@@ -660,6 +664,16 @@
     panel.appendChild(h("p", null, (item.kind === "scene" ? "A screen of the product" : item.kind) + " · " + KB(item.size) + " · " + (S.sel.area === "media" ? "only in this tutorial" : "shared")));
     panel.appendChild(h("p", null, item.usedBy.length ? "Used by: " + item.usedBy.join(", ") + "." : "No tutorial uses it yet."));
     if (item.languages && item.languages.length) panel.appendChild(h("p", null, "Translated screens: " + item.languages.join(", ")));
+    if (item.kind !== "scene") {
+      var rep = h("input", { type: "file", hidden: true });
+      rep.addEventListener("change", function () {
+        if (!rep.files[0]) return;
+        S.ownSave = Date.now(); fetch("/api/media-file?area=" + S.sel.area + "&guide=" + encodeURIComponent(S.guideId) + "&name=" + encodeURIComponent(item.name), { method: "POST", headers: { "x-cueflow": "studio" }, body: rep.files[0] })
+          .then(function (r) { return r.ok ? null : r.json().then(function (d) { throw new Error(d.error); }); }).then(function () { flash("Replaced " + item.name + ". The assistant is told.", "ok"); renderMedia(); loadState(); }).catch(function (e) { flash(e.message, "err"); });
+      });
+      panel.appendChild(h("div", { class: "row" }, h("button", { class: "btn", onclick: function () { rep.click(); } }, "Replace with another file…"), rep,
+        /\.(css|js)$/.test(item.name) ? h("button", { class: "btn", onclick: function () { editTextFile(S.sel.area, item.name); } }, "Edit the text…") : null));
+    }
     if (item.kind !== "scene") panel.appendChild(h("div", { class: "row" }, h("button", { class: "btn", disabled: item.usedBy.length > 0, title: item.usedBy.length ? "A tutorial uses it: remove it from the scene first" : "", onclick: function () {
       if (!confirm("Delete " + item.name + "?")) return;
       api("/api/media-file?area=" + S.sel.area + "&guide=" + encodeURIComponent(S.guideId) + "&name=" + encodeURIComponent(item.name), { method: "DELETE" }).then(function () { S.sel = null; renderMedia(); }).catch(function (e) { flash(e.message, "err"); });
@@ -669,15 +683,102 @@
       var list = h("div", null, h("p", null, "Loading…")); panel.appendChild(list);
       api("/api/elements/" + item.name + "?lang=" + S.lang).then(function (els) {
         list.textContent = "";
-        els.slice(0, 80).forEach(function (e) { list.appendChild(h("button", { class: "el", title: "Copy the selector", onclick: function () { showPick(e.selector); } }, h("code", null, e.selector), h("span", null, e.text || e.tag))); });
+        els.slice(0, 80).forEach(function (e) { list.appendChild(h("button", { class: "el", title: "Copy the selector", onclick: function () { showPick(e.selector, null); } }, h("code", null, e.selector), h("span", null, e.text || e.tag))); });
         if (!els.length) list.appendChild(h("p", null, "No targetable elements: give elements an id or a data-cue."));
       });
     } else panel.appendChild(h("p", { style: "margin-top:12px" }, S.sel.area === "media" ? "Refer to it from a screen as ../media/" + S.guideId + "/" + item.name : "Refer to it from a screen as ../shared/" + item.name));
   }
-  function showPick(sel) {
+  var ATTRS = ["placeholder", "title", "alt", "aria-label", "value", "label"];
+  var ownTextOf = function (el) { return Array.prototype.filter.call(el.childNodes, function (n) { return n.nodeType === 3; }).map(function (n) { return n.nodeValue; }).join(" ").replace(/\s+/g, " ").trim(); };
+  function showPick(sel, el) {
     var box = $("#mpick"); box.textContent = "";
     box.appendChild(h("code", { title: sel }, sel));
     box.appendChild(h("button", { class: "btn", onclick: function () { navigator.clipboard && navigator.clipboard.writeText(sel); flash("Copied " + sel, "ok"); } }, "Copy"));
+    var panel = $("#media-panel");
+    var old = panel.querySelector(".eledit"); if (old) old.remove();
+    if (!el) { var doc = $("#mview").contentDocument; try { el = doc && doc.querySelector(sel); } catch (e) { el = null; } }
+    if (!el || S.sel.kind !== "scene") return;
+    var g = video();
+    var own = ownTextOf(el);
+    var f = h("div", { class: "eledit" });
+    f.appendChild(h("h3", null, "Edit this element"));
+    f.appendChild(h("p", null, h("code", null, sel), "  (" + el.tagName.toLowerCase() + ")"));
+    var textIn = null, attrIn = {};
+    if (own || !el.children.length) { textIn = h("textarea", { rows: 2 }); textIn.value = own; f.appendChild(h("label", { class: "lab" }, "Text", textIn)); }
+    ATTRS.forEach(function (a) { if (el.hasAttribute(a)) { var i = h("input", { type: "text" }); i.value = el.getAttribute(a); attrIn[a] = i; f.appendChild(h("label", { class: "lab" }, a, i)); } });
+    var msg = h("div", { class: "msg" });
+    f.appendChild(h("p", { class: "msg" }, "Only the “" + S.lang + "” version of this screen changes; the other languages keep theirs. The assistant is told about it."));
+    f.appendChild(h("div", { class: "row" }, h("button", { class: "btn primary", onclick: function () {
+      var body = { scene: S.sel.name, lang: S.lang, selector: sel, tutorial: g && g.id, attrs: {} };
+      if (textIn && textIn.value.trim() !== own) body.text = textIn.value.trim();
+      Object.keys(attrIn).forEach(function (a) { if (attrIn[a].value !== el.getAttribute(a)) body.attrs[a] = attrIn[a].value; });
+      if (body.text === undefined && !Object.keys(body.attrs).length) { msg.className = "msg"; msg.textContent = "Nothing changed."; return; }
+      api("/api/scene-edit", { method: "POST", body: body }).then(function () {
+        var mentions = [];
+        if (own && body.text !== undefined) S.state.guides.forEach(function (gg) { gg.steps.forEach(function (st, i) { var n = text(st.narration, S.lang); if (n && n.toLowerCase().indexOf(own.toLowerCase()) >= 0) mentions.push(gg.id + " step " + (i + 1)); }); });
+        $("#mview").dataset.key = ""; mv2reload();
+        return loadState().then(function () { flash("Saved in the “" + S.lang + "” version." + (mentions.length ? " The narration of " + mentions.join(", ") + " still says “" + own + "”: check it in the Timeline." : ""), mentions.length ? "" : "ok"); });
+      }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+    } }, "Save for " + S.lang)));
+    f.appendChild(msg);
+    panel.insertBefore(f, panel.firstChild);
+  }
+  function mv2reload() { if (S.page === "media") renderMedia(); }
+
+  function editTextFile(area, name) {
+    var url = (area === "shared" ? "/files/shared/" : "/files/media/" + S.guideId + "/") + name;
+    fetch(url).then(function (r) { return r.text(); }).then(function (t) {
+      dialog("Edit " + name, function (body, close) {
+        body.parentNode.classList.add("big");
+        var ta = h("textarea", { class: "code", spellcheck: "false" }); ta.value = t;
+        var msg = h("div", { class: "msg" });
+        body.appendChild(h("p", null, "Used by the screens that link it. The assistant is told which lines changed."));
+        body.appendChild(ta);
+        body.appendChild(h("div", { class: "row" }, h("button", { class: "btn primary", onclick: function () {
+          S.ownSave = Date.now(); fetch("/api/media-text?area=" + area + "&guide=" + encodeURIComponent(S.guideId) + "&name=" + encodeURIComponent(name), { method: "PUT", headers: { "x-cueflow": "studio" }, body: ta.value })
+            .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error); return d; }); })
+            .then(function (d) { close(); flash(d.lines ? "Saved (" + d.lines + " line(s) changed)." : "Nothing changed.", "ok"); renderMedia(); loadState(); }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+        } }, "Save"), h("button", { class: "btn", onclick: close }, "Cancel")));
+        body.appendChild(msg);
+      });
+    });
+  }
+  function dashboardDialog() {
+    api("/api/site").then(function (site) {
+      dialog("The dashboard", function (body, close) {
+        body.parentNode.classList.add("big");
+        body.appendChild(h("p", null, "What the home page and each tutorial page say, in “" + S.lang + "”. Each language has its own text."));
+        var pickL = function (v) { return typeof v === "string" ? v : (v && (v[S.lang] != null ? v[S.lang] : "")) || ""; };
+        site.items.forEach(function (it) {
+          var f = {};
+          var box = h("div", { class: "item" }, h("b", null, it.id));
+          [["title", "Title"], ["kicker", "Category"], ["desc", "Description"]].forEach(function (pair) {
+            var el = h(pair[0] === "desc" ? "textarea" : "input", pair[0] === "desc" ? { rows: 2 } : { type: "text" });
+            el.value = pickL(it[pair[0]]); f[pair[0]] = { el: el, orig: el.value };
+            box.appendChild(h("label", { class: "lab" }, pair[1], el));
+          });
+          var msg = h("span", { class: "msg" });
+          box.appendChild(h("div", { class: "row" }, h("button", { class: "btn", onclick: function () {
+            var jobs = Object.keys(f).filter(function (k) { return f[k].el.value !== f[k].orig; });
+            if (!jobs.length) { msg.textContent = "Nothing changed."; return; }
+            Promise.all(jobs.map(function (k) { return api("/api/site-text", { method: "POST", body: { id: it.id, field: k, lang: S.lang, value: f[k].el.value } }); }))
+              .then(function () { jobs.forEach(function (k) { f[k].orig = f[k].el.value; }); msg.className = "msg ok"; msg.textContent = "Saved."; loadState(); }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+          } }, "Save"), msg));
+          body.appendChild(box);
+        });
+        body.appendChild(h("div", { class: "row" }, h("button", { class: "btn", onclick: close }, "Close")));
+      });
+    }).catch(function (e) { flash(e.message, "err"); });
+  }
+  function notesDialog() {
+    api("/api/changes").then(function (list) {
+      dialog("Edits the assistant has not read yet", function (body, close) {
+        body.appendChild(h("p", null, "Your hand edits are saved. They are kept here as notes for your assistant, which reads them (get_changes), understands why you made them and takes them into account: for example a narration that still names the old button."));
+        if (!list.length) body.appendChild(h("p", { class: "empty" }, "None."));
+        list.forEach(function (c) { body.appendChild(h("div", { class: "note" }, c.sentence)); });
+        body.appendChild(h("div", { class: "row" }, h("button", { class: "btn", onclick: close }, "Close")));
+      });
+    });
   }
 
   /* ---------- the project (brief) and the whole export ---------- */

@@ -151,3 +151,10 @@ a.btn { display: inline-block; text-decoration: none; width: fit-content; }
 .page.previewpage .stage { flex: 1; min-height: 0; }
 .page.previewpage .bar { flex-wrap: wrap; gap: 8px; }
 a.btn { color: var(--ink); }
+.chip { border-color: var(--accent); color: var(--accent-ink); }
+.eledit { border: 1px solid var(--accent); border-radius: var(--radius); padding: 12px; margin-bottom: 16px; background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.eledit code { color: var(--accent-ink); word-break: break-all; }
+.item { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 10px; }
+.note { padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+dialog.big { width: min(760px, 94vw); max-height: 88vh; overflow: auto; }
+textarea.code { font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace; min-height: 340px; }

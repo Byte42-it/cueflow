@@ -4,6 +4,7 @@ import { z } from "zod";
 import { writeAtomic } from "./build.ts";
 import { listGuides, listScenes, openKit, type Kit } from "./kit.ts";
 import { settingsFile } from "./settings.ts";
+import { pendingChanges } from "./changes.ts";
 
 /**
  * brief.json: what a person and the assistant agreed before writing tutorials. It is the only place where the
@@ -62,14 +63,14 @@ export async function initKit(kit: Kit, site?: string, outDir?: string): Promise
     Object.assign(kit, openKit(kit.root));
   }
   if (!(await readFile(path.join(kit.root, ".gitignore")).then(() => true, () => false))) {
-    await writeAtomic(path.join(kit.root, ".gitignore"), "# secrets and the voice cache (regenerated, and may be large)\n.env\naudio/\n");
+    await writeAtomic(path.join(kit.root, ".gitignore"), "# secrets, the voice cache (regenerated, and may be large) and the inbox of hand edits for the assistant\n.env\naudio/\nchanges.json\n");
   }
   const exists = await readFile(briefFile(kit), "utf8").then(() => true, () => false);
   if (!exists) await saveBrief(kit, Brief.parse({ site }));
   else if (site) await updateBrief(kit, { site });
 }
 
-export type KitStatus = { brief: Brief; hasBrief: boolean; hasCapture: boolean; hasSite: boolean; scenes: string[]; guides: string[]; next: string };
+export type KitStatus = { pendingChanges: number; brief: Brief; hasBrief: boolean; hasCapture: boolean; hasSite: boolean; scenes: string[]; guides: string[]; next: string };
 
 /** Where the kit stands and what to do next: the assistant reads this first. */
 export async function kitStatus(kit: Kit): Promise<KitStatus> {
@@ -89,5 +90,7 @@ export async function kitStatus(kit: Kit): Promise<KitStatus> {
   else if (guides.length === 0) next = "Agree with the user which tutorials to make (one idea each), then create_guide and add_step.";
   else if (!hasSite) next = "Validate and preview the guides, then write site.json (the catalog) and call build_site.";
   else next = "Validate, preview, listen, then build_site. Update tutorials when the interface changes.";
-  return { brief, hasBrief, hasCapture, hasSite, scenes, guides, next };
+  const pending = (await pendingChanges(kit)).length;
+  if (pending) next = `The user changed ${pending} thing(s) by hand in Studio: call get_changes first, understand why they did it and take it into account (then mark_changes_seen). ${next}`;
+  return { pendingChanges: pending, brief, hasBrief, hasCapture, hasSite, scenes, guides, next };
 }

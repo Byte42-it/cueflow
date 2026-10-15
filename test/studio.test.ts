@@ -136,6 +136,53 @@ describe("studio", () => {
     assert.match(await (await fetch(url + "out/site/index.html")).text(), /cf-home/);
   });
 
+  it("edits the text of an element in one language only, and tells the assistant what changed", async () => {
+    const post = (path: string, body: object) => fetch(url + path, { method: "POST", headers: H, body: JSON.stringify(body) });
+    const r = await post("api/scene-edit", { scene: "upload", lang: "it", selector: "#choose-file", text: "Seleziona un file", tutorial: "upload" });
+    assert.equal(r.status, 200);
+    const it = await readFile(path.join(dir, ".cueflow", "scenes", "it", "upload.html"), "utf8");
+    assert.match(it, /Seleziona un file/);
+    assert.doesNotMatch(await readFile(path.join(dir, ".cueflow", "scenes", "upload.html"), "utf8"), /Seleziona un file/, "the base screen is untouched");
+    assert.match(await (await fetch(url + "scene/upload?lang=it")).text(), /Seleziona un file/);
+    assert.match(await (await fetch(url + "scene/upload?lang=en")).text(), /Choose a file/);
+    const notes = (await (await fetch(url + "api/changes")).json()) as any[];
+    const n = notes.find((c) => c.kind === "element-text" && c.after === "Seleziona un file");
+    assert.equal(n.lang, "it");
+    assert.match(n.sentence, /#choose-file.*Seleziona un file/s);
+    // a copy made from the base screen keeps its stylesheet: its paths go one folder up
+    const fresh = await post("api/scene-edit", { scene: "upload", lang: "fr", selector: "#choose-file", text: "Choisir un fichier" });
+    assert.equal(fresh.status, 200);
+    assert.match(await readFile(path.join(dir, ".cueflow", "scenes", "fr", "upload.html"), "utf8"), /href="\.\.\/\.\.\/shared\/style\.css"/);
+    assert.match(await (await fetch(url + "scene/upload?lang=fr")).text(), /Choisir un fichier/);
+    // the selector must match one element
+    assert.equal((await post("api/scene-edit", { scene: "upload", lang: "it", selector: "button", text: "x" })).status, 422);
+    assert.equal((await post("api/scene-edit", { scene: "upload", lang: "it", selector: "#choose-file", attrs: { onclick: "x" } })).status, 422);
+  });
+
+  it("notes the narration and title changes made in the timeline, and the dashboard texts", async () => {
+    const { guide, version } = (await (await fetch(url + "api/guide/upload")).json()) as any;
+    guide.steps[1].narration.en = "A different second step.";
+    assert.equal((await fetch(url + "api/guide/upload", { method: "PUT", headers: H, body: JSON.stringify({ guide, version }) })).status, 200);
+    const site = await fetch(url + "api/site-text", { method: "POST", headers: H, body: JSON.stringify({ id: "upload", field: "desc", lang: "en", value: "New description." }) });
+    assert.equal(site.status, 200);
+    const notes = (await (await fetch(url + "api/changes")).json()) as any[];
+    assert.ok(notes.some((c) => c.kind === "narration" && c.lang === "en" && c.after === "A different second step."));
+    assert.ok(notes.some((c) => c.kind === "catalog" && c.after === "New description."));
+    assert.ok(notes.every((c) => !(c.kind === "title") ), "an unchanged title is not a note");
+  });
+
+  it("replaces and edits files, and notes it", async () => {
+    const css = Buffer.from("body{color:red}");
+    const rep = await fetch(url + "api/media-file?area=shared&guide=upload&name=style.css", { method: "POST", headers: { "x-cueflow": "studio" }, body: css });
+    assert.equal(((await rep.json()) as any).replaced, true);
+    const ed = await fetch(url + "api/media-text?area=shared&guide=upload&name=style.css", { method: "PUT", headers: { "x-cueflow": "studio" }, body: "body{color:blue}" });
+    assert.equal(ed.status, 200);
+    const notes = (await (await fetch(url + "api/changes")).json()) as any[];
+    assert.ok(notes.some((c) => c.kind === "file-replaced" && /style\.css/.test(c.target)));
+    assert.ok(notes.some((c) => c.kind === "file-edited"));
+    assert.equal((await fetch(url + "api/media-text?area=shared&guide=upload&name=a.png", { method: "PUT", headers: { "x-cueflow": "studio" }, body: "x" })).status, 400);
+  });
+
   it("refuses something that does not look like an OpenAI key", async () => {
     const r = await fetch(url + "api/key", { method: "POST", headers: H, body: JSON.stringify({ key: "hello" }) });
     assert.equal(r.status, 400);
