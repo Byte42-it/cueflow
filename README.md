@@ -58,7 +58,7 @@ this repository, `npm install && npm run build`, and run `node <clone>/build/cli
 ### Cueflow Studio
 
 `cueflow studio` opens an editor in your browser (it listens on this computer only), dark by default (◐ switches to
-light). On the left, **all your tutorials as thumbnails**, like the slides of a presentation, with “+” to add one. A bar
+light). On a first start, with no tutorial yet, Studio shows a **prompt to paste into your assistant**; the first tutorial brings the normal view by itself. On the left, **all your tutorials as thumbnails**, like the slides of a presentation, with “+” to add one and a trash icon on each (a deleted tutorial moves to `trash/` in the kit, nothing is erased; it also leaves the dashboard). A bar
 of **pages for the selected tutorial** sits at the bottom, as in a video editor:
 
 - **Media**: *edit what the viewers read*: click an element of a screen (a button, a description) and change its text or
@@ -81,7 +81,7 @@ of **pages for the selected tutorial** sits at the bottom, as in a video editor:
 - **Preview**: the tutorial as viewers get it, large; with the working copy (browser voice) or built with the final voices.
 - **Export**: check this tutorial (also its layout, in a browser) and build it; built files open from here.
 
-Top right: **Dashboard** (the title, category and description of each tutorial in the home and its page, per language), **Project** (audience, tone, languages, rules, pronunciation: `brief.json`) and **Export everything**, which
+Top right: **AI** (a graduation-cap button: a prompt to paste into your assistant, rewritten with the current state, to carry on in a new session without starting over), **Dashboard** (the title, category and description of each tutorial in the home and its page, per language), **Project** (audience, tone, languages, rules, pronunciation: `brief.json`) and **Build**, which
 builds every tutorial and the **dashboard** that gathers them (`site.json` is created, or completed with the new
 tutorials, never rewritten). An external voice is called only then, and the page says so before.
 

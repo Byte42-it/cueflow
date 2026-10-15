@@ -8,6 +8,8 @@ import { buildGuide, estimateStepDuration, renderGuideHtml, writeAtomic } from "
 import { checkLayout } from "./layout.ts";
 import { buildSite, loadSite, setSiteText, syncSite } from "./site.ts";
 import { describeChange, pendingChanges, recordChange } from "./changes.ts";
+import { agentPrompt } from "./prompt.ts";
+import { deleteTutorial } from "./trash.ts";
 import { editSceneElement } from "./sceneedit.ts";
 import { deleteMediaFile, mediaOverview, saveMediaFile, areaDir, safeRel, type Area } from "./media.ts";
 import { listGuides, listScenes, loadGuide, openKit, readScene, saveGuide, guideFile, type Kit } from "./kit.ts";
@@ -121,6 +123,7 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
   if (req.method !== "GET" && req.headers["x-cueflow"] !== "studio") throw new HttpError(403, "not allowed from this page");
 
   if (p === "/api/state") return json(res, await state(kit));
+  if (p === "/api/agent-prompt") return json(res, { prompt: await agentPrompt(kit, { guide: url.searchParams.get("guide") ?? undefined, step: url.searchParams.get("step") ? Number(url.searchParams.get("step")) : undefined, lang }) });
   if (p === "/api/changes") return json(res, (await pendingChanges(kit)).map((c) => ({ ...c, sentence: describeChange(c) })));
 
   let m = /^\/api\/guide\/([\w-]+)$/.exec(p);
@@ -147,6 +150,11 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
       }
     }
     return json(res, { saved: true, warnings: report.warnings, version: await mtime(guideFile(kit, id)) });
+  }
+
+  if (m && req.method === "DELETE") {
+    const r = await deleteTutorial(kit, m[1]!).catch((e) => { throw new HttpError(404, e.message); });
+    return json(res, r);
   }
 
   m = /^\/preview\/([\w-]+)$/.exec(p);

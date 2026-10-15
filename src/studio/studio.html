@@ -14,10 +14,11 @@
   <div class="where" id="where"></div>
   <label class="lang">Language <select id="lang"></select></label>
   <button class="btn chip" id="notes" title="Hand edits the assistant has not read yet" hidden></button>
+  <button class="btn ai" id="ai" title="A prompt for your AI assistant: carry on in a new session without starting over"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5M22 9v6"/></svg><span>AI</span></button>
   <button class="btn" id="dashboard" title="The titles and descriptions of the dashboard">Dashboard</button>
   <button class="btn" id="project" title="Audience, tone, languages, rules, pronunciation">Project</button>
   <button class="themebtn" id="theme" title="Dark / light" aria-label="Dark or light">◐</button>
-  <button class="btn primary" id="exportall" title="Build every tutorial and the dashboard that gathers them">Export everything</button>
+  <button class="btn primary" id="exportall" title="Build every tutorial and the dashboard that gathers them">Build</button>
 </header>
 <div class="banner" id="banner" hidden></div>
 
@@ -26,6 +27,22 @@
   <nav class="film" id="film" aria-label="Tutorials"></nav>
 
   <div class="pages">
+    <!-- first start: no tutorial yet -->
+    <section class="welcome" id="welcome" hidden>
+      <div class="wbox">
+        <h2>Let’s make your first tutorial</h2>
+        <p>Cueflow works with your AI assistant: it studies your product, agrees with you what is worth explaining, and writes the tutorials. Here you look at them, refine them and publish them.</p>
+        <ol>
+          <li>Open your assistant (Claude Code, or another that supports MCP) in your project’s folder.</li>
+          <li>Paste this prompt and answer its questions.</li>
+          <li>The first tutorial appears here by itself.</li>
+        </ol>
+        <pre id="welcome-prompt">Preparing the prompt…</pre>
+        <div class="row"><button class="btn primary" id="welcome-copy">Copy the prompt</button><button class="btn" id="welcome-new">or create an empty tutorial yourself</button></div>
+        <p class="msg" id="welcome-msg"></p>
+      </div>
+    </section>
+
     <!-- MEDIA: the files of this tutorial, and the ones shared by all -->
     <section class="page" id="page-media" hidden>
       <nav class="side" id="media-side" aria-label="Media"></nav>
