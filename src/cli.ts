@@ -3,24 +3,28 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import { buildGuide, writeAtomic } from "./build.ts";
 import { captureScenes } from "./capture.ts";
-import { loadGuide, openKit } from "./kit.ts";
+import { initKit } from "./brief.ts";
+import { findKitRoot, loadGuide, openKit } from "./kit.ts";
+import { voiceOptions, voiceTable } from "./voices.ts";
 import { checkLayout } from "./layout.ts";
 import { startMcp } from "./mcp.ts";
 import { openPreview } from "./preview.ts";
 import { buildSite } from "./site.ts";
-import { defaultProvider } from "./tts.ts";
 import { validateGuide } from "./validate.ts";
 
 const USAGE = `cueflow — narrated UI walkthroughs from static HTML scenes
 
+  cueflow init [--out-dir <dir>]        create .cueflow/ in this folder: the kit of the project, and fix where the output goes
+                                        (default ../cueflow-dist, next to .cueflow)
+  cueflow voices                        the voices to choose from, and which one each video speaks with
   cueflow capture [--scene <name>]...   capture the scenes described in capture.json from the live site
-  cueflow build <guide>                 build dist/<guide>.html, with narration audio when a voice is set (CUEFLOW_TTS)
+  cueflow build <guide>                 build <output>/<guide>.html, with narration audio when a voice is set (CUEFLOW_TTS)
   cueflow validate <guide> [--layout]   check selectors, ids and narrations; --layout also plays the guide in a
                                         browser and checks that every element used is visible and inside the scene
   cueflow preview <guide> [--step <n>] [--at <ms|80%>] [--all] [--stage] [--out <file>]
-                                        render a frame as PNG in dist/preview/ (step counted from 1, at default 80%);
+                                        render a frame as PNG in <output>/preview/ (step counted from 1, at default 80%);
                                         --all: one frame per step and a contact sheet of them all
-  cueflow site [--posters]              build the docs site from site.json into dist/site/ (--posters renders guide frames)
+  cueflow site [--posters]              build the docs site from site.json into <output>/site/ (--posters renders guide frames)
   cueflow mcp                           start the MCP server on stdio
 
   --kit <dir>    kit folder (default: $CUEFLOW_KIT or the current directory)
@@ -46,11 +50,13 @@ const { values, positionals } = parseArgs({
     all: { type: "boolean" },
     stage: { type: "boolean" },
     out: { type: "string" },
+    "out-dir": { type: "string" },
     lang: { type: "string" },
     help: { type: "boolean", short: "h" }
   }
 });
-const kit = openKit(values.kit ?? process.env.CUEFLOW_KIT ?? ".");
+// the kit: --kit, else CUEFLOW_KIT, else the nearest .cueflow folder upwards, else the current folder
+const kit = openKit(values.kit ?? process.env.CUEFLOW_KIT ?? findKitRoot(process.cwd()) ?? ".");
 loadEnv(path.join(kit.root, ".env"));
 const [command, id] = positionals;
 
@@ -67,7 +73,7 @@ async function preview(guideId: string) {
   const session = await openPreview(built.file, { lang: values.lang });
   const at = parseAt(values.at);
   const only = values.stage ? "stage" : "player";
-  const dir = path.join(kit.root, "dist", "preview");
+  const dir = path.join(kit.out, "preview");
   try {
     if (values.all) {
       const frames: { png: Buffer; caption: string }[] = [];
@@ -96,6 +102,15 @@ async function preview(guideId: string) {
 try {
   if (values.help || !command) {
     console.log(USAGE);
+  } else if (command === "init") {
+    const project = openKit(path.join(process.cwd(), ".cueflow"));
+    await initKit(project, undefined, values["out-dir"]);
+    console.log(`${project.root}  (output: ${project.out})\nNext: put OPENAI_API_KEY in .cueflow/.env only if you choose an external voice; connect your assistant with the MCP server (see README).`);
+  } else if (command === "voices") {
+    for (const o of voiceOptions()) console.log(`${o.available ? "●" : "○"} ${o.provider.padEnd(8)} ${o.title}\n    ${o.summary}\n    needs: ${o.needs}; cost: ${o.cost}`);
+    console.log("\nEvery video speaks with:");
+    for (const r of await voiceTable(kit)) console.log(`  ${r.guide} [${r.language}]  ${r.provider}${r.voice ? ` (${r.voice})` : ""}  ← ${r.from}`);
+    console.log("\nChange it in cueflow.json (voices.default, voices.languages.<lang>, voices.guides.<video>) or with the set_voice tool.");
   } else if (command === "mcp") {
     await startMcp(kit);
   } else if (command === "capture") {
@@ -116,13 +131,13 @@ try {
   } else if (command === "preview" && id) {
     await preview(id);
   } else if (command === "site") {
-    const r = await buildSite(kit, { provider: defaultProvider(), posters: values.posters ?? false });
+    const r = await buildSite(kit, { posters: values.posters ?? false });
     for (const w of r.warnings) console.log(`warning: ${w}`);
     console.log(`${r.dir}  (${r.pages.length} page(s)${r.posters.length ? `, ${r.posters.length} poster(s) rendered` : ""})`);
   } else if (command === "build" && id) {
-    const r = await buildGuide(kit, id, defaultProvider());
+    const r = await buildGuide(kit, id);
     for (const w of r.warnings) console.log(`warning: ${w}`);
-    console.log(`${r.file}  (${r.scenes.length} scene(s), ${r.silent ? "silent: set CUEFLOW_TTS (openai, say, command) for narration audio" : `${r.audioFiles} audio file(s)`})`);
+    console.log(`${r.file}  (${r.scenes.length} scene(s), ${r.silent ? "no recorded audio: the browser reads the narration (choose a voice with `cueflow voices`)" : `${r.audioFiles} audio file(s)`})`);
   } else {
     console.log(USAGE);
     process.exitCode = 1;

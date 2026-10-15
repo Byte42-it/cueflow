@@ -57,7 +57,13 @@ Listen to the voice before publishing: it may misread names, acronyms and number
 
 ## 7. Build
 build_guide per tutorial, then the catalog: write site.json (items, rows, featured), a short written guide per item in
-pages/<id>.html if wanted, then build_site. The user opens dist/ in a browser: no server needed.
+pages/<id>.html if wanted, then build_site. The user opens the output folder (cueflow.json outDir, cueflow-dist by default) in a browser: no server needed.
+
+## Voice
+The default is the viewer's browser voice: free, no key. Never switch to an external voice on your own: describe the
+options (get_voices) and let the user choose. A choice can be global, for a language, or for one video; what is not
+set is inherited from the level above (set_voice). OpenAI needs OPENAI_API_KEY in the kit's .env, and sends the
+narration text to that service.
 
 ## Keep in mind
 - The kit lives in the product's repository (data, versioned with it); Cueflow lives elsewhere and knows no product.

@@ -2,7 +2,8 @@ import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { writeAtomic } from "./build.ts";
-import { listGuides, listScenes, type Kit } from "./kit.ts";
+import { listGuides, listScenes, openKit, type Kit } from "./kit.ts";
+import { settingsFile } from "./settings.ts";
 
 /**
  * brief.json: what a person and the assistant agreed before writing tutorials. It is the only place where the
@@ -52,8 +53,17 @@ export async function updateBrief(kit: Kit, patch: Partial<Brief>): Promise<Brie
 }
 
 /** Creates the kit's folders and an empty brief if there is none. Safe to repeat. */
-export async function initKit(kit: Kit, site?: string): Promise<void> {
+export async function initKit(kit: Kit, site?: string, outDir?: string): Promise<void> {
   for (const dir of ["scenes", "shared", "guides"]) await mkdir(path.join(kit.root, dir), { recursive: true });
+  // the output folder is chosen once, here, and stays: a project's kit lives in .cueflow, its output beside it
+  if (!(await readFile(settingsFile(kit.root)).then(() => true, () => false))) {
+    const chosen = outDir ?? (path.basename(kit.root) === ".cueflow" ? "../cueflow-dist" : "dist");
+    await writeAtomic(settingsFile(kit.root), JSON.stringify({ outDir: chosen, voices: { default: { provider: "browser" } } }, null, 2) + "\n");
+    Object.assign(kit, openKit(kit.root));
+  }
+  if (!(await readFile(path.join(kit.root, ".gitignore")).then(() => true, () => false))) {
+    await writeAtomic(path.join(kit.root, ".gitignore"), "# secrets and the voice cache (regenerated, and may be large)\n.env\naudio/\n");
+  }
   const exists = await readFile(briefFile(kit), "utf8").then(() => true, () => false);
   if (!exists) await saveBrief(kit, Brief.parse({ site }));
   else if (site) await updateBrief(kit, { site });

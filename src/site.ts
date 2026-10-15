@@ -18,7 +18,7 @@ import type { TtsProvider } from "./tts.ts";
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 export const siteFile = (kit: Kit) => path.join(kit.root, "site.json");
-export const siteDir = (kit: Kit) => path.join(kit.root, "dist", "site");
+export const siteDir = (kit: Kit) => path.join(kit.out, "site");
 
 const exists = (file: string) => stat(file).then(() => true, () => false);
 /** A path in the kit that must stay inside it. */
@@ -148,7 +148,7 @@ function durationLabel(guide: Parameters<typeof estimateDuration>[0], languages:
 
 export type SiteResult = { dir: string; pages: string[]; posters: string[]; warnings: string[] };
 
-export async function buildSite(kit: Kit, opts: { provider: TtsProvider | null; posters?: boolean }): Promise<SiteResult> {
+export async function buildSite(kit: Kit, opts: { provider?: TtsProvider | null; posters?: boolean }): Promise<SiteResult> {
   const site = await loadSite(kit);
   const report = await validateSite(kit, site);
   if (report.errors.length) throw new Error(`the site is not valid:\n- ${report.errors.join("\n- ")}`);
