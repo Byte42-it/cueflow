@@ -10,7 +10,7 @@ import { voiceOptions, voiceTable } from "./voices.ts";
 import { checkLayout } from "./layout.ts";
 import { startMcp } from "./mcp.ts";
 import { openPreview } from "./preview.ts";
-import { buildSite } from "./site.ts";
+import { buildSite, checkEndpoint, loadSite } from "./site.ts";
 import { validateGuide } from "./validate.ts";
 
 const USAGE = `cueflow — narrated UI walkthroughs from static HTML scenes
@@ -27,6 +27,7 @@ const USAGE = `cueflow — narrated UI walkthroughs from static HTML scenes
                                         render a frame as PNG in <output>/preview/ (step counted from 1, at default 80%);
                                         --all: one frame per step and a contact sheet of them all
   cueflow site [--posters]              build the docs site from site.json into <output>/site/ (--posters renders guide frames)
+  cueflow check-endpoint               ask the request endpoint whether it accepts the site's origin (CORS), before publishing
   cueflow mcp                           start the MCP server on stdio
 
   --kit <dir>    kit folder (default: $CUEFLOW_KIT or the current directory)
@@ -138,6 +139,10 @@ try {
     } else console.log("ok");
   } else if (command === "preview" && id) {
     await preview(id);
+  } else if (command === "check-endpoint") {
+    const r = await checkEndpoint(await loadSite(kit));
+    console.log(`${r.ok ? "ok" : "error"}: ${r.message}`);
+    if (!r.ok) process.exitCode = 1;
   } else if (command === "site") {
     const r = await buildSite(kit, { posters: values.posters ?? false });
     for (const w of r.warnings) console.log(`warning: ${w}`);

@@ -5,7 +5,7 @@ import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { openKit, type Kit } from "../src/kit.ts";
 import { Site } from "../src/schema.ts";
-import { buildSite, loadSite, siteFile, validateSite } from "../src/site.ts";
+import { buildSite, checkEndpoint, loadSite, siteFile, validateSite } from "../src/site.ts";
 
 let dir: string;
 let kit: Kit;
@@ -109,5 +109,41 @@ describe("site", () => {
     } finally {
       await writeFile(siteFile(kit), original);
     }
+  });
+
+  it("says when the request endpoint must allow the site's origin", async () => {
+    const site = Site.parse(await withSite((s) => { s.url = "https://help.example.org/docs/"; s.requestEndpoint = "https://api.example.org/requests"; }));
+    const { warnings } = await validateSite(kit, site);
+    assert.ok(warnings.some((w) => /must allow the origin https:\/\/help\.example\.org/.test(w)), warnings.join("; "));
+  });
+});
+
+describe("check-endpoint", () => {
+  const site = (extra: Record<string, unknown> = {}) =>
+    Site.parse({ title: "T", url: "https://help.example.org", requestEndpoint: "https://api.example.org/requests", ...extra });
+  const answer = (status: number, headers: Record<string, string>) =>
+    (async (_url: string | URL | Request, init?: RequestInit) => {
+      assert.equal(init?.method, "OPTIONS");
+      assert.equal((init?.headers as Record<string, string>).Origin, "https://help.example.org");
+      return new Response(null, { status, headers });
+    }) as typeof fetch;
+
+  it("reports a refused origin, with what to add", async () => {
+    const r = await checkEndpoint(site(), answer(403, {}));
+    assert.equal(r.ok, false);
+    assert.match(r.message, /refuses requests from https:\/\/help\.example\.org.*add https:\/\/help\.example\.org/);
+  });
+
+  it("accepts the site's origin or any origin, with the Content-Type header", async () => {
+    const ok = { "access-control-allow-origin": "https://help.example.org", "access-control-allow-headers": "Content-Type" };
+    assert.equal((await checkEndpoint(site(), answer(204, ok))).ok, true);
+    assert.equal((await checkEndpoint(site(), answer(204, { "access-control-allow-origin": "*", "access-control-allow-headers": "*" }))).ok, true);
+    assert.equal((await checkEndpoint(site(), answer(204, { "access-control-allow-origin": "https://help.example.org" }))).ok, false, "the JSON body needs Content-Type");
+  });
+
+  it("needs no preflight on the same origin, and the site's url to check at all", async () => {
+    const same = await checkEndpoint(site({ requestEndpoint: "https://help.example.org/api/requests" }), (() => assert.fail("no request")) as never);
+    assert.equal(same.ok, true);
+    await assert.rejects(checkEndpoint(site({ url: undefined })), /no url/);
   });
 });

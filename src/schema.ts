@@ -184,7 +184,12 @@ export const Site = z.object({
     .default("light")
     .describe("the site's built-in colors: light, dark, or auto to follow the visitor's system; a theme's own :root colors always win"),
   stylesheets: z.array(z.string().url()).default([]).describe("remote stylesheets linked from every page, e.g. web fonts used by the theme"),
-  requestEndpoint: z.string().url().optional().describe("POST endpoint for tutorial requests; without it the request form is not shown"),
+  url: z.string().url().optional().describe("where the site is published, e.g. https://help.example.com: lets the build tell whether the request endpoint must allow it (CORS)"),
+  requestEndpoint: z
+    .string()
+    .url()
+    .optional()
+    .describe("POST endpoint for tutorial requests (JSON: topic, message?, name?, email?, company? as honeypot, page); without it the request form is not shown. On another origin than `url` it must answer the CORS preflight for that origin"),
   featured: z.string().optional().describe("id of the item shown big at the top of the home"),
   quickAccess: z.boolean().default(true),
   rows: z.array(SiteRow).default([]),
