@@ -49,8 +49,9 @@ Cueflow is a tool you install once and point at any number of projects. It does 
    ```
    Put `OPENAI_API_KEY` (or `CUEFLOW_TTS=say|command`) in a `.env` file in the kit; it is never read from the kit's
    scenes and should be git-ignored.
-4. **Ask for tutorials.** Open the assistant in the product's folder and say which flow to explain, who it is for and in
-   which languages. It captures the screens, writes the steps (each one checked against the real elements), looks at
+4. **Ask for tutorials.** Open the assistant in the product's folder and say you want tutorials. Cueflow gives it the
+   method (`get_method`) and the state of the kit (`get_brief`): it starts by asking which site (a folder or a live
+   address), then talks the brief through with you (audience, tone, languages, rules, how names are pronounced). It captures the screens, writes the steps (each one checked against the real elements), looks at
    frames with `preview_frame`, and builds the guide and the docs site. You review the previews and the narration.
 5. **Publish** the folder `dist/` (one HTML per guide, plus `dist/site/` for the catalog). No server is needed to view it.
 
@@ -131,7 +132,7 @@ Each guide can tune the player in a `player` block (all optional):
 `captions` (`below`, `overlay`, `off`), `chapters`, `speeds` (e.g. `[1, 1.5]`), `transcript`, `brand` (`stage`,
 `controls`, `off`), and
 `fallbackVoice: "browser"` to read silent builds with the browser's voice. `pronunciation` maps written words to
-how the voice must say them (audio only). A link ending in `#step-3` opens the guide at that step.
+how the voice must say them (audio only; the brief's pronunciation applies to every guide). A link ending in `#step-3` opens the guide at that step.
 
 ## Use
 
@@ -225,6 +226,8 @@ the original with a note.
 
 | Tool | What it does |
 |---|---|
+| `get_method` | the working method, the same for every product: read first. Also summarised in the server's `instructions` |
+| `get_brief`, `set_brief`, `set_source`, `init_kit` | where the kit stands and what to do next; the agreed brief (`brief.json`: site, source, audience, tone, languages, rules, pronunciation, maximum length); which site the tutorials are for (a folder or a live address); the kit's folders |
 | `capture_scenes` | capture the scenes from the live site described in `capture.json` |
 | `list_scenes`, `inspect_scene` | what screens exist, and which elements (selector, text, hidden?) can be targeted |
 | `create_guide`, `add_step`, `replace_step`, `remove_step`, `get_guide` | compose the timeline |
