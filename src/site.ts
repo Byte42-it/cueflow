@@ -18,6 +18,9 @@ import type { TtsProvider } from "./tts.ts";
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 export const siteFile = (kit: Kit) => path.join(kit.root, "site.json");
+/** A page that cannot draw says why, instead of staying blank: the error and the browser, readable and copyable. */
+const DIAGNOSTIC = `(function(){var shown=false;function show(m){if(shown)return;shown=true;var d=document.createElement("pre");d.style.cssText="position:fixed;inset:16px;z-index:99999;margin:0;padding:16px;background:#fff;color:#900;font:13px/1.5 monospace;white-space:pre-wrap;overflow:auto;border:2px solid #900";d.textContent="This Cueflow page could not be drawn.\\n\\n"+m+"\\n\\nBrowser: "+navigator.userAgent+"\\nAddress: "+location.href;(document.body||document.documentElement).appendChild(d)}window.addEventListener("error",function(e){show(e.message+" ("+String(e.filename||"").split("/").pop()+":"+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){show("Unhandled: "+(e.reason&&e.reason.message||e.reason))});window.addEventListener("load",function(){setTimeout(function(){if(!document.body.innerText.trim())show("Nothing was drawn and no error was reported.")},1500)})})();`;
+
 export const siteDir = (kit: Kit) => path.join(kit.out, "site");
 
 const exists = (file: string) => stat(file).then(() => true, () => false);
@@ -247,6 +250,8 @@ ${head}<link rel="stylesheet" href="${root}assets/cueflow.css">
 </head>
 <body class="cf-site">
 ${body}
+<noscript><p style="padding:24px;font:16px sans-serif">This page needs JavaScript.</p></noscript>
+<script>${DIAGNOSTIC}</script>
 <script>window.CUEFLOW_SITE = ${embed(data)};</script>
 <script src="${root}assets/cueflow.js"></script>
 </body>
