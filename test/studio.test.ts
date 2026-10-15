@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
+import * as fs from "node:fs/promises";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -100,6 +101,39 @@ describe("studio", () => {
     assert.equal(built.url, "/out/upload.html");
     assert.match(await (await fetch(url + "out/upload.html")).text(), /Cueflow/);
     assert.equal((await fetch(url + "out/..%2fcueflow.json")).status, 403);
+  });
+
+  it("tells the media of a tutorial from the media shared by all, and takes uploads and deletions", async () => {
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+    const up = (q: string) => fetch(url + "api/media-file?" + q, { method: "POST", headers: { "x-cueflow": "studio" }, body: png });
+    assert.equal((await up("area=media&guide=upload&name=logo.png")).status, 200);
+    assert.equal((await up("area=shared&guide=upload&name=icon.png")).status, 200);
+    assert.equal((await up("area=media&guide=upload&name=..%2Fevil.png")).status, 400);
+    assert.equal((await up("area=media&guide=upload&name=run.exe")).status, 400);
+    const m = (await (await fetch(url + "api/media/upload")).json()) as any;
+    assert.ok(m.media.files.some((f: any) => f.name === "logo.png"));
+    assert.ok(m.shared.files.some((f: any) => f.name === "icon.png") && m.shared.files.some((f: any) => f.name === "style.css"));
+    // an earlier test made a second tutorial on the same screen: the screen is now used by two, so it is shared
+    assert.ok(m.shared.scenes.some((s: any) => s.name === "upload" && s.usedBy.length === 2));
+    assert.equal(m.media.scenes.length, 0);
+    assert.equal((await fetch(url + "files/media/upload/logo.png")).headers.get("content-type"), "image/png");
+    const style = m.shared.files.find((f: any) => f.name === "style.css");
+    assert.deepEqual([...style.usedBy].sort(), ["second", "upload"]);
+    const del = (name: string, area = "shared") => fetch(url + `api/media-file?area=${area}&guide=upload&name=${name}`, { method: "DELETE", headers: { "x-cueflow": "studio" } });
+    assert.equal((await del("style.css")).status, 409, "a file that a scene uses is not deleted");
+    assert.equal((await del("logo.png", "media")).status, 200);
+    assert.equal((await del("icon.png")).status, 200);
+  });
+
+  it("exports the whole system: every tutorial and a dashboard that lists them, creating the catalog when there is none", async () => {
+    await fs.rm(path.join(dir, ".cueflow", "site.json"), { force: true });
+    const r = (await (await fetch(url + "api/export-all", { method: "POST", headers: H, body: "{}" })).json()) as any;
+    assert.equal(r.url, "/out/site/index.html");
+    assert.equal(r.siteCreated, true);
+    assert.ok(r.guides.some((g: any) => g.id === "upload"));
+    const site = JSON.parse(await readFile(path.join(dir, ".cueflow", "site.json"), "utf8"));
+    assert.ok(site.items.some((i: any) => i.guide === "upload"));
+    assert.match(await (await fetch(url + "out/site/index.html")).text(), /cf-home/);
   });
 
   it("refuses something that does not look like an OpenAI key", async () => {

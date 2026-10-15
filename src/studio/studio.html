@@ -10,62 +10,78 @@
 <body>
 <header class="top">
   <div class="brand"><svg viewBox="152 152 950 950" width="22" height="22" aria-hidden="true"><g fill="none" stroke="#ff7a59" stroke-linecap="round" stroke-linejoin="round"><path d="M880 370A338 338 0 1 0 880 890" stroke-width="210"/><path d="M830 525L1040 640L830 755Z" fill="#ff7a59" stroke-width="70"/></g></svg><b>Cueflow</b> <span>Studio</span></div>
+  <div class="current" id="current"></div>
   <div class="where" id="where"></div>
   <label class="lang">Language <select id="lang"></select></label>
+  <button class="btn" id="project" title="Audience, tone, languages, rules, pronunciation">Project</button>
   <button class="themebtn" id="theme" title="Dark / light" aria-label="Dark or light">◐</button>
+  <button class="btn primary" id="exportall" title="Build every tutorial and the dashboard that gathers them">Export everything</button>
 </header>
 <div class="banner" id="banner" hidden></div>
 
-<div class="pages">
-  <!-- MEDIA: the screens the tutorials are made of -->
-  <section class="page" id="page-media" hidden>
-    <nav class="side" id="media-side" aria-label="Scenes"></nav>
-    <section class="center">
-      <div class="bar"><div class="pick" id="mpick"><span>Click an element to get its selector.</span></div></div>
-      <div class="stage"><iframe id="mview" title="Scene"></iframe></div>
-    </section>
-    <aside class="panel"><div class="body" id="media-panel"></div></aside>
-  </section>
+<div class="work">
+  <!-- all the tutorials, as thumbnails -->
+  <nav class="film" id="film" aria-label="Tutorials"></nav>
 
-  <!-- TIMELINE: the video, its steps and what happens in them -->
-  <section class="page timeline" id="page-timeline">
-    <div class="grid">
-      <nav class="side" id="side" aria-label="Videos and steps"></nav>
+  <div class="pages">
+    <!-- MEDIA: the files of this tutorial, and the ones shared by all -->
+    <section class="page" id="page-media" hidden>
+      <nav class="side" id="media-side" aria-label="Media"></nav>
       <section class="center">
-        <div class="bar">
-          <div class="seg" role="tablist">
-            <button id="m-video" class="on">Video</button>
-            <button id="m-pick">Pick an element</button>
-          </div>
-          <div class="pick" id="pickinfo" hidden></div>
-        </div>
-        <div class="stage"><iframe id="view" title="Preview"></iframe></div>
+        <div class="bar"><div class="pick" id="mpick"><span>Select a screen or a file.</span></div></div>
+        <div class="stage" id="mstage"><iframe id="mview" title="Scene"></iframe></div>
       </section>
-      <aside class="panel">
-        <div class="tabs" role="tablist">
-          <button data-tab="narration" class="on">Narration</button>
-          <button data-tab="actions">Actions</button>
-          <button data-tab="assistant">Assistant</button>
-        </div>
-        <div class="body" id="panel"></div>
-      </aside>
-    </div>
-    <div class="strip" id="strip" aria-label="Timeline"></div>
-  </section>
+      <aside class="panel"><div class="body" id="media-panel"></div></aside>
+    </section>
 
-  <!-- VOICE: who reads the tutorials -->
-  <section class="page wide" id="page-voice" hidden><div class="body" id="voice-body"></div></section>
+    <!-- TIMELINE: the video, its steps and what happens in them -->
+    <section class="page timeline" id="page-timeline">
+      <div class="grid">
+        <section class="center">
+          <div class="bar">
+            <div class="seg" role="tablist">
+              <button id="m-video" class="on">Video</button>
+              <button id="m-pick">Pick an element</button>
+            </div>
+            <div class="pick" id="pickinfo" hidden></div>
+          </div>
+          <div class="stage"><iframe id="view" title="Preview"></iframe></div>
+        </section>
+        <aside class="panel">
+          <div class="tabs" role="tablist">
+            <button data-tab="narration" class="on">Narration</button>
+            <button data-tab="actions">Actions</button>
+            <button data-tab="assistant">Assistant</button>
+          </div>
+          <div class="body" id="panel"></div>
+        </aside>
+      </div>
+      <div class="strip" id="strip" aria-label="Timeline"></div>
+    </section>
 
-  <!-- EXPORT: check and build -->
-  <section class="page wide" id="page-export" hidden><div class="body" id="export-body"></div></section>
+    <!-- VOICE: who reads this tutorial -->
+    <section class="page wide" id="page-voice" hidden><div class="body" id="voice-body"></div></section>
+
+    <!-- PREVIEW: the tutorial as the viewer sees it -->
+    <section class="page previewpage" id="page-preview" hidden>
+      <div class="bar" id="prev-bar"></div>
+      <div class="stage"><iframe id="prev-view" title="Preview of the tutorial" allow="autoplay"></iframe></div>
+    </section>
+
+    <!-- EXPORT: check and build this tutorial -->
+    <section class="page wide" id="page-export" hidden><div class="body" id="export-body"></div></section>
+  </div>
 </div>
 
-<footer class="pagebar" role="tablist" aria-label="Pages">
+<footer class="pagebar" role="tablist" aria-label="Pages of this tutorial">
   <button data-page="media"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 15l5-4 4 3 3-2 6 4"/></svg><span>Media</span></button>
   <button data-page="timeline" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h10M3 12h18M3 18h14"/><circle cx="16" cy="6" r="1.6"/><circle cx="20" cy="18" r="1.6"/></svg><span>Timeline</span></button>
   <button data-page="voice"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span>Voice</span></button>
+  <button data-page="preview"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M10 9l5 2.5-5 2.5zM8 21h8"/></svg><span>Preview</span></button>
   <button data-page="export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg><span>Export</span></button>
 </footer>
+
+<dialog id="dlg"></dialog>
 <script src="/studio.js"></script>
 </body>
 </html>

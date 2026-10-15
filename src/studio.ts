@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 import { Brief, loadBrief, updateBrief } from "./brief.ts";
 import { buildGuide, estimateStepDuration, renderGuideHtml, writeAtomic } from "./build.ts";
 import { checkLayout } from "./layout.ts";
-import { buildSite } from "./site.ts";
+import { buildSite, syncSite } from "./site.ts";
+import { deleteMediaFile, mediaOverview, saveMediaFile, areaDir, safeRel, type Area } from "./media.ts";
 import { listGuides, listScenes, loadGuide, openKit, readScene, saveGuide, guideFile, type Kit } from "./kit.ts";
 import { describeScene, inlineScene } from "./scene.ts";
 import { Guide } from "./schema.ts";
@@ -53,6 +54,17 @@ async function readBody(req: IncomingMessage): Promise<any> {
   }
 }
 
+async function readRaw(req: IncomingMessage, max = 25_000_000): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const c of req) {
+    size += (c as Buffer).length;
+    if (size > max) throw new HttpError(413, "the file is larger than 25 MB");
+    chunks.push(c as Buffer);
+  }
+  return Buffer.concat(chunks);
+}
+
 const mtime = (file: string) => stat(file).then((s) => s.mtimeMs, () => 0);
 
 /** What changed on disk, as one string: when it differs from the last one, somebody (an assistant, an editor) edited the kit. */
@@ -73,7 +85,7 @@ async function state(kit: Kit) {
     // estimated lengths (ms) per language, as the player computes them for a silent build: the timeline is drawn from these
     const timing: Record<string, { narration: number; total: number }[]> = {};
     for (const lang of g.languages) timing[lang] = g.steps.map((s) => estimateStepDuration(s, lang));
-    guides.push({ id, title: g.title, languages: g.languages, scene: g.scene, timing, steps: g.steps.map((s) => ({ id: s.id, title: s.title ?? null, narration: s.narration, actions: s.actions.map((a) => ({ do: a.do, at: "at" in a ? a.at : 0, duration: "duration" in a ? a.duration : undefined })) })) });
+    guides.push({ id, title: g.title, languages: g.languages, scene: g.scene, viewport: g.viewport, timing, steps: g.steps.map((s) => ({ id: s.id, title: s.title ?? null, narration: s.narration, actions: s.actions.map((a) => ({ do: a.do, at: "at" in a ? a.at : 0, duration: "duration" in a ? a.duration : undefined })) })) });
   }
   return { kitRoot: kit.root, outDir: kit.out, brief: await loadBrief(kit), guides, scenes: await listScenes(kit), hasKey: Boolean(process.env.OPENAI_API_KEY) };
 }
@@ -134,6 +146,48 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     }
   }
 
+  // files of a tutorial (media) and of all tutorials (shared), as images etc.
+  m = /^\/files\/(shared|media)\/(.+)$/.exec(p);
+  if (m && req.method === "GET") {
+    const area = m[1] as Area;
+    const rest = decodeURIComponent(m[2]!);
+    let file: string;
+    if (area === "shared") file = path.join(areaDir(kit, "shared"), safeRel(rest));
+    else {
+      const [guide, ...more] = rest.split("/");
+      file = path.join(areaDir(kit, "media", guide), safeRel(more.join("/")));
+    }
+    const type = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".svg": "image/svg+xml", ".webp": "image/webp", ".ico": "image/x-icon", ".css": "text/css", ".js": "text/javascript", ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf", ".otf": "font/otf", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav", ".ogg": "audio/ogg" }[path.extname(file).toLowerCase()] ?? "application/octet-stream";
+    try {
+      return send(res, 200, await read(file), type);
+    } catch {
+      throw new HttpError(404, "no such file");
+    }
+  }
+  m = /^\/api\/media\/([\w-]+)$/.exec(p);
+  if (m && req.method === "GET") return json(res, await mediaOverview(kit, m[1]!));
+  if (p === "/api/media-file" && req.method === "POST") {
+    const area = url.searchParams.get("area") as Area;
+    if (area !== "shared" && area !== "media") throw new HttpError(400, "area must be shared or media");
+    const name = await saveMediaFile(kit, area, url.searchParams.get("guide") ?? undefined, url.searchParams.get("name") ?? "", await readRaw(req)).catch((e) => { throw new HttpError(400, e.message); });
+    return json(res, { saved: name });
+  }
+  if (p === "/api/media-file" && req.method === "DELETE") {
+    const area = url.searchParams.get("area") as Area;
+    await deleteMediaFile(kit, area, url.searchParams.get("guide") ?? undefined, url.searchParams.get("name") ?? "").catch((e) => { throw new HttpError(409, e.message); });
+    return json(res, { deleted: true });
+  }
+
+  // the whole tutorial system: every video, and the dashboard (catalog + pages) that gathers them
+  if (p === "/api/export-all" && req.method === "POST") {
+    const b = await readBody(req);
+    const sync = await syncSite(kit);
+    const built = [];
+    for (const id of await listGuides(kit)) built.push({ id, ...(await buildGuide(kit, id)) });
+    const r = await buildSite(kit, { posters: b.posters === true });
+    return json(res, { url: "/out/site/index.html", outDir: kit.out, guides: built.map((x) => ({ id: x.id, audioFiles: x.audioFiles, silent: x.silent })), pages: r.pages.length, warnings: [...new Set([...built.flatMap((x) => x.warnings), ...r.warnings])], siteCreated: sync.created, siteAdded: sync.added });
+  }
+
   if (p === "/api/check" && req.method === "POST") {
     const b = await readBody(req);
     const report = await validateGuide(kit, await loadGuide(kit, String(b.guide)));
@@ -152,6 +206,7 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     // builds with the voices chosen in cueflow.json: an external voice is called here, deliberately
     const b = await readBody(req);
     if (b.target === "site") {
+      await syncSite(kit);
       const r = await buildSite(kit, { posters: b.posters === true });
       return json(res, { target: "site", url: "/out/site/index.html", pages: r.pages.length, warnings: r.warnings });
     }
