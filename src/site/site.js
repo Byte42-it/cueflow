@@ -52,7 +52,7 @@
       availableTitle: "Available", askTitle: "Missing something?", askSub: "Suggest a topic", back: "Back", forward: "Forward",
       askKicker: "Missing something?", askHeading: "Request a tutorial",
       askLede: "Something is not clear, or the video you need is missing? Write the topic: requests help choose the next tutorials.",
-      topic: "Topic", topicPh: "e.g. how to upload the documents of a case", message: "What is not clear", optional: "(optional)",
+      topic: "Topic", topicPh: "e.g. how to upload the documents of a case", messagePh: "Where you got stuck, or the question you have.", message: "What is not clear", optional: "(optional)",
       name: "Name", email: "Email", askNote: "Name and email are only used to answer you.", send: "Send the request", sending: "Sending…", close: "Close",
       errTopic: "Write the topic of the tutorial (a few words at least).", errEmail: "The email address does not look valid. It can also be left empty.",
       errFile: "Opened as a file from your computer, the guide cannot send requests: open it from a web address.",
@@ -78,7 +78,7 @@
       availableTitle: "Disponibili", askTitle: "Manca qualcosa?", askSub: "Segnala l'argomento", back: "Indietro", forward: "Avanti",
       askKicker: "Manca qualcosa?", askHeading: "Richiedi un tutorial",
       askLede: "Una funzione non è chiara, o manca il video che servirebbe? Scrivi l'argomento: le richieste aiutano a scegliere i prossimi tutorial da preparare.",
-      topic: "Argomento", topicPh: "Es. come caricare i documenti di un caso", message: "Cosa non è chiaro", optional: "(facoltativo)",
+      topic: "Argomento", topicPh: "Es. come caricare i documenti di un caso", messagePh: "Il punto in cui ti sei fermato, o la domanda che hai.", message: "Cosa non è chiaro", optional: "(facoltativo)",
       name: "Nome", email: "Email", askNote: "Nome ed email servono solo per poterti rispondere.", send: "Invia la richiesta", sending: "Invio in corso…", close: "Chiudi",
       errTopic: "Scrivi l'argomento del tutorial (almeno qualche parola).", errEmail: "L'indirizzo email non sembra valido. Si può anche lasciarlo vuoto.",
       errFile: "Aperta come file dal computer, la guida non può inviare richieste: va aperta da un indirizzo web.",
@@ -310,7 +310,7 @@
       '<p class="cf-kicker">' + L("askKicker") + '</p><h2 id="cf-ask-title">' + L("askHeading") + '</h2><p class="cf-ask-lede">' + L("askLede") + "</p>" +
       '<form class="cf-ask-form" novalidate>' +
       "<label>" + L("topic") + '<input name="topic" required minlength="3" maxlength="200" placeholder="' + esc(L("topicPh")) + '"></label>' +
-      "<label>" + L("message") + " <span>" + L("optional") + '</span><textarea name="message" maxlength="2000"></textarea></label>' +
+      "<label>" + L("message") + " <span>" + L("optional") + '</span><textarea name="message" maxlength="2000" placeholder="' + esc(L("messagePh")) + '"></textarea></label>' +
       '<div class="cf-two"><label>' + L("name") + " <span>" + L("optional") + '</span><input name="name" maxlength="120" autocomplete="name"></label>' +
       "<label>" + L("email") + " <span>" + L("optional") + '</span><input name="email" type="email" maxlength="160" autocomplete="email"></label></div>' +
       '<div class="cf-hp" aria-hidden="true"><label>Company<input name="company" tabindex="-1" autocomplete="off"></label></div>' +
@@ -420,7 +420,7 @@
   if (S.guide && window.Cueflow) {
     // every player follows the site's language; a guide without it plays in the fallback, or its first language
     var gl = S.guide.guide.languages, playLang = gl.indexOf(lang) >= 0 ? lang : gl.indexOf(fallback) >= 0 ? fallback : gl[0];
-    player = window.Cueflow.mount(document.getElementById("cf-player"), S.guide, { fluid: true, lang: playLang, langSelect: false });
+    player = window.Cueflow.mount(document.getElementById("cf-player"), S.guide, { fluid: true, lang: playLang, langSelect: false, duration: current.duration });
     if (playLang !== lang) document.getElementById("cf-player").insertAdjacentHTML("beforebegin", '<p class="cf-lang-note">' + esc(L("videoIn", { lang: langName(playLang) })) + "</p>");
     window.__cueflow = player;
     // the player's transcript becomes a printable section of the page

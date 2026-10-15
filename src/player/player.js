@@ -15,18 +15,27 @@
   /* The player's own words. The interface follows the narration language; unknown languages fall back to English. */
   var LABELS = {
     en: { play: "Play", pause: "Pause", replay: "Replay this step", speed: "Speed", captions: "Captions", voice: "Voice", steps: "Steps", step: "Step",
-      transcript: "Transcript", download: "Download (.txt)", watch: "Watch this step", language: "Language" },
+      transcript: "Transcript", download: "Download (.txt)", watch: "Watch this step", language: "Language",
+      start: "Play the video", note: "With voice and captions", noteCaptions: "With captions", ended: "End of the video", again: "Click to watch it again",
+      resume: "Starts from step {n}: {title}" },
     it: { play: "Avvia", pause: "Pausa", replay: "Ripeti il passo", speed: "Velocità", captions: "Sottotitoli", voice: "Voce", steps: "Passi", step: "Passo",
-      transcript: "Trascrizione", download: "Scarica (.txt)", watch: "Guarda questo passo", language: "Lingua" },
+      transcript: "Trascrizione", download: "Scarica (.txt)", watch: "Guarda questo passo", language: "Lingua",
+      start: "Avvia il video", note: "Con voce e sottotitoli", noteCaptions: "Con sottotitoli", ended: "Fine del video", again: "Clic per rivederlo da capo",
+      resume: "Riparte dal passo {n}: {title}" },
     fr: { play: "Lire", pause: "Pause", replay: "Revoir l'étape", speed: "Vitesse", captions: "Sous-titres", voice: "Voix", steps: "Étapes", step: "Étape",
-      transcript: "Transcription", download: "Télécharger (.txt)", watch: "Voir cette étape", language: "Langue" },
+      transcript: "Transcription", download: "Télécharger (.txt)", watch: "Voir cette étape", language: "Langue",
+      start: "Lancer la vidéo", note: "Avec voix et sous-titres", noteCaptions: "Avec sous-titres", ended: "Fin de la vidéo", again: "Cliquez pour la revoir",
+      resume: "Reprend à l'étape {n} : {title}" },
     de: { play: "Abspielen", pause: "Pause", replay: "Schritt wiederholen", speed: "Tempo", captions: "Untertitel", voice: "Stimme", steps: "Schritte", step: "Schritt",
-      transcript: "Transkript", download: "Herunterladen (.txt)", watch: "Diesen Schritt ansehen", language: "Sprache" }
+      transcript: "Transkript", download: "Herunterladen (.txt)", watch: "Diesen Schritt ansehen", language: "Sprache",
+      start: "Video abspielen", note: "Mit Stimme und Untertiteln", noteCaptions: "Mit Untertiteln", ended: "Ende des Videos", again: "Klicken, um es erneut anzusehen",
+      resume: "Beginnt bei Schritt {n}: {title}" }
   };
 
   /**
    * options (all optional): fluid (fill the container instead of stopping at the stage width, for docs pages),
-   * lang (start in this language when the guide has it), langSelect (false hides the language selector).
+   * lang (start in this language when the guide has it), langSelect (false hides the language selector),
+   * duration (e.g. "about 1 min", shown with the play button before the video starts).
    */
   function mount(root, DATA, options) {
     options = options || {};
@@ -46,7 +55,10 @@
     var lang = guide.languages.indexOf(options.lang) >= 0 ? options.lang : guide.languages[0];
     var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     function tx(v) { return v == null || typeof v === "string" ? v || "" : v[lang] != null ? v[lang] : v[Object.keys(v)[0]]; }
-    function L(k) { var d = LABELS[lang] || LABELS[String(lang).slice(0, 2)] || LABELS.en; return d[k] || LABELS.en[k]; }
+    function L(k, vars) {
+      var d = LABELS[lang] || LABELS[String(lang).slice(0, 2)] || LABELS.en, s = d[k] || LABELS.en[k] || "";
+      return s.replace(/\{(\w+)\}/g, function (_, v) { return vars && vars[v] != null ? vars[v] : ""; });
+    }
     function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
     root.innerHTML =
@@ -57,6 +69,7 @@
       "</div>" +
       '<p class="cf-subs" aria-live="polite" hidden><span></span></p>' +
       '<button class="cf-big" aria-label="Play">' + ICON_PLAY + "</button>" +
+      '<p class="cf-veil-text" aria-hidden="true"><strong></strong><span></span></p>' +
       '<a class="cf-brand" href="' + REPO + '" target="_blank" rel="noopener" title="Made with Cueflow">' + MARK + "<span>cueflow</span></a></div>" +
       '<div class="cf-caption" aria-live="polite"></div>' +
       '<div class="cf-bar"><button class="cf-play" aria-label="Play/Pause">' + ICON_PLAY + "</button>" +
@@ -75,6 +88,7 @@
     var big = $(".cf-big"), playBtn = $(".cf-play"), fill = $(".cf-fill"), langSel = $(".cf-lang");
     var chapters = $(".cf-chapters"), speedBtn = $(".cf-speed"), ccBtn = $(".cf-cc"), voiceBtn = $(".cf-voice");
     var transcript = $(".cf-transcript");
+    var veilTitle = $(".cf-veil-text strong"), veilNote = $(".cf-veil-text span");
     // the Cueflow mark: over the picture by default; in the control bar it never covers the scene
     var brand = $(".cf-brand");
     if (opts.brand === "off") brand.remove();
@@ -448,7 +462,7 @@
       if (cur.t >= cur.total && !waitVoice) {
         if (cur.audio) cur.audio.pause();
         var next = cur.i + 1;
-        if (next >= steps.length) { setPlaying(false); app.classList.add("cf-ended"); paintChapters(); return; }
+        if (next >= steps.length) { setPlaying(false); app.classList.add("cf-ended"); showCaption(""); paintChapters(); paintVeil(); return; }
         loading = true;
         enterStep(next, false).then(function () { loading = false; last = performance.now(); });
       }
@@ -474,6 +488,7 @@
       cur.t = t;
       loading = false;
       progressBar();
+      paintVeil();
     }
 
     async function restart() { await goTo(0, 0); }
@@ -505,6 +520,22 @@
       var inside = r.left >= -1 && r.top >= -1 && r.right <= vw + 1 && r.bottom <= vh + 1;
       var outside = r.right <= 0 || r.bottom <= 0 || r.left >= vw || r.top >= vh;
       return { found: true, visible: visible, rect: rect, inView: inside ? "full" : outside ? "none" : "part", viewport: { width: vw, height: vh } };
+    }
+
+    // ---- the words beside the big play button: what it does, and from where it starts ----
+    function paintVeil() {
+      if (app.classList.contains("cf-ended")) {
+        veilTitle.textContent = L("ended");
+        veilNote.textContent = L("again");
+        return;
+      }
+      veilTitle.textContent = L("start");
+      if (cur && cur.i > 0) { veilNote.textContent = L("resume", { n: cur.i + 1, title: stepTitle(steps[cur.i], cur.i) }); return; }
+      var parts = [];
+      if (options.duration) parts.push(options.duration);
+      parts.push(voiceBtn.hidden ? (captionMode === "off" ? "" : L("noteCaptions")) : L("note"));
+      var note = parts.filter(Boolean).join(" · ");
+      veilNote.textContent = note.charAt(0).toUpperCase() + note.slice(1);
     }
 
     // ---- chapters ----
@@ -612,7 +643,7 @@
     langSel.onchange = async function () {
       lang = langSel.value;
       pickVoice();
-      labels(); buildChapters(); buildTranscript();
+      labels(); buildChapters(); buildTranscript(); paintVeil();
       var was = playing;
       setPlaying(false);
       await goTo(cur ? cur.i : 0, 0);
@@ -629,10 +660,17 @@
     buildChapters();
     buildTranscript();
 
-    /* a link to a step (#step-3, counted from 1) opens the player there, ready to play; followed later, it plays */
+    /* a link to a step (#step-3, counted from 1) opens the player there, ready to play; followed later, it plays.
+       The word for "step" in the guide's languages works too (#passo-3), so links written for a translated page keep working. */
+    function plain(w) { return String(w).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
     function stepFromHash() {
-      var m = /^#step-(\d+)$/.exec(location.hash);
-      return m ? Math.max(0, Math.min(steps.length - 1, +m[1] - 1)) : null;
+      var m = /^#([^-\d]+)-(\d+)$/.exec(decodeURIComponent(location.hash));
+      if (!m) return null;
+      var word = plain(m[1]), ok = word === "step" || guide.languages.some(function (l) {
+        var d = LABELS[l] || LABELS[String(l).slice(0, 2)];
+        return d && d.step && plain(d.step) === word;
+      });
+      return ok ? Math.max(0, Math.min(steps.length - 1, +m[2] - 1)) : null;
     }
     window.addEventListener("hashchange", function () {
       var i = stepFromHash();

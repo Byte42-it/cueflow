@@ -37,6 +37,18 @@ html:has(> .cf-page), .cf-page { margin: 0; background: var(--cf-bg); color: var
 .cf-play svg { width: 16px; height: 16px; display: block; }
 .cf-bar .cf-play { display: flex; align-items: center; justify-content: center; padding: 4px 8px; }
 .cf-playing .cf-big, .cf-ready .cf-big { display: none; }
+/* what the big button does, under it: shown before the video starts and when it ends, not on a pause */
+.cf-veil-text { position: absolute; left: 0; right: 0; top: calc(50% + 24px); z-index: 2; margin: 0 auto; max-width: 86%; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  text-align: center; color: var(--cf-veil-fg, #fff); text-shadow: var(--cf-veil-shadow, 0 1px 3px rgba(0, 0, 0, .6)); pointer-events: none; }
+.cf-veil-text strong { font-size: clamp(14px, 2.2vw, 20px); font-weight: 600; }
+.cf-veil-text span { font-size: clamp(11px, 1.5vw, 13.5px); color: var(--cf-veil-muted, rgba(255, 255, 255, .85)); }
+.cf-veil-text span:empty { display: none; }
+.cf-playing .cf-veil-text, .cf-ready .cf-veil-text, .cf-started:not(.cf-ended) .cf-veil-text { display: none; }
+/* a still video sits behind a veil, so the button and its words read on any scene; it lifts while playing */
+.cf-app:not(.cf-started):not(.cf-ready) .cf-stage::after, .cf-ended .cf-stage::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: var(--cf-veil-bg, rgba(15, 17, 21, .55)); backdrop-filter: blur(var(--cf-veil-blur, 2px)); }
+/* with its words under it, the button and the words are centered together */
+.cf-app:not(.cf-started) .cf-big, .cf-ended .cf-big { inset: -40px 0 0; }
 
 /* captions: under the stage, or over its bottom edge like subtitles */
 .cf-caption { min-height: 3.2em; padding: 10px 4px 0; color: var(--cf-fg); text-align: center; }
