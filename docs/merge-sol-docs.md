@@ -6,6 +6,22 @@ documento di progetto "Tutorial animati per la guida di SAUL" (PDF). Chi esegue 
 (branch `dev`, commit `e92d7968` e `c5a54655`, che nel repo di Luca **non ci sono**: non sono stati pushati) e alla
 memoria `sol_docs_video_tutorial.md` di Ballu. Leggete prima quella memoria e il `CLAUDE.md` di Cueflow.
 
+## Stato al 2026-10-15 (cosa è già in `main`)
+
+| Passo | Stato |
+|---|---|
+| 1 Player | fatto: capitoli, velocità, sottotitoli e voce separati, `#step-N`, tastiera, riduci-movimento, trascrizione. **Da verificare** contro il player di `sol` che nessun comando o dettaglio manchi |
+| 2 Controlli di qualità | fatto: durata massima (`maxSeconds` del brief), passi con più di due frasi, selettori, layout (`validate --layout`). Manca: avviso per parole non coperte dalla pronuncia |
+| 3 Voce | fatto: voci per globale / lingua / video con ereditarietà, stile e voce OpenAI nel kit (`cueflow.json`), pronuncia nel brief, anteprima con la voce del browser, `say` e comando locale. Da decidere in `sol`: voce e stile per SAUL |
+| 4 Tema e brief | fatto: `theme/`, `brief.json` |
+| 5 `build_site` | fatto: catalogo, home, pagina di dettaglio, PDF, poster, modale di richiesta. **Da fare: il confronto a screenshot con la guida di `sol`** (solo chi ha `sol` aggiornato può farlo) |
+| 6 Onboarding MCP | fatto: `instructions`, `get_method`, `get_brief`, `set_source`, `set_brief`, `init_kit`, `get_voices`, `set_voice` |
+| 7 Cattura | fatto, da sito vivo (`capture.json`). Da cartella locale: la fa l'assistente a mano (vedi `get_method`) |
+| 8 Ridurre `sol` | **da fare** |
+
+Inoltre esistono `cueflow init` (crea `.cueflow/`, output in `cueflow-dist/`) e `cueflow studio` (editor locale).
+I passi aperti sono quindi: 0 (rendere visibile `dev` di `sol`), il confronto del passo 5, e il passo 8.
+
 ## Regola che guida tutto
 
 > **Tutto ciò che renderebbe Cueflow utilizzabile su un sito qualsiasi va in Cueflow. Ciò che vale solo per SAUL resta in `sol`.**
