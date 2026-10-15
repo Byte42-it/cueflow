@@ -7,7 +7,7 @@ import { Brief, loadBrief, updateBrief } from "./brief.ts";
 import { buildGuide, estimateStepDuration, renderGuideHtml, writeAtomic } from "./build.ts";
 import { checkLayout } from "./layout.ts";
 import { buildSite, loadSite, setSiteText, syncSite } from "./site.ts";
-import { describeChange, pendingChanges, recordChange } from "./changes.ts";
+import { describeChange, discardChanges, pendingChanges, recordChange } from "./changes.ts";
 import { agentPrompt } from "./prompt.ts";
 import { deleteTutorial } from "./trash.ts";
 import { editSceneElement } from "./sceneedit.ts";
@@ -15,11 +15,11 @@ import { deleteMediaFile, mediaOverview, saveMediaFile, areaDir, safeRel, type A
 import { listGuides, listScenes, loadGuide, openKit, readScene, saveGuide, guideFile, type Kit } from "./kit.ts";
 import { describeScene, inlineScene } from "./scene.ts";
 import { Guide, pick } from "./schema.ts";
-import { narrationAudio, providerFromSpec, audioMime } from "./tts.ts";
+import { narrationAudio, providerFromSpec, audioMime, spokenText } from "./tts.ts";
 import { VoiceSpec } from "./settings.ts";
 import { validateGuide } from "./validate.ts";
 import { readFile as read } from "node:fs/promises";
-import { setVoice, voiceOptions, voiceTable } from "./voices.ts";
+import { setVoice, voiceFor, voiceOptions, voiceTable } from "./voices.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS: Record<string, [string, string]> = {
@@ -124,7 +124,12 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
 
   if (p === "/api/state") return json(res, await state(kit));
   if (p === "/api/agent-prompt") return json(res, { prompt: await agentPrompt(kit, { guide: url.searchParams.get("guide") ?? undefined, step: url.searchParams.get("step") ? Number(url.searchParams.get("step")) : undefined, lang }) });
-  if (p === "/api/changes") return json(res, (await pendingChanges(kit)).map((c) => ({ ...c, sentence: describeChange(c) })));
+  if (p === "/api/changes" && req.method === "GET") return json(res, (await pendingChanges(kit)).map((c) => ({ ...c, sentence: describeChange(c) })));
+  if (p === "/api/changes/discard" && req.method === "POST") {
+    const b = await readBody(req);
+    const ids = b.all === true ? "all" : Array.isArray(b.ids) ? b.ids.map(String) : [];
+    return json(res, { discarded: await discardChanges(kit, ids) });
+  }
 
   let m = /^\/api\/guide\/([\w-]+)$/.exec(p);
   if (m && req.method === "GET") return json(res, { guide: await loadGuide(kit, m[1]!), version: await mtime(guideFile(kit, m[1]!)) });
@@ -318,6 +323,18 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     await chmod(file, 0o600).catch(() => {});
     process.env.OPENAI_API_KEY = key;
     return json(res, { hasKey: true });
+  }
+  // a narration as the tutorial will say it: the voice cueflow.json gives that video in that language, with the
+  // pronunciation applied. An external voice goes through the same cache as the build, so listening first costs nothing more.
+  if (p === "/api/listen" && req.method === "POST") {
+    const b = await readBody(req);
+    const id = String(b.guide ?? ""), lang = String(b.language ?? "");
+    const guide = await loadGuide(kit, id);
+    const said = spokenText(String(b.text ?? "").slice(0, 2000), { ...(await loadBrief(kit)).pronunciation, ...guide.pronunciation });
+    const voice = voiceFor(kit, id, lang);
+    // the browser's voice, or none (a silent video): either way the browser reads it here, and says which
+    if (!voice.provider) return json(res, { browser: true, silent: !voice.browser, text: said });
+    return send(res, 200, await narrationAudio(kit, voice.provider, said, lang), audioMime(voice.provider));
   }
   if (p === "/api/voice-sample" && req.method === "POST") {
     const b = await readBody(req);

@@ -64,6 +64,30 @@ describe("studio", () => {
     assert.deepEqual(table.find((x: any) => x.language === "it"), { guide: "upload", language: "it", provider: "none", from: "language" });
   });
 
+  it("lets you listen to a narration with the voice and pronunciation of the tutorial", async () => {
+    await fetch(url + "api/brief", { method: "POST", headers: H, body: JSON.stringify({ pronunciation: { Acme: "Ack-mee" } }) });
+    const en = await fetch(url + "api/listen", { method: "POST", headers: H, body: JSON.stringify({ guide: "upload", language: "en", text: "Open Acme." }) });
+    assert.deepEqual(await en.json(), { browser: true, silent: false, text: "Open Ack-mee." }, "en has the browser's voice");
+    const it = await fetch(url + "api/listen", { method: "POST", headers: H, body: JSON.stringify({ guide: "upload", language: "it", text: "Apri Acme." }) });
+    assert.equal(((await it.json()) as any).silent, true, "it was set to no voice above");
+    assert.equal((await fetch(url + "api/listen", { method: "POST", headers: H, body: JSON.stringify({ guide: "nope", language: "en", text: "x" }) })).ok, false);
+  });
+
+  it("deletes notes for the assistant one by one or all together, keeping the edits", async () => {
+    const before = (await (await fetch(url + "api/changes")).json()) as any[];
+    const { guide, version } = (await (await fetch(url + "api/guide/upload")).json()) as any;
+    guide.steps[1].narration.en = "Another sentence for the second step.";
+    await fetch(url + "api/guide/upload", { method: "PUT", headers: H, body: JSON.stringify({ guide, version }) });
+    const notes = (await (await fetch(url + "api/changes")).json()) as any[];
+    assert.ok(notes.length > before.length);
+    const one = notes[notes.length - 1].id;
+    await fetch(url + "api/changes/discard", { method: "POST", headers: H, body: JSON.stringify({ ids: [one] }) });
+    assert.ok(!((await (await fetch(url + "api/changes")).json()) as any[]).some((c) => c.id === one));
+    await fetch(url + "api/changes/discard", { method: "POST", headers: H, body: JSON.stringify({ all: true }) });
+    assert.deepEqual(await (await fetch(url + "api/changes")).json(), []);
+    assert.match(await readFile(path.join(dir, ".cueflow", "guides", "upload.json"), "utf8"), /Another sentence for the second step\./, "the edit stays");
+  });
+
   it("does not let a page from elsewhere drive it", async () => {
     assert.equal((await fetch(url + "api/voice", { method: "POST", body: "{}" })).status, 403);
     const port = new URL(url).port;

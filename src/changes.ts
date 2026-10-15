@@ -67,6 +67,18 @@ export async function markSeen(kit: Kit, ids: string[] | "all", note?: string): 
   return n;
 }
 
+/**
+ * Drops notes the person does not want the assistant to read (a try, an edit already explained to it). The edit
+ * itself stays saved: only its note goes. Returns how many were dropped.
+ */
+export async function discardChanges(kit: Kit, ids: string[] | "all"): Promise<number> {
+  const all = await load(kit);
+  const keep = all.filter((c) => c.seen || (ids !== "all" && !ids.includes(c.id)));
+  const n = all.length - keep.length;
+  if (n) await writeAtomic(changesFile(kit), JSON.stringify(keep, null, 2) + "\n");
+  return n;
+}
+
 /** How the assistant is told: a plain sentence per change. */
 export function describeChange(c: Change): string {
   const where = [c.tutorial && `tutorial "${c.tutorial}"`, c.lang && `language "${c.lang}"`, c.scene && `screen "${c.scene}"`].filter(Boolean).join(", ");
