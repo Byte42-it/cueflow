@@ -41,9 +41,10 @@ Decisions taken with the owner (Luca) — do not re-litigate:
 | `site/site.js`, `site.css` | docs-site runtime (left bar, drawer, request dialog, tiles/rows/hover preview, item page index/search/print); shipped with the player in `assets/cueflow.js`/`.css` |
 | `preview.ts` | `launchChromium` (lang, `CUEFLOW_CHROMIUM`), `openPreview` session over a built guide: `seek` (ms or "80%"), `frame` (player, or stage without cursor/ring/mark), `probe`, contact `sheet` |
 | `layout.ts` | `checkLayout`: plays the guide and probes every element used by camera/move/click/highlight/type/form actions at its moment (found, visible, inside the scene) |
+| `settings.ts`, `voices.ts` | `cueflow.json` (zod): `outDir` (fixed by `cueflow init`, default `../cueflow-dist` for a project kit) and `voices` with **inheritance** video-language › video › language › global › browser (`resolveVoice`); `voiceFor` turns it into a provider (an external voice is explicit: no key-only auto-switch, a missing key is an error), `setVoice`, `voiceOptions` (plain-words catalogue for Studio/assistants) |
 | `brief.ts`, `method.ts` | `brief.json` (what was agreed with the user: source, audience, tone, languages, rules, pronunciation, maxSeconds; the only home of product rules) and `kitStatus` (what to do next); `METHOD`/`INSTRUCTIONS`, the working method served by `get_method` — must never name a product |
 | `mcp.ts` | MCP server (stdio): capture_scenes, list_scenes, inspect_scene, create_guide, get_guide, add_step, replace_step, remove_step, set_narration, validate_guide (+layout), build_guide, preview_frame, validate_site, build_site |
-| `cli.ts` | `cueflow capture|build|validate [--layout]|preview|site|mcp --kit <dir>` |
+| `cli.ts` | `cueflow init|voices|capture|build|validate [--layout]|preview|site|mcp`; the kit is `--kit`, `CUEFLOW_KIT`, the nearest `.cueflow/` upwards (`findKitRoot`), or the current folder |
 
 Player model worth knowing before touching it:
 - Each action has `start/update(p)/finish` handlers; `runDue(step, t, ctx)` is **idempotent** and is used both by live
@@ -91,6 +92,21 @@ raster logos, computed durations. 37 tests green (no browser needed).
 **the OpenAI path ran once against the real API (2026-10-14, 8 mp3 for the demo; not listened to, player timing with
 those files not checked).** On the dev machine Playwright 1.64 wants a Chromium build
 that is not installed: use `CUEFLOW_CHROMIUM=~/Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell`.
+
+## Direction (decided with Luca, 2026-10-15)
+
+- **Package**: `npm run build` compiles `src` to `build/` (tsc, `rewriteRelativeImportExtensions`; Node does not run `.ts`
+  inside `node_modules`) and copies the player/site assets; `bin` is `build/cli.js`. Not published yet (`npm pack`
+  and a real install verified).
+- **`.cueflow/`** is a project's kit, committed with the product; output goes to a fixed `cueflow-dist/` beside it
+  (configurable once at `init`, then never changed).
+- **Voices**: default is the browser's voice; external voices are an explicit choice, at global / language / video
+  level, inherited downwards (see `settings.ts`). Studio must offer this as plain-worded choices (`voiceOptions`).
+- **Cueflow Studio** (not built): optional `cueflow studio`, a local server + page that reads/writes `.cueflow/`; files
+  stay the single source of truth so a person and an assistant can edit the same kit. First version: step list with
+  preview, narration/pronunciation editing, click-to-pick selectors in the scene, draggable camera frame, voice
+  choices, an "ask the assistant" box using the MCP tools. A full timeline editor only later. MCP first, no embedded
+  vendor-specific agent.
 
 ## Roadmap (suggested order)
 

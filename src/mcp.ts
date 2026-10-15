@@ -4,6 +4,8 @@ import { z } from "zod";
 import { buildGuide } from "./build.ts";
 import { Brief, initKit, kitStatus, updateBrief } from "./brief.ts";
 import { INSTRUCTIONS, METHOD } from "./method.ts";
+import { VoiceSpec } from "./settings.ts";
+import { setVoice, voiceOptions, voiceTable } from "./voices.ts";
 import { captureScenes } from "./capture.ts";
 import { listGuides, listScenes, loadGuide, readScene, saveGuide, type Kit } from "./kit.ts";
 import { checkLayout } from "./layout.ts";
@@ -11,7 +13,6 @@ import { renderFrame } from "./preview.ts";
 import { describeScene } from "./scene.ts";
 import { buildSite, loadSite, validateSite } from "./site.ts";
 import { Guide, Step } from "./schema.ts";
-import { defaultProvider } from "./tts.ts";
 import { validateGuide } from "./validate.ts";
 
 const text = (value: unknown) => ({ content: [{ type: "text" as const, text: typeof value === "string" ? value : JSON.stringify(value, null, 2) }] });
@@ -87,6 +88,37 @@ export function createServer(kit: Kit): McpServer {
       await initKit(kit);
       await updateBrief(kit, Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)));
       return text(await kitStatus(kit));
+    })
+  );
+
+  server.registerTool(
+    "get_voices",
+    { description: "The voices to choose from, in plain words (browser voice by default; external voices need an explicit choice and, for OpenAI, a key), and which voice every video speaks with in each language and where that choice comes from (video, language, global, default)." },
+    safe(async () => text({ options: voiceOptions(), current: kit.settings.voices, table: await voiceTable(kit) }))
+  );
+
+  server.registerTool(
+    "set_voice",
+    {
+      description:
+        "Choose a voice at one level, or clear it to inherit from the level above. Levels, most specific first: one video (and optionally one of its languages) > a language (all videos in it) > global > the browser's voice. Ask the user before choosing an external voice: it sends the narration text to a service, and OpenAI needs OPENAI_API_KEY in the kit's .env. Describe the options from get_voices; do not pick for them.",
+      inputSchema: {
+        scope: z.enum(["global", "language", "video"]),
+        language: z.string().optional().describe("for scope language, or to narrow a video's voice to one of its languages"),
+        guide: z.string().optional().describe("for scope video"),
+        voice: VoiceSpec.nullable().describe("the voice, e.g. {provider:'browser'} or {provider:'openai', voice:'coral', style:'calm'}; null clears this level")
+      }
+    },
+    safe(async ({ scope, language, guide, voice }) => {
+      if (scope === "language" && !language) throw new Error("scope language needs `language`, e.g. \"it\"");
+      if (scope === "video" && !guide) throw new Error("scope video needs `guide`, the id of the video");
+      await setVoice(kit, scope === "global" ? { scope } : scope === "language" ? { scope, language: language! } : { scope, guide: guide!, language }, voice);
+      const needsKey = voice?.provider === "openai" && !process.env.OPENAI_API_KEY;
+      return text({
+        saved: true,
+        ...(needsKey ? { warning: "OPENAI_API_KEY is not set yet: put it in the kit's .env file (OPENAI_API_KEY=sk-…) before building, or the build will stop with an error." } : {}),
+        table: await voiceTable(kit)
+      });
     })
   );
 
@@ -220,10 +252,10 @@ export function createServer(kit: Kit): McpServer {
   server.registerTool(
     "build_guide",
     {
-      description: "Build the guide into one self-contained HTML file (dist/<guide>.html), generating the narration audio when a TTS provider is configured.",
+      description: "Build the guide into one self-contained HTML file (<output folder>/<guide>.html), generating the narration audio when a TTS provider is configured.",
       inputSchema: { guide: guideId }
     },
-    safe(async ({ guide }) => text(await buildGuide(kit, guide, defaultProvider())))
+    safe(async ({ guide }) => text(await buildGuide(kit, guide)))
   );
 
   server.registerTool(
@@ -236,10 +268,10 @@ export function createServer(kit: Kit): McpServer {
     "build_site",
     {
       description:
-        "Build the docs site from site.json into dist/site/: a home page (featured item, quick access, scrolling rows) and one page per item with its video, transcript and written guide (pages/<id>.html). `posters` renders a frame of each guide as its poster (needs Playwright).",
+        "Build the docs site from site.json into the output folder's site/: a home page (featured item, quick access, scrolling rows) and one page per item with its video, transcript and written guide (pages/<id>.html). `posters` renders a frame of each guide as its poster (needs Playwright).",
       inputSchema: { posters: z.boolean().default(false) }
     },
-    safe(async ({ posters }) => text(await buildSite(kit, { provider: defaultProvider(), posters })))
+    safe(async ({ posters }) => text(await buildSite(kit, { posters })))
   );
 
   server.registerTool(

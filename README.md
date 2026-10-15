@@ -35,28 +35,56 @@ Cueflow is an early open-source prototype. Feedback, example kits, bug reports a
 
 Cueflow is a tool you install once and point at any number of projects. It does not live inside your product.
 
-1. **Install it once** (Node.js 22.18+). Until the package is on npm:
+1. **Install it** (Node.js 22.18 or later): `npm install -g cueflow` — or nothing at all, and use `npx cueflow …`.
+   Playwright (for capture, previews and posters) is optional: `npx playwright install chromium`.
+2. **In your project's folder, run `cueflow init`.** It creates `.cueflow/`, the kit of the project, and fixes once where
+   the result goes: `cueflow-dist/` next to it (change it with `--out-dir`; it is stored in `.cueflow/cueflow.json`
+   and stays the same). `.cueflow/` is meant to be committed with your product; its own `.gitignore` leaves out `.env`
+   and the voice cache. Every `cueflow` command run anywhere inside the project finds `.cueflow/` by itself.
+3. **Connect your AI assistant to it** (here Claude Code, from the project's folder; any MCP client works):
    ```bash
-   git clone https://github.com/Byte42-it/cueflow.git ~/tools/cueflow
-   cd ~/tools/cueflow && npm install && npx playwright install chromium
+   claude mcp add cueflow -- cueflow mcp
    ```
-2. **Make a kit inside the project you want to document**, for example `my-product/tutorials/` (see [The kit](#the-kit)).
-   The kit is data you version with your product: scenes, guides, theme, catalog. Start from a copy of
-   `examples/demo-kit`, or let `capture` build the scenes from your running site.
-3. **Connect your AI assistant to that kit** (here Claude Code, run from the kit's folder; any MCP client works):
-   ```bash
-   claude mcp add cueflow -- node ~/tools/cueflow/src/cli.ts mcp --kit "$(pwd)"
-   ```
-   Put `OPENAI_API_KEY` (or `CUEFLOW_TTS=say|command`) in a `.env` file in the kit; it is never read from the kit's
-   scenes and should be git-ignored.
-4. **Ask for tutorials.** Open the assistant in the product's folder and say you want tutorials. Cueflow gives it the
-   method (`get_method`) and the state of the kit (`get_brief`): it starts by asking which site (a folder or a live
-   address), then talks the brief through with you (audience, tone, languages, rules, how names are pronounced). It captures the screens, writes the steps (each one checked against the real elements), looks at
-   frames with `preview_frame`, and builds the guide and the docs site. You review the previews and the narration.
-5. **Publish** the folder `dist/` (one HTML per guide, plus `dist/site/` for the catalog). No server is needed to view it.
+4. **Ask for tutorials.** Say you want tutorials. Cueflow gives the assistant the method (`get_method`) and the state of the
+   kit (`get_brief`): it starts by asking which site (a folder or a live address), then talks the brief through with you
+   (audience, tone, languages, rules, how names are pronounced). It captures the screens, writes the steps (each one
+   checked against the real elements), looks at frames with `preview_frame`, and builds the guides and the docs site.
+   You review the previews and the narration.
+5. **Publish** `cueflow-dist/` (one HTML per guide, plus `site/` for the catalog). No server is needed to view it.
 
-The kit stays in your product's repo; Cueflow stays in one place on your machine and is updated with `git pull`.
-Nothing product-specific (names, colors, texts, rules) belongs in Cueflow itself.
+Nothing product-specific (names, colors, texts, rules) belongs in Cueflow itself. Until the package is on npm, clone
+this repository, `npm install && npm run build`, and run `node <clone>/build/cli.js …` (or `npm link`).
+
+### Voices
+
+By default a tutorial is read by **the viewer's browser**: free, no key, nothing to set up (it sounds different on every
+computer). An external voice is always an explicit choice, never a side effect of having a key:
+
+| Choice | What it is |
+|---|---|
+| `browser` (default) | the browser reads the text; nothing stored |
+| `openai` | natural, the same everywhere, generated once and stored; the narration text is sent to OpenAI; needs `OPENAI_API_KEY` in `.cueflow/.env` |
+| `say` | macOS voices, free and offline |
+| `command` | any local program (e.g. Piper), nothing leaves the computer |
+| `none` | silent, captions only |
+
+`cueflow voices` lists them in words and shows which voice each video speaks with. A voice can be chosen at three
+levels, and **what is not set is inherited from the level above**: one video (or one of its languages) › a language
+(every video in it) › global › the browser's. In `cueflow.json`:
+
+```json
+{
+  "outDir": "../cueflow-dist",
+  "voices": {
+    "default": { "provider": "browser" },
+    "languages": { "it": { "provider": "openai", "voice": "coral", "style": "calm, professional" } },
+    "guides": { "upload": { "default": { "provider": "say" } } }
+  }
+}
+```
+
+The assistant does it with `get_voices` and `set_voice`; the future Cueflow Studio will offer the same choice with
+buttons. `CUEFLOW_TTS` still works for scripts, but only where `cueflow.json` chooses nothing.
 
 ## The kit
 
@@ -148,12 +176,12 @@ Open the generated HTML in a browser. Without a voice the guide is silent (capti
 
 | `CUEFLOW_TTS` | Voice |
 |---|---|
-| `openai` (default when `OPENAI_API_KEY` is set) | OpenAI speech (`CUEFLOW_TTS_MODEL`, `CUEFLOW_TTS_VOICE`), mp3 |
+| `openai` | OpenAI speech (`CUEFLOW_TTS_MODEL`, `CUEFLOW_TTS_VOICE`), mp3; needs `OPENAI_API_KEY`, which alone does not switch it on |
 | `say` | the voices of macOS, offline and free: the first one installed for the guide's language, or `CUEFLOW_TTS_VOICE`; AAC in m4a |
 | `command` | any local program: `CUEFLOW_TTS_COMMAND` with `{text}` (a file with the text), `{out}`, `{lang}`, `{voice}`, and `CUEFLOW_TTS_FORMAT` (mp3, m4a, wav, ogg; default wav). Piper: `piper --model it_IT-paola-medium.onnx --output_file {out} < {text}` |
 | `none` | silent |
 
-With audio, each step lasts as long as its recording and the actions placed in percentages follow it.
+These variables are for scripts; a project normally chooses its voice in `cueflow.json` (see Voices above). With audio, each step lasts as long as its recording and the actions placed in percentages follow it.
 
 ### Checking a guide
 
@@ -226,6 +254,7 @@ the original with a note.
 
 | Tool | What it does |
 |---|---|
+| `get_voices`, `set_voice` | the voices in plain words and who speaks with which; choose one for everything, a language, or one video (inherited downwards) |
 | `get_method` | the working method, the same for every product: read first. Also summarised in the server's `instructions` |
 | `get_brief`, `set_brief`, `set_source`, `init_kit` | where the kit stands and what to do next; the agreed brief (`brief.json`: site, source, audience, tone, languages, rules, pronunciation, maximum length); which site the tutorials are for (a folder or a live address); the kit's folders |
 | `capture_scenes` | capture the scenes from the live site described in `capture.json` |

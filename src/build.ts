@@ -6,6 +6,7 @@ import { inlineScene, type Shared } from "./scene.ts";
 import type { Guide } from "./schema.ts";
 import { loadTheme } from "./theme.ts";
 import { loadBrief } from "./brief.ts";
+import { voiceFor } from "./voices.ts";
 import { audioMime, narrationAudio, spokenText, type TtsProvider } from "./tts.ts";
 import { validateGuide } from "./validate.ts";
 
@@ -35,7 +36,7 @@ export type GuideBundle = {
   warnings: string[];
 };
 
-export async function guideBundle(kit: Kit, id: string, provider: TtsProvider | null): Promise<GuideBundle> {
+export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider | null): Promise<GuideBundle> {
   const guide = await loadGuide(kit, id);
   const report = await validateGuide(kit, guide);
   if (report.errors.length) throw new Error(`the guide "${id}" is not valid:\n- ${report.errors.join("\n- ")}`);
@@ -58,18 +59,25 @@ export async function guideBundle(kit: Kit, id: string, provider: TtsProvider | 
   const audio: Record<string, Record<string, string>> = {};
   let audioFiles = 0;
   const brief = await loadBrief(kit);
-  if (provider) {
-    for (const lang of guide.languages) {
+  // `provider` undefined: each language speaks with the voice cueflow.json gives it; null: silent (previews); a provider: forced
+  let browserVoice = false;
+  for (const lang of guide.languages) {
+    const voice = provider === undefined ? voiceFor(kit, id, lang) : null;
+    const p = provider === undefined ? voice!.provider : provider;
+    if (voice?.browser) browserVoice = true;
+    if (p) {
       audio[lang] = {};
       for (const step of guide.steps) {
         const text = step.narration[lang]?.trim();
         if (!text) continue;
-        const sound = await narrationAudio(kit, provider, spokenText(text, { ...brief.pronunciation, ...guide.pronunciation }), lang);
-        audio[lang]![step.id] = `data:${audioMime(provider)};base64,${sound.toString("base64")}`;
+        const sound = await narrationAudio(kit, p, spokenText(text, { ...brief.pronunciation, ...guide.pronunciation }), lang);
+        audio[lang]![step.id] = `data:${audioMime(p)};base64,${sound.toString("base64")}`;
         audioFiles += 1;
       }
     }
   }
+  // a language without a recorded voice is read by the viewer's browser when that is what was chosen for it
+  if (browserVoice) guide.player = { ...guide.player, fallbackVoice: "browser" };
   return { guide, data: { guide, scenes, sceneLang, shared, audio }, scenes: names, audioFiles, warnings: report.warnings };
 }
 
@@ -112,14 +120,14 @@ export async function writeAtomic(file: string, content: string | Buffer): Promi
 }
 
 /** Builds guides/<id>.json into dist/<id>.html: one self-contained file with player, scenes, timeline and audio. */
-export async function buildGuide(kit: Kit, id: string, provider: TtsProvider | null): Promise<BuildResult> {
+export async function buildGuide(kit: Kit, id: string, provider?: TtsProvider | null): Promise<BuildResult> {
   const bundle = await guideBundle(kit, id, provider);
   const { js, css, theme } = await playerAssets(kit);
   const styles = theme.css ? `${css}\n/* kit theme */\n${theme.css}` : css;
   const html = pageHtml(bundle.guide, styles, js, { ...bundle.data, labels: theme.labels });
   const file = distFile(kit, id);
   await writeAtomic(file, html);
-  return { file, scenes: bundle.scenes, audioFiles: bundle.audioFiles, silent: !provider, warnings: bundle.warnings };
+  return { file, scenes: bundle.scenes, audioFiles: bundle.audioFiles, silent: bundle.audioFiles === 0, warnings: bundle.warnings };
 }
 
 function pageHtml(guide: Guide, css: string, player: string, data: unknown): string {

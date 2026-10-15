@@ -6,6 +6,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { Kit } from "./kit.ts";
 import { audioDir } from "./kit.ts";
+import type { VoiceSpec } from "./settings.ts";
 
 /**
  * Text-to-speech behind a small interface, with an on-disk cache. The file name is a hash of everything that
@@ -27,15 +28,16 @@ export const audioMime = (provider: TtsProvider) => MIME[provider.format ?? "mp3
 
 const languageName = (lang: string) => new Intl.DisplayNames(["en"], { type: "language" }).of(lang) ?? lang;
 
-export function openAiProvider(env: NodeJS.ProcessEnv = process.env): TtsProvider | null {
+export function openAiProvider(env: NodeJS.ProcessEnv = process.env, options: { voice?: string; model?: string; style?: string } = {}): TtsProvider | null {
   const key = env.OPENAI_API_KEY;
   if (!key) return null;
   const baseUrl = (env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/+$/, "");
-  const model = env.CUEFLOW_TTS_MODEL ?? "gpt-4o-mini-tts";
-  const voice = env.CUEFLOW_TTS_VOICE ?? "coral";
+  const model = options.model ?? env.CUEFLOW_TTS_MODEL ?? "gpt-4o-mini-tts";
+  const voice = options.voice ?? env.CUEFLOW_TTS_VOICE ?? "coral";
+  const style = options.style;
   return {
     id: "openai",
-    fingerprint: JSON.stringify([baseUrl, model, voice]),
+    fingerprint: JSON.stringify(style ? [baseUrl, model, voice, style] : [baseUrl, model, voice]),
     async synthesize(text, lang) {
       const res = await fetch(`${baseUrl}/audio/speech`, {
         method: "POST",
@@ -46,7 +48,7 @@ export function openAiProvider(env: NodeJS.ProcessEnv = process.env): TtsProvide
           input: text,
           response_format: "mp3",
           ...(model.startsWith("gpt-4o")
-            ? { instructions: `Speak in ${languageName(lang)}, in a calm, clear and friendly voice, like the narrator of a product tutorial.` }
+            ? { instructions: `Speak in ${languageName(lang)}. ${style ?? "Calm, clear and friendly, like the narrator of a product tutorial."}` }
             : {})
         })
       });
@@ -130,15 +132,34 @@ export function sayProvider(env: NodeJS.ProcessEnv = process.env): TtsProvider {
 
 /**
  * The provider chosen by CUEFLOW_TTS: openai, say (macOS voices), command (any local program, e.g. Piper) or none.
- * By default OpenAI when a key is present, else none.
+ * Having an OPENAI_API_KEY is not a choice: without CUEFLOW_TTS (or a voice set in cueflow.json) nothing is sent to a
+ * paid service.
  */
 export function defaultProvider(env: NodeJS.ProcessEnv = process.env): TtsProvider | null {
-  const choice = env.CUEFLOW_TTS ?? "auto";
+  const choice = env.CUEFLOW_TTS ?? "none";
   if (choice === "none") return null;
-  if (choice === "openai" || choice === "auto") return openAiProvider(env);
+  if (choice === "openai") return openAiProvider(env);
   if (choice === "say") return sayProvider(env);
   if (choice === "command") return commandProvider(env);
   throw new Error(`unknown CUEFLOW_TTS "${choice}" (expected openai, say, command or none)`);
+}
+
+/** The provider for a voice chosen in cueflow.json. External voices are explicit: a missing key is an error, not a silent build. */
+export function providerFromSpec(spec: VoiceSpec, env: NodeJS.ProcessEnv = process.env): TtsProvider | null {
+  switch (spec.provider) {
+    case "browser":
+    case "none":
+      return null;
+    case "openai": {
+      const p = openAiProvider(env, spec);
+      if (!p) throw new Error('the voice is set to "openai" but OPENAI_API_KEY is missing: put it in the kit\'s .env file (OPENAI_API_KEY=sk-…) or choose another voice (get_voices lists them)');
+      return p;
+    }
+    case "say":
+      return sayProvider({ ...env, ...(spec.voice ? { CUEFLOW_TTS_VOICE: spec.voice } : {}) });
+    case "command":
+      return commandProvider({ ...env, CUEFLOW_TTS_COMMAND: spec.command, CUEFLOW_TTS_FORMAT: spec.format, ...(spec.voice ? { CUEFLOW_TTS_VOICE: spec.voice } : {}) });
+  }
 }
 
 /**

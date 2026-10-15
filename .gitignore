@@ -4,3 +4,4 @@ dist
 .env
 examples/*/dist
 examples/*/audio
+build

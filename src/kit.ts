@@ -1,11 +1,33 @@
+import { statSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Guide } from "./schema.ts";
+import { readSettingsSync, type Settings } from "./settings.ts";
 
 /** A kit is a folder with shared/ (site assets), scenes/ (static HTML), guides/ (JSON), audio/ (TTS cache), dist/ (output). */
-export type Kit = { root: string };
+export type Kit = { root: string; /** where the output goes: settings.outDir, default dist/ */ out: string; settings: Settings };
 
-export const openKit = (root: string): Kit => ({ root: path.resolve(root) });
+export const openKit = (root: string): Kit => {
+  const abs = path.resolve(root);
+  const settings = readSettingsSync(abs);
+  return { root: abs, out: path.resolve(abs, settings.outDir), settings };
+};
+
+/** The kit of a project: the nearest `.cueflow` folder from `from` upwards, like git finds .git. */
+export function findKitRoot(from: string): string | null {
+  let dir = path.resolve(from);
+  for (;;) {
+    const candidate = path.join(dir, ".cueflow");
+    try {
+      if (statSync(candidate).isDirectory()) return candidate;
+    } catch {
+      // not here, go up
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
 
 const safeName = (name: string): string => {
   if (!/^[a-z0-9][a-z0-9_-]*$/i.test(name)) throw new Error(`invalid name "${name}" (letters, digits, - and _ only)`);
@@ -24,7 +46,7 @@ export async function sceneFileFor(kit: Kit, scene: string, lang?: string): Prom
   return sceneFile(kit, scene);
 }
 export const guideFile = (kit: Kit, id: string) => path.join(kit.root, "guides", `${safeName(id)}.json`);
-export const distFile = (kit: Kit, id: string) => path.join(kit.root, "dist", `${safeName(id)}.html`);
+export const distFile = (kit: Kit, id: string) => path.join(kit.out, `${safeName(id)}.html`);
 export const audioDir = (kit: Kit) => path.join(kit.root, "audio");
 
 export async function listScenes(kit: Kit): Promise<string[]> {
