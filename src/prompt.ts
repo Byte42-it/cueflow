@@ -13,6 +13,12 @@ export function connectCommand(kit: Kit): string {
 /** Where Studio listens, and the key to its door for this run (see agent.ts). */
 export type StudioLink = { url: string; token: string };
 
+/** The link that serves the full prompt, with this run's key inside it: the assistant opens it instead of the person pasting a wall of text. */
+export const instructionsUrl = (studio: StudioLink) => `${studio.url.replace(/\/$/, "")}/agent/instructions/${studio.token}`;
+
+/** The few words to paste into an assistant: it reads the rest (always current) from the link. */
+export const pasteLine = (studio: StudioLink) => `Read the instructions at ${instructionsUrl(studio)} (fetch it with curl or your web tool) and follow them. They are Cueflow's: I am making narrated tutorials and Cueflow Studio is open.`;
+
 /** How to work with Cueflow from an assistant: through Studio's HTTP door when Studio runs, or as an MCP server. */
 export function connectionLines(kit: Kit, studio?: StudioLink): string[] {
   const lines: string[] = [];

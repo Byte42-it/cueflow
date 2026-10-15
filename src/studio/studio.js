@@ -69,7 +69,7 @@
     $("#welcome").hidden = !empty;
     if (!empty) return;
     S.welcomeShown = true;
-    api("/api/agent-prompt").then(function (r) { S.welcomePrompt = r.prompt; $("#welcome-prompt").textContent = r.prompt; });
+    api("/api/agent-prompt").then(function (r) { S.welcomePrompt = r.short || r.prompt; $("#welcome-prompt").textContent = r.short || r.prompt; });
   }
   function copyText(t, okMsg, el) {
     return (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { flash(okMsg, "ok"); }, function () { if (el) { var r = document.createRange(); r.selectNodeContents(el); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); } flash("Select the text and copy it (Ctrl+C).", ""); });
@@ -105,10 +105,10 @@
       var d = dialog("Your AI assistant", function (body, close) {
         body.parentNode.classList.add("big");
         body.appendChild(h("div", { class: "alive" }));
-        body.appendChild(h("p", null, "Paste this into your assistant (Claude Code in the terminal or in VS Code, or another that can run curl or MCP). It tells it where the kit is, what exists, what you are looking at and how to talk to Studio: through Studio's own door, valid while Studio runs, or as an MCP server. Once it is connected, what you ask from Studio (a new tutorial, a request) goes to it directly, without copying. Paste it again in a new session to carry on without starting over."));
-        var pre = h("pre", { class: "prompt" }, r.prompt);
+        body.appendChild(h("p", null, "Paste this into your assistant (Claude Code in the terminal or in VS Code, or another that can run curl or MCP). The link in it carries the key and returns the full instructions: where the kit is, what exists, what you are looking at and how to talk to Studio. It keeps working if Studio is restarted. Once it is connected, what you ask from Studio (a new tutorial, a request) goes to it directly, without copying. Paste it again in a new session to carry on without starting over."));
+        var pre = h("pre", { class: "prompt" }, r.short || r.prompt);
         body.appendChild(pre);
-        body.appendChild(h("div", { class: "row" }, h("button", { class: "btn primary", onclick: function () { copyText(r.prompt, "Prompt copied.", pre); } }, "Copy the prompt"), h("button", { class: "btn", onclick: function () { d.dataset.agent = ""; close(); } }, "Close")));
+        body.appendChild(h("div", { class: "row" }, h("button", { class: "btn primary", onclick: function () { copyText(r.short || r.prompt, "Copied. Paste it in your assistant.", pre); } }, "Copy"), h("button", { class: "btn", onclick: function () { d.dataset.agent = ""; close(); } }, "Close")));
       });
       d.dataset.agent = "1";
       renderAgentDialog();
@@ -384,12 +384,13 @@
     var key = S.mode === "video" ? "v:" + S.guideId + ":" + S.lang : "p:" + currentScene() + ":" + S.lang;
     if (!force && key === viewKey) { if (S.mode === "video") gotoStep(); return; }
     viewKey = key;
-    var src = S.mode === "video" ? "/preview/" + S.guideId + "?lang=" + S.lang + "#step-" + (S.step + 1) : "/scene/" + currentScene() + "?lang=" + S.lang;
+    var src = S.mode === "video" ? "/preview/" + S.guideId + "?lang=" + S.lang + "&studio=1#step-" + (S.step + 1) : "/scene/" + currentScene() + "?lang=" + S.lang;
     view.onload = S.mode === "pick" ? function () { armPicker(view); } : null;
     view.src = src;
     if (force) view.contentWindow && view.contentWindow.location.reload();
   }
-  function gotoStep() { try { view.contentWindow.location.hash = "#step-" + (S.step + 1); } catch (e) { /* not loaded yet */ } }
+  // the step's start, paused: a hash would make the player play from there
+  function gotoStep() { seekGlobal(PH ? PH.starts[S.step] || 0 : 0); }
 
   /* ---------- actions ---------- */
   function selectGuide(id) {
@@ -486,10 +487,10 @@
   function renderPanel() {
     document.querySelectorAll(".tabs button").forEach(function (b) { b.className = b.getAttribute("data-tab") === S.tab ? "on" : ""; });
     var p = $("#panel"); p.textContent = "";
-    if (S.tab !== "narration" && S.tab !== "actions" && S.tab !== "assistant") S.tab = "narration";
+    if (S.tab !== "narration" && S.tab !== "actions" && S.tab !== "voice") S.tab = "narration";
     if (S.tab === "narration") narrationTab(p);
     else if (S.tab === "actions") actionsTab(p);
-    else assistantTab(p);
+    else voiceTab(p);
   }
 
   function narrationTab(p) {
@@ -504,6 +505,7 @@
     p.appendChild(h("label", { class: "lab" }, "Title (chapter name, in “" + S.lang + "”)", titleIn));
     p.appendChild(h("p", null, "What is said, and shown as captions, in “" + S.lang + "”. One idea, one or two sentences."));
     p.appendChild(area);
+    if (S.focusNarr) { S.focusNarr = false; setTimeout(function () { area.focus(); }, 0); }
     p.appendChild(h("div", { class: "row" },
       h("button", { class: "btn primary", onclick: function () {
         var value = area.value.trim(), title = titleIn.value.trim();
@@ -572,30 +574,52 @@
     return b;
   }
 
-  function assistantTab(p) {
-    p.appendChild(h("h3", null, "Ask your assistant"));
-    p.appendChild(h("p", null, "Studio does not talk to an assistant itself: your own assistant (Claude Code or another) edits the same files through Cueflow's tools, and you see its changes here at once. Write what you want; copy the request into your assistant."));
-    var area = h("textarea", { placeholder: "e.g. Make this step shorter, and zoom on the upload button" });
-    var out = h("div", { class: "msg" });
-    p.appendChild(area);
-    var buildReq = function () {
-      var g = S.guide, st = g && g.steps[S.step];
-      return "In the Cueflow kit at " + S.state.kitRoot + (g ? ", video \"" + g.id + "\", step " + (S.step + 1) + " (" + st.id + "), language " + S.lang : "") + ": " + (area.value.trim() || "…") +
-        "\nUse the Cueflow tools; then validate_guide and look at preview_frame before telling me it is done.";
-    };
-    var connected = S.agent && S.agent.connected;
-    p.appendChild(h("div", { class: "row" }, h("button", { class: "btn" + (connected ? " primary" : ""), disabled: !connected, title: connected ? "Goes straight to your assistant" : "No assistant connected: use the AI button, or copy the request", onclick: function () {
-      if (!area.value.trim()) { out.className = "msg warn"; out.textContent = "Write what you want first."; return; }
-      api("/api/agent/send", { method: "POST", body: { title: "Request from Studio", text: buildReq() } }).then(function () { out.className = "msg ok"; out.textContent = "Sent to your assistant."; area.value = ""; })
-        .catch(function (e) { out.className = "msg warn"; out.textContent = e.message; });
-    } }, "Send to the assistant"), h("button", { class: "btn" + (connected ? "" : " primary"), onclick: function () {
-      var g = S.guide, st = g && g.steps[S.step];
-      var req = "In the Cueflow kit at " + S.state.kitRoot + (g ? ", video \"" + g.id + "\", step " + (S.step + 1) + " (" + st.id + "), language " + S.lang : "") + ": " + (area.value.trim() || "…") +
-        "\nUse the Cueflow tools; then validate_guide and look at preview_frame before telling me it is done.";
-      (navigator.clipboard ? navigator.clipboard.writeText(req) : Promise.reject()).then(function () { out.className = "msg ok"; out.textContent = "Copied. Paste it in your assistant."; }, function () { out.className = "msg warn"; out.textContent = req; });
-    } }, "Copy the request")));
-    p.appendChild(out);
-    p.appendChild(h("p", { style: "margin-top:16px" }, connected ? "Your assistant is connected: what you send arrives at once." : "No assistant is connected yet: the AI button (top) gives the prompt that connects one."));
+  /* ---------- the voice of one step ---------- */
+  var enc = encodeURIComponent;
+  /* the voice a step gets when it is left on Auto: the tutorial's own choice (all languages, then this language), else what the project file says, else the browser's */
+  function tutorialVoice(gid, lang) {
+    var cur = S.voices && S.voices.current; if (!cur) return { spec: { provider: "browser" }, from: "the default" };
+    var own = (cur.guides || {})[gid] || {};
+    if ((own.languages || {})[lang]) return { spec: own.languages[lang], from: "this tutorial, in “" + lang + "”" };
+    if (own.default) return { spec: own.default, from: "this tutorial" };
+    if ((cur.languages || {})[lang]) return { spec: cur.languages[lang], from: "the project file, for “" + lang + "”" };
+    if (cur.default) return { spec: cur.default, from: "the project file" };
+    return { spec: { provider: "browser" }, from: "the default (browser voice)" };
+  }
+  function voicesChanged() { S.voices = null; S.voicesRev = (S.voicesRev || 0) + 1; renderPage(); renderStrip(); if (S.tab === "voice") renderPanel(); }
+  function uploadStepAudio(file) {
+    var st = S.guide.steps[S.step], ext = (file.name.split(".").pop() || "").toLowerCase();
+    S.ownSave = Date.now();
+    return fetch("/api/step-audio?guide=" + enc(S.guide.id) + "&step=" + enc(st.id) + "&lang=" + enc(S.lang) + "&ext=" + enc(ext), { method: "POST", headers: { "x-cueflow": "studio" }, body: file })
+      .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error); S.audioRev = (S.audioRev || 0) + 1; return d; }); });
+  }
+  /* writes (or, with null, removes) this step's own voice in the language being edited */
+  function saveStepVoice(voice) {
+    var i = S.step, lang = S.lang;
+    return save(function (g) {
+      var st = g.steps[i], m = Object.assign({}, st.voice || {});
+      if (voice) m[lang] = voice; else delete m[lang];
+      if (Object.keys(m).length) st.voice = m; else delete st.voice;
+    }).then(function (r) { S.audioRev = (S.audioRev || 0) + 1; S.msg = { kind: r.warnings.length ? "warn" : "ok", text: voice ? "Saved: this step has its own voice." : "This step follows the tutorial's voice again." }; renderPanel(); renderStrip(); });
+  }
+  function voiceTab(p) {
+    if (!S.guide || !S.guide.steps.length) { p.appendChild(h("p", { class: "empty" }, "Select a video with steps.")); return; }
+    if (!S.voices) { p.appendChild(h("p", { class: "empty" }, "Loading…")); api("/api/voices").then(function (v) { S.voices = v; if (S.tab === "voice") renderPanel(); }); return; }
+    var g = S.guide, st = g.steps[S.step], lang = S.lang, own = st.voice && st.voice[lang], inh = tutorialVoice(g.id, lang);
+    p.appendChild(h("h3", null, "Voice · step " + (S.step + 1) + " · “" + lang + "”"));
+    var box = h("div", { hidden: !own });
+    var auto = h("input", { type: "checkbox", checked: !own });
+    auto.addEventListener("change", function () {
+      if (auto.checked) { if (own) saveStepVoice(null).catch(function (e) { flash(e.message, "err"); auto.checked = false; }); else box.hidden = true; return; }
+      box.hidden = false; if (!box.firstChild) buildForm(box, S.voices, { scope: "step", language: lang }, own, function () {}, { save: saveStepVoice });
+    });
+    p.appendChild(h("label", { class: "lab auto" }, auto, " Auto: the tutorial’s voice"));
+    p.appendChild(h("p", null, own ? "This step has its own voice, only in “" + lang + "”: " + (own.provider === "file" ? "your audio file." : (own.provider === "none" ? "muted." : label(own) + ".")) : "Reads with: " + label(inh.spec) + " (from " + inh.from + "). Untick to give this step another voice, mute it, or upload your own recording."));
+    if (!own) p.appendChild(h("button", { class: "btn", onclick: function () { showPage("voice"); } }, "Change the tutorial’s default voice…"));
+    if (own && own.provider === "file") p.appendChild(h("audio", { controls: true, src: "/api/step-audio/" + enc(g.id) + "/" + enc(st.id) + "/" + enc(lang) + "?t=" + (S.audioRev || 0), style: "width:100%" }));
+    if (own) buildForm(box, S.voices, { scope: "step", language: lang }, own, function () {}, { save: saveStepVoice });
+    p.appendChild(box);
+    if (S.msg) p.appendChild(h("div", { class: "msg " + S.msg.kind }, S.msg.text));
   }
 
   /* ---------- actions ---------- */
@@ -608,7 +632,11 @@
     p.appendChild(h("h3", null, "Actions of step " + (S.step + 1)));
     p.appendChild(h("p", null, "What happens on screen, in order. “At” is a time in ms, or a percentage of the narration (40%), so it stays in sync with any voice."));
     if (!d.length) p.appendChild(h("p", { class: "empty" }, "No actions: the step only shows its camera and narration."));
-    d.forEach(function (a, i) { p.appendChild(actionCard(a, i)); });
+    d.forEach(function (a, i) {
+      var c = actionCard(a, i); p.appendChild(c);
+      if (S.focusAction === i) { c.classList.add("focus"); setTimeout(function () { c.scrollIntoView({ block: "nearest" }); }, 0); }
+    });
+    S.focusAction = null;
     var sel = h("select", null, ACTION_TYPES.map(function (t) { return h("option", { value: t }, t); }));
     p.appendChild(h("div", { class: "row" }, sel, h("button", { class: "btn", onclick: function () {
       S.pending = { kind: "add", type: sel.value }; S.picked = null; S.tab = "actions"; setMode("pick");
@@ -740,39 +768,39 @@
   }
 
   /* ---------- voices ---------- */
-  var label = function (spec) { if (!spec) return null; return { browser: "Browser voice", none: "Silent", openai: "OpenAI" + (spec.voice ? " · " + spec.voice : ""), say: "macOS voice" + (spec.voice ? " · " + spec.voice : ""), command: "Local program" }[spec.provider] || spec.provider; };
+  var label = function (spec) { if (!spec) return null; return { browser: "Browser voice", none: "Silent", file: "Audio file", openai: "OpenAI" + (spec.voice ? " · " + spec.voice : ""), say: "macOS voice" + (spec.voice ? " · " + spec.voice : ""), command: "Local program" }[spec.provider] || spec.provider; };
   function voicesTab(p) {
+    var g = video();
+    if (!g) { p.textContent = ""; p.appendChild(h("p", { class: "empty" }, "Select or create a tutorial.")); return; }
     api("/api/voices").then(function (v) {
       S.voices = v; p.textContent = "";
-      p.appendChild(h("h3", null, "Who reads the tutorials"));
-      p.appendChild(h("p", null, "By default the viewer's browser reads them: free, nothing to set up. An outside voice is your choice, at one of three levels. What you leave unset follows the level above."));
-      p.appendChild(level(v, { scope: "global" }, "Everything", v.current.default, "the browser's voice"));
-      var langs = {}; S.state.guides.forEach(function (g) { g.languages.forEach(function (l) { langs[l] = 1; }); });
-      Object.keys(langs).forEach(function (l) { p.appendChild(level(v, { scope: "language", language: l }, "Every video in “" + l + "”", v.current.languages[l], v.current.default ? label(v.current.default) + " (everything)" : "the browser's voice")); });
-      var g = video();
-      if (g) {
-        var own = v.current.guides[g.id] || {};
-        p.appendChild(level(v, { scope: "video", guide: g.id }, "Only this video: " + text(g.title, S.lang), own.default, "its language's voice, else everything's"));
-        g.languages.forEach(function (l) { p.appendChild(level(v, { scope: "video", guide: g.id, language: l }, "Only this video, only in “" + l + "”", (own.languages || {})[l], "this video's voice, else its language's")); });
-      }
+      p.appendChild(h("h3", null, "Audio of this tutorial: " + text(g.title, S.lang)));
+      p.appendChild(h("p", null, "The default voice of the tutorial: every step uses it (Auto) unless you give that step its own voice, or its own recording, in the step's Voice tab. Now it is: " + label(tutorialVoice(g.id, S.lang).spec) + " (from " + tutorialVoice(g.id, S.lang).from + ")."));
+      var own = v.current.guides[g.id] || {};
+      var base = v.current.default ? label(v.current.default) + " (the project file)" : "the browser's voice";
+      p.appendChild(level(v, { scope: "video", guide: g.id }, "Default voice, all languages", own.default, base, true));
+      p.appendChild(h("h3", { style: "margin-top:18px" }, "A different default for one language"));
+      g.languages.forEach(function (l) { p.appendChild(level(v, { scope: "video", guide: g.id, language: l }, "Only in “" + l + "”", (own.languages || {})[l], "the choice for all languages above")); });
       p.appendChild(h("h3", { style: "margin-top:18px" }, "Who speaks now"));
-      var tb = h("table", null, h("tr", null, h("th", null, "Video"), h("th", null, "Lang"), h("th", null, "Voice"), h("th", null, "Set at")));
-      v.table.forEach(function (r) { tb.appendChild(h("tr", null, h("td", null, r.guide), h("td", null, r.language), h("td", null, label({ provider: r.provider, voice: r.voice })), h("td", null, r.from))); });
+      var tb = h("table", null, h("tr", null, h("th", null, "Part"), h("th", null, "Lang"), h("th", null, "Voice"), h("th", null, "Set at")));
+      v.table.filter(function (r) { return r.guide === g.id || r.guide.indexOf(g.id + " · ") === 0; }).forEach(function (r) { tb.appendChild(h("tr", null, h("td", null, r.guide === g.id ? "whole tutorial" : r.guide.slice(g.id.length + 3)), h("td", null, r.language), h("td", null, label({ provider: r.provider, voice: r.voice })), h("td", null, r.from))); });
       p.appendChild(tb);
     }).catch(function (e) { p.textContent = e.message; });
   }
-  function level(v, target, title, spec, inherits) {
+  function level(v, target, title, spec, inherits, open) {
     var box = h("div", { class: "lvl" });
     var cur = h("div", { class: "cur" }, spec ? "Chosen: " + label(spec) : "Not set: uses " + inherits);
-    var form = h("div", { hidden: true });
-    box.appendChild(h("h4", null, title)); box.appendChild(cur);
-    box.appendChild(h("button", { class: "btn", onclick: function () { form.hidden = !form.hidden; if (!form.hidden && !form.firstChild) buildForm(form, v, target, spec, function () { renderPage(); }); } }, "Change…"));
+    var form = h("div", { hidden: !open });
+    box.appendChild(h("h4", null, title));
+    if (open) { buildForm(form, v, target, spec, voicesChanged); if (spec) box.appendChild(cur); box.appendChild(form); return box; }
+    box.appendChild(cur);
+    box.appendChild(h("button", { class: "btn", onclick: function () { form.hidden = !form.hidden; if (!form.hidden && !form.firstChild) buildForm(form, v, target, spec, voicesChanged); } }, "Change…"));
     box.appendChild(form);
     return box;
   }
-  function buildForm(form, v, target, spec, done) {
+  function buildForm(form, v, target, spec, done, hooks) {
     var name = "o" + Math.random().toString(36).slice(2);
-    var choice = spec ? spec.provider : target.scope === "global" ? "browser" : "inherit";
+    var choice = spec ? spec.provider : target.scope === "global" || target.scope === "step" ? "browser" : "inherit";
     var fields = {};
     var msg = h("div", { class: "msg" });
     function opt(value, title, summary, extra) {
@@ -786,7 +814,7 @@
     function refresh() { form.querySelectorAll(".fields").forEach(function (f) { f.hidden = f.getAttribute("data-for") !== choice; }); }
     function extra(prov, kids) { return h("div", { class: "fields", "data-for": prov, hidden: choice !== prov }, kids); }
     var oa = v.options.filter(function (o) { return o.provider === "openai"; })[0];
-    if (target.scope !== "global") form.appendChild(opt("inherit", "Use the level above", "Nothing is set here: the voice comes from the level above."));
+    if (target.scope !== "global" && target.scope !== "step") form.appendChild(opt("inherit", "Use the level above", "Nothing is set here: the voice comes from the level above."));
     v.options.forEach(function (o) {
       if (o.provider === "openai") {
         var vsel = h("select", null, oa.voices.map(function (x) { return h("option", { value: x, selected: (spec && spec.voice || "coral") === x }, x); }));
@@ -798,21 +826,37 @@
         form.appendChild(opt("command", o.title, o.summary, extra("command", [fld("command", "piper --model voice.onnx --output_file {out} < {text}", spec && spec.command)])));
       } else if (o.provider === "say") {
         form.appendChild(opt("say", o.title, o.summary + (o.available ? "" : " (not available on this computer)"), null));
-      } else form.appendChild(opt(o.provider, o.title, o.summary, null));
+      } else form.appendChild(opt(o.provider, o.provider === "none" && target.scope === "step" ? "Muted" : o.title, o.provider === "none" && target.scope === "step" ? "No voice for this step: only its captions, whatever the tutorial's voice is." : o.summary, null));
     });
+    if (target.scope === "step") {
+      var fi = h("input", { type: "file", accept: "audio/*,.mp3,.m4a,.wav,.ogg,.aac" }); fields.file = fi;
+      form.appendChild(opt("file", "An audio file", "Your own recording for this step in “" + target.language + "” (mp3, m4a, wav, ogg). Its length sets the length of the step.", extra("file", [spec && spec.provider === "file" ? h("p", { class: "msg" }, "Now: " + spec.file) : null, fi])));
+    }
     refresh();
     form.appendChild(h("div", { class: "row" },
       h("button", { class: "btn primary", onclick: function () {
-        var voice = null;
+        var voice = null, work = Promise.resolve();
         if (choice === "inherit") voice = target.scope === "global" ? { provider: "browser" } : null;
         else if (choice === "openai") voice = { provider: "openai", voice: fields.voice.value, style: fields.style.value.trim() || undefined };
         else if (choice === "command") voice = { provider: "command", command: fields.command.value.trim(), format: "wav" };
-        else voice = { provider: choice };
-        var go = function () { return api("/api/voice", { method: "POST", body: Object.assign({}, target, { voice: voice }) }); };
+        else if (choice === "file") {
+          var picked = fields.file.files[0];
+          if (!picked && !(spec && spec.provider === "file")) { msg.className = "msg err"; msg.textContent = "Choose an audio file first."; return; }
+          if (picked) work = uploadStepAudio(picked).then(function (r) { voice = { provider: "file", file: r.file }; }); else voice = spec;
+        } else voice = { provider: choice };
         var key = fields.key && fields.key.value.trim();
-        (choice === "openai" && key ? api("/api/key", { method: "POST", body: { key: key } }) : Promise.resolve()).then(go).then(function () { done(); }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+        if (choice === "openai" && key) work = work.then(function () { return api("/api/key", { method: "POST", body: { key: key } }); });
+        work.then(function () { return hooks && hooks.save ? hooks.save(voice) : api("/api/voice", { method: "POST", body: Object.assign({}, target, { voice: voice }) }); })
+          .then(function () { done(); }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
       } }, "Save"),
       h("button", { class: "btn", onclick: function () {
+        if (choice === "none") return;
+        if (choice === "file") {
+          var f2 = fields.file.files[0], st2 = S.guide && S.guide.steps[S.step];
+          var src = f2 ? URL.createObjectURL(f2) : (spec && spec.provider === "file" && st2 ? "/api/step-audio/" + enc(S.guide.id) + "/" + enc(st2.id) + "/" + enc(target.language) + "?t=" + Date.now() : null);
+          if (src) new Audio(src).play(); else { msg.className = "msg err"; msg.textContent = "Choose an audio file first."; }
+          return;
+        }
         var sample = text((S.guide && S.guide.steps[S.step] || { narration: "" }).narration, target.language || S.lang) || "Hello, this is how the tutorial will sound.";
         if (choice === "browser" || choice === "inherit") return speak(sample, target.language || S.lang);
         msg.className = "msg"; msg.textContent = "Generating a sample…";
@@ -827,14 +871,141 @@
 
   /* ---------- the timeline strip ---------- */
   var fmt = function (ms) { var s = Math.round(ms / 1000); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+  var PH = null; // the strip as drawn: where each step starts (ms), the scale, the playhead and the transport's parts
+  var seeking = false, wanted = null;
+  function player() { try { return view.contentWindow.__cueflow || null; } catch (e) { return null; } }
+  /* moves the video to a point of the whole timeline (ms), paused; many requests in a row collapse into the last one */
+  function seekGlobal(ms, after) {
+    if (!PH) return;
+    var i = 0; for (var k = 0; k < PH.starts.length - 1; k++) if (ms >= PH.starts[k]) i = k;
+    wanted = { i: i, t: Math.max(0, ms - PH.starts[i]), after: after };
+    PH.at = ms;
+    if (!seeking) runSeek();
+  }
+  function runSeek() {
+    var p = player(); if (!p || !wanted) { wanted = null; return; }
+    var w = wanted; wanted = null; seeking = true;
+    Promise.resolve(p.seek(w.i, w.t)).catch(function () {}).then(function () { seeking = false; if (wanted) runSeek(); else if (w.after) w.after(); });
+  }
+  function markOn() {
+    document.querySelectorAll("#strip [data-i]").forEach(function (el) { el.classList.toggle("on", +el.getAttribute("data-i") === S.step); });
+  }
+  /* makes step i the selected one (and shows `tab` in the side panel); false when the person keeps their unsaved edits */
+  function focusStep(i, tab) {
+    var changes = i !== S.step || (tab && tab !== S.tab);
+    if (changes) {
+      if (!confirmLeave()) return false;
+      S.draft = null; S.pending = null; S.msg = null; S.dirty = false; S.picked = null;
+    }
+    S.step = i; if (tab) S.tab = tab;
+    markOn(); renderPanel();
+    if (S.mode === "pick") renderView(false);
+    return true;
+  }
+  function transport(act) {
+    var p = player(); if (!p || !PH) return;
+    var st = p.state();
+    if (act === "play") { if (st.playing) p.pause(); else p.play(); return; }
+    var at = PH.starts[st.step] + Math.min(st.t, st.total);
+    var go = act === "next" ? PH.starts[Math.min(st.step + 1, PH.starts.length - 2)]
+      : (at - PH.starts[st.step] > 1000 ? PH.starts[st.step] : PH.starts[Math.max(st.step - 1, 0)]);
+    if (act === "next" && st.step >= PH.starts.length - 2) return;
+    var was = st.playing;
+    var i = 0; for (var k = 0; k < PH.starts.length - 1; k++) if (go >= PH.starts[k]) i = k;
+    if (i !== S.step) focusStep(i);
+    seekGlobal(go, function () { if (was) p.play(); });
+  }
+  /* the playhead follows the video; while the person drags it, it follows the pointer */
+  function frameLoop() {
+    requestAnimationFrame(frameLoop);
+    if (!PH || S.page !== "timeline" || S.kind === "doc") return;
+    var p = player(), st = p && p.state(), ms = PH.at;
+    if (st && !seeking && !PH.scrub && !wanted) {
+      ms = PH.starts[st.step] + Math.min(st.t, st.total);
+      if (st.playing && st.step !== S.step && !S.dirty) { S.draft = null; S.pending = null; S.msg = null; S.step = st.step; markOn(); renderPanel(); }
+      PH.at = ms;
+    }
+    var x = ms * PH.px;
+    PH.head.style.left = LBL + x + "px";
+    var label = fmt(ms) + " / " + fmt(PH.total);
+    if (PH.time.textContent !== label) PH.time.textContent = label;
+    var playing = !!(st && st.playing);
+    if (PH.playing !== playing) { PH.playing = playing; PH.play.innerHTML = playing ? ICON.pause : ICON.play; PH.play.title = playing ? "Pause (space)" : "Play (space)"; }
+    if (playing && !PH.scrub) {
+      var sc = PH.scroll;
+      if (x + LBL < sc.scrollLeft || x + LBL > sc.scrollLeft + sc.clientWidth - 40) sc.scrollLeft = Math.max(0, x - 40);
+    }
+  }
+  var LBL = 78; // room for the lane names, as in .lanes
+  var ICON = {
+    play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5l12 7.5-12 7.5z"/></svg>',
+    pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h3.5v16H7zM13.5 4H17v16h-3.5z"/></svg>',
+    prev: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h2.5v16H5zM19 4.5v15L8.5 12z"/></svg>',
+    next: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 4H19v16h-2.5zM5 4.5l10.5 7.5L5 19.5z"/></svg>',
+    text: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>'
+  };
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== " " || S.page !== "timeline" || S.kind === "doc" || e.target.closest("input, textarea, select, button, a, [contenteditable]")) return;
+    e.preventDefault(); transport("play");
+  });
+  requestAnimationFrame(frameLoop);
+
+  /* ---- the sound of each step: a waveform when there is audio (an uploaded file, or what a voice already generated) ---- */
+  var audioCtx = null;
+  function decodeWave(buf) {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    return new Promise(function (resolve, reject) { audioCtx.decodeAudioData(buf, resolve, reject); }).then(function (a) {
+      var ch = a.getChannelData(0), n = 800, size = Math.max(1, Math.floor(ch.length / n)), peaks = [];
+      for (var i = 0; i < n; i++) { var m = 0; for (var j = i * size, e = Math.min(ch.length, j + size); j < e; j += Math.max(1, size >> 5)) m = Math.max(m, Math.abs(ch[j])); peaks.push(m); }
+      var top = Math.max.apply(null, peaks) || 1;
+      return { peaks: peaks.map(function (x) { return x / top; }), dur: a.duration * 1000 };
+    });
+  }
+  S.wave = S.wave || {};
+  function waveKey(i) {
+    var st = S.guide.steps[i];
+    return [S.guide.id, st.id, S.lang, S.version, S.audioRev || 0, S.voicesRev || 0, JSON.stringify(st.voice && st.voice[S.lang] || null), st.narration && st.narration[S.lang] || ""].join("|");
+  }
+  var waveOf = function (i) { var w = S.wave[waveKey(i)]; return w && w.peaks ? w : null; };
+  function loadWaves() {
+    var g = S.guide, lang = S.lang, changed = false, pending = 0;
+    g.steps.forEach(function (st, i) {
+      var key = waveKey(i); if (S.wave[key]) return;
+      S.wave[key] = { loading: true }; pending++;
+      fetch("/api/step-audio/" + enc(g.id) + "/" + enc(st.id) + "/" + enc(lang) + "?v=" + (S.audioRev || 0))
+        .then(function (r) { return r.status === 200 ? r.arrayBuffer().then(decodeWave) : null; })
+        .catch(function () { return null; })
+        .then(function (w) { S.wave[key] = w || { none: true }; if (w) changed = true; if (--pending === 0 && changed && S.guide && S.guide.id === g.id && S.lang === lang) renderStrip(); });
+    });
+  }
+  function drawWave(cv, peaks) {
+    var w = Math.max(2, Math.round(cv.clientWidth || cv.width)), hgt = 34; cv.width = w; cv.height = hgt;
+    var c = cv.getContext("2d"); c.clearRect(0, 0, w, hgt); c.fillStyle = "rgba(205,196,255,.85)";
+    for (var x = 0; x < w; x += 2) { var pk = peaks[Math.min(peaks.length - 1, Math.floor(x / w * peaks.length))], bh = Math.max(1, pk * (hgt - 4)); c.fillRect(x, (hgt - bh) / 2, 1.4, bh); }
+  }
+  /* the same rule as the player: a step lasts its narration or its last action, whichever is later, plus its hold */
+  function stepTiming(st, lang, narr) {
+    var end = 0;
+    st.actions.forEach(function (a) { var at = typeof a.at === "string" ? parseFloat(a.at) / 100 * narr : a.at; end = Math.max(end, at + (a.duration != null ? a.duration : a.do === "click" ? 350 : 0)); });
+    return { narration: narr, total: Math.max(narr, end) + (st.hold != null ? st.hold : 600) };
+  }
   function renderStrip() {
-    var strip = $("#strip"); strip.textContent = "";
+    var strip = $("#strip"), old = strip.querySelector(".scroll"), keep = old ? { l: old.scrollLeft, t: old.scrollTop } : null;
+    strip.textContent = ""; PH = null;
     var g = video();
     if (!g) { strip.appendChild(h("div", { class: "stripbar" }, "Create a tutorial with “+” on the left.")); return; }
-    var timing = g.timing[S.lang] || g.timing[g.languages[0]];
+    var timing = (g.timing[S.lang] || g.timing[g.languages[0]]).slice();
+    // a step that has real audio lasts as long as its audio, as in the player
+    var full = S.guide && S.guide.id === g.id && S.guide.steps.length === g.steps.length ? S.guide : null;
+    if (full) timing = timing.map(function (t, i) { var w = waveOf(i); return w && w.dur ? stepTiming(full.steps[i], S.lang, w.dur) : t; });
+    if (full && !S.voices) api("/api/voices").then(function (v) { S.voices = v; renderStrip(); }).catch(function () {});
     var total = timing.reduce(function (n, t) { return n + t.total; }, 0);
     var px = S.zoom / 1000;
-    strip.appendChild(h("div", { class: "stripbar" }, h("b", null, text(g.title, S.lang)), "· " + fmt(total) + " (estimated: the real length is that of the voice)",
+    var btn = function (act, icon, title) { var b = h("button", { class: "tp", title: title, "aria-label": title, onclick: function () { transport(act); } }); b.innerHTML = icon; return b; };
+    var playBtn = btn("play", ICON.play, "Play (space)"), timeEl = h("span", { class: "tptime" }, "0:00 / " + fmt(total));
+    strip.appendChild(h("div", { class: "stripbar" },
+      h("span", { class: "transport" }, btn("prev", ICON.prev, "Previous step"), playBtn, btn("next", ICON.next, "Next step"), timeEl),
+      h("b", null, text(g.title, S.lang)), "· " + fmt(total) + " (estimated where there is no audio yet)",
       h("span", { style: "flex:1" }),
       h("span", null, g.steps.length ? "Drag a step to change the order" : ""),
       h("button", { class: "wide", title: "Add a step after the selected one", onclick: addStep }, "+ Step"),
@@ -842,31 +1013,45 @@
       h("button", { title: "Zoom out", onclick: function () { S.zoom = Math.max(20, S.zoom * 0.7); renderStrip(); } }, "−"),
       h("button", { title: "Zoom in", onclick: function () { S.zoom = Math.min(400, S.zoom * 1.4); renderStrip(); } }, "+")));
     if (!g.steps.length) { strip.appendChild(h("div", { class: "stripbar" }, "No steps yet: add the first with “+ Step”.")); return; }
-    var lanes = h("div", { class: "lanes", style: "width:" + Math.ceil(total * px + 100) + "px" });
-    var ruler = h("div", { class: "ruler" });
+    var lanes = h("div", { class: "lanes", style: "width:" + Math.ceil(total * px + 100 + LBL) + "px" });
+    var ruler = h("div", { class: "ruler", title: "Drag to move through the video" });
     var stepSec = S.zoom >= 120 ? 1 : S.zoom >= 50 ? 5 : 10;
     for (var t = 0; t * 1000 <= total; t += stepSec) ruler.appendChild(h("i", { style: "left:" + t * S.zoom + "px" }, fmt(t * 1000)));
     lanes.appendChild(ruler);
     var lSteps = h("div", { class: "lane" }, h("span", { class: "lbl" }, "Steps"));
-    var lNarr = h("div", { class: "lane" }, h("span", { class: "lbl" }, "Voice"));
+    var lNarr = h("div", { class: "lane" }, h("span", { class: "lbl" }, "Text"));
+    var lTr = h("div", { class: "lane" }, h("span", { class: "lbl" }, "Voice"));
     var lAct = h("div", { class: "lane" }, h("span", { class: "lbl" }, "Actions"));
     var line = h("div", { class: "dropline", hidden: true });
     var starts = [], x = 0;
+    var msAt = function (clientX) { return (clientX - lanes.getBoundingClientRect().left - LBL) / px; };
+    // a click on a block selects its step and moves the video to where it was clicked
+    var clickAt = function (e, i, tab) {
+      if (tab === "narration") S.focusNarr = true;
+      if (!focusStep(i, tab)) { S.focusNarr = false; return; }
+      seekGlobal(Math.max(starts[i], Math.min(starts[i + 1] - 1, msAt(e.clientX))));
+    };
     g.steps.forEach(function (st, i) {
       starts.push(x);
-      var tm = timing[i], on = i === S.step;
-      var pick = function () { if (!confirmLeave()) return; S.step = i; S.draft = null; S.pending = null; S.msg = null; renderSide(); renderView(false); renderPanel(); renderStrip(); };
-      var drag = function (cls, style, label, tip) {
-        var el = h("div", { class: "blk " + cls + (on ? " on" : ""), draggable: "true", style: style, title: tip, onclick: pick }, label);
+      var tm = timing[i], on = i === S.step, x0 = x;
+      var drag = function (cls, style, label, tip, tab) {
+        var el = h("div", { class: "blk " + cls + (on ? " on" : ""), "data-i": i, draggable: "true", style: style, title: tip, onclick: function (e) { clickAt(e, i, tab); } }, label);
         el.addEventListener("dragstart", function (e) { S.dragFrom = i; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i)); el.classList.add("dragging"); });
         el.addEventListener("dragend", function () { el.classList.remove("dragging"); line.hidden = true; S.dragFrom = null; });
         return el;
       };
       lSteps.appendChild(drag("step", "left:" + x * px + "px;width:" + Math.max(8, tm.total * px - 2) + "px", (i + 1) + " · " + (text(st.title, S.lang) || st.id), (text(st.title, S.lang) || st.id) + " — drag to move"));
-      lNarr.appendChild(drag("narr", "left:" + x * px + "px;width:" + Math.max(4, tm.narration * px - 2) + "px", text(st.narration, S.lang), text(st.narration, S.lang)));
-      st.actions.forEach(function (a) {
+      lNarr.appendChild(drag("narr", "left:" + x * px + "px;width:" + Math.max(4, tm.narration * px - 2) + "px", text(st.narration, S.lang), text(st.narration, S.lang), "narration"));
+      var own = full && full.steps[i].voice && full.steps[i].voice[S.lang], vs = own || (S.voices ? tutorialVoice(g.id, S.lang).spec : null), wv = waveOf(i);
+      var vtxt = !vs ? "Auto" : vs.provider === "none" ? "Muted" : vs.provider === "file" ? "Audio file" : (own ? "" : "Auto · ") + label(vs);
+      var vbar = h("div", { class: "blk vo" + (wv ? " has" : "") + (vs && vs.provider === "none" ? " muted" : ""), "data-i": i, style: "left:" + x * px + "px;width:" + Math.max(4, tm.narration * px - 2) + "px", title: vtxt + (wv ? "" : " — no audio yet: it is generated when you build") + " — click to change", onclick: function (e) { clickAt(e, i, "voice"); } });
+      if (wv) { var cv = h("canvas"); vbar.appendChild(cv); vbar._wave = { cv: cv, peaks: wv.peaks }; }
+      vbar.appendChild(h("span", { class: "vlbl" }, vtxt));
+      lTr.appendChild(vbar);
+      st.actions.forEach(function (a, ai) {
         var at = typeof a.at === "string" ? parseFloat(a.at) / 100 * tm.narration : a.at;
-        lAct.appendChild(h("div", { class: "mk " + a.do + (on ? " on" : ""), style: "left:" + (x + at) * px + "px", title: a.do + " at " + (typeof a.at === "string" ? a.at : Math.round(a.at) + " ms"), onclick: function () { pick(); S.tab = "actions"; renderPanel(); } }, a.do.charAt(0).toUpperCase()));
+        lAct.appendChild(h("div", { class: "mk " + a.do + (on ? " on" : ""), "data-i": i, style: "left:" + (x + at) * px + "px", title: a.do + " at " + (typeof a.at === "string" ? a.at : Math.round(a.at) + " ms") + " — click to edit",
+          onclick: function (e) { e.stopPropagation(); S.focusAction = ai; if (!focusStep(i, "actions")) { S.focusAction = null; return; } seekGlobal(x0 + at); } }, a.do.charAt(0).toUpperCase()));
       });
       x += tm.total;
     });
@@ -892,8 +1077,31 @@
       });
     });
     var wrap = h("div", { class: "lanewrap" }, line, lSteps, lNarr);
-    lanes.appendChild(wrap); lanes.appendChild(lAct);
-    strip.appendChild(h("div", { class: "scroll" }, lanes));
+    lanes.appendChild(wrap); lanes.appendChild(lTr); lanes.appendChild(lAct);
+    var head = h("div", { class: "playhead" });
+    lanes.appendChild(head);
+    var scroll = h("div", { class: "scroll" }, lanes);
+    strip.appendChild(scroll);
+    lTr.querySelectorAll(".vo").forEach(function (b) { if (b._wave) drawWave(b._wave.cv, b._wave.peaks); });
+    if (full) loadWaves();
+    if (keep) { scroll.scrollLeft = keep.l; scroll.scrollTop = keep.t; }
+    PH = { starts: starts, px: px, total: total, head: head, time: timeEl, play: playBtn, scroll: scroll, at: starts[S.step] || 0, playing: false, scrub: false };
+    // drag on the ruler: the video follows; the step under the playhead becomes the selected one when it is let go
+    ruler.addEventListener("pointerdown", function (e) {
+      if (S.dirty && !confirmLeave()) return;
+      var p = player(); if (p) p.pause();
+      PH.scrub = true; ruler.setPointerCapture(e.pointerId);
+      var go = function (ev) { seekGlobal(Math.max(0, Math.min(total - 1, msAt(ev.clientX)))); };
+      go(e);
+      var move = function (ev) { go(ev); };
+      var up = function () {
+        ruler.removeEventListener("pointermove", move); ruler.removeEventListener("pointerup", up); ruler.removeEventListener("pointercancel", up);
+        PH.scrub = false;
+        var i = 0; for (var k = 0; k < starts.length - 1; k++) if (PH.at >= starts[k]) i = k;
+        if (i !== S.step) { S.dirty = false; focusStep(i); }
+      };
+      ruler.addEventListener("pointermove", move); ruler.addEventListener("pointerup", up); ruler.addEventListener("pointercancel", up);
+    });
   }
 
   /* ---------- media: the files of this tutorial, and the ones shared by all ---------- */
@@ -1101,7 +1309,7 @@
 
   /* ---------- the project (brief) and the whole export ---------- */
   function projectDialog() {
-    dialog("The project", function (body, close) {
+    dialog("Settings", function (body, close) {
       var b = S.state.brief, f = {};
       var inp = function (k, label, val, tag) { var el = h(tag || "input", tag ? { rows: 3 } : { type: "text" }); el.value = val || ""; f[k] = el; return h("label", { class: "lab" }, label, el); };
       body.appendChild(h("p", null, "What was agreed with the people who watch these videos. It guides the narration and the voice for every tutorial."));
@@ -1577,6 +1785,19 @@
   $("#project").addEventListener("click", projectDialog);
   $("#dashboard").addEventListener("click", dashboardDialog);
   $("#notes").addEventListener("click", notesDialog);
+  // a newer Cueflow on npm: proposed, never installed by itself
+  api("/api/update").then(function (r) {
+    var u = r.update; if (!u) return;
+    var chip = $("#update"); chip.hidden = false; chip.textContent = "⬆ " + u.latest + " available";
+    chip.addEventListener("click", function () {
+      dialog("A newer Cueflow is available", function (body, close) {
+        body.appendChild(h("p", null, "You have " + u.current + "; the latest is " + u.latest + ". To update, close Studio (Ctrl+C in the terminal), run this, and start Studio again:"));
+        var pre = h("pre", { class: "prompt" }, u.command); body.appendChild(pre);
+        body.appendChild(h("div", { class: "row" }, h("button", { class: "btn primary", onclick: function () { copyText(u.command, "Copied.", pre); } }, "Copy the command"), h("button", { class: "btn", onclick: close }, "Close")));
+        body.appendChild(h("p", { class: "msg" }, "Cueflow asks npm once a day which version is the latest (nothing about you or your project is sent). To switch it off: CUEFLOW_NO_UPDATE_CHECK=1."));
+      });
+    });
+  }).catch(function () {});
   $("#exportall").addEventListener("click", exportAll);
   document.querySelectorAll(".videobar button").forEach(function (b) { b.addEventListener("click", function () { showPage(b.getAttribute("data-page")); }); });
   $("#theme").addEventListener("click", function () {

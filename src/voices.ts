@@ -1,8 +1,11 @@
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { writeAtomic } from "./build.ts";
 import { listGuides, loadGuide, openKit, type Kit } from "./kit.ts";
 import { resolveVoice, Settings, settingsFile, VoiceSpec as VoiceSpecSchema, type VoiceSource, type VoiceSpec } from "./settings.ts";
-import { defaultProvider, providerFromSpec, type TtsProvider } from "./tts.ts";
+import { audioMime, cachedNarration, defaultProvider, narrationAudio, providerFromSpec, spokenText, type TtsProvider } from "./tts.ts";
+import { loadBrief } from "./brief.ts";
+import type { Guide, Step } from "./schema.ts";
 
 export type ResolvedVoice = { spec: VoiceSpec; source: VoiceSource; provider: TtsProvider | null; browser: boolean };
 
@@ -66,6 +69,11 @@ export async function voiceTable(kit: Kit, env: NodeJS.ProcessEnv = process.env)
   const rows: { guide: string; language: string; provider: string; voice?: string; from: string }[] = [];
   for (const id of await listGuides(kit)) {
     const guide = await loadGuide(kit, id);
+    for (const step of guide.steps) {
+      for (const [lang, own] of Object.entries(step.voice ?? {})) {
+        rows.push({ guide: `${id} · ${step.id}`, language: lang, provider: own.provider, voice: "voice" in own ? own.voice : undefined, from: "step" });
+      }
+    }
     for (const lang of guide.languages) {
       const { spec, source } = resolveVoice(kit.settings, id, lang);
       const envChoice = source === "default" && env.CUEFLOW_TTS && env.CUEFLOW_TTS !== "none" ? env.CUEFLOW_TTS : undefined;
@@ -119,4 +127,41 @@ export async function setVoice(kit: Kit, target: VoiceTarget, voice: unknown | n
     if (!own.default && Object.keys(own.languages ?? {}).length === 0) delete guides[target.guide];
   }
   await writeRawSettings(kit, raw);
+}
+
+const FILE_MIME: Record<string, string> = { ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav", ".ogg": "audio/ogg", ".aac": "audio/aac" };
+
+/** An audio file the guide points at, read from inside the kit (never from outside it). */
+async function kitAudioFile(kit: Kit, file: string): Promise<{ data: Buffer; mime: string }> {
+  const abs = path.resolve(kit.root, file);
+  if (abs !== kit.root && !abs.startsWith(kit.root + path.sep)) throw new Error(`the audio file "${file}" is outside the kit`);
+  const mime = FILE_MIME[path.extname(abs).toLowerCase()];
+  if (!mime) throw new Error(`the audio file "${file}" must be mp3, m4a, wav, ogg or aac`);
+  return { data: await readFile(abs), mime };
+}
+
+/**
+ * The sound of one step in one language, or null when it has none (silent, muted, or read by the browser).
+ * The step's own voice wins over the project's. `provider`: undefined = the voices of cueflow.json, generating what is
+ * missing; null = a preview: the same voices but only audio that already exists, so nothing is ever paid for; a provider
+ * = that one for every step without an audio file of its own.
+ */
+export async function stepAudio(kit: Kit, guide: Guide, step: Step, lang: string, provider?: TtsProvider | null): Promise<{ data: Buffer; mime: string } | null> {
+  const own = step.voice?.[lang];
+  if (own?.provider === "file") return kitAudioFile(kit, own.file);
+  const text = step.narration[lang]?.trim();
+  if (!text || own?.provider === "none" || own?.provider === "browser") return null;
+  const preview = provider === null;
+  let p: TtsProvider | null;
+  try {
+    p = provider ? provider : own ? providerFromSpec(own) : voiceFor(kit, guide.id, lang).provider;
+  } catch (e) {
+    if (preview) return null; // a missing key must not break a preview
+    throw e;
+  }
+  if (!p) return null;
+  const brief = await loadBrief(kit);
+  const spoken = spokenText(text, { ...brief.pronunciation, ...guide.pronunciation });
+  const data = preview ? await cachedNarration(kit, p, spoken, lang) : await narrationAudio(kit, p, spoken, lang);
+  return data ? { data, mime: audioMime(p) } : null;
 }

@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import { readFileSync, writeFileSync, appendFileSync, existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -26,6 +27,28 @@ export type AgentTask = {
   doneAt?: string;
   summary?: string;
 };
+/**
+ * The key of Studio's door. It is kept in the kit (.studio-key, git-ignored, owner only) so that a link already given to
+ * an assistant still works after Studio is restarted, by choice or not. Still random and unguessable by a web page.
+ */
+function studioKey(kit: Kit): string {
+  const file = path.join(kit.root, ".studio-key");
+  try {
+    const k = readFileSync(file, "utf8").trim();
+    if (/^[0-9a-f]{36}$/.test(k)) return k;
+  } catch {
+    // none yet
+  }
+  const key = randomBytes(18).toString("hex");
+  try {
+    writeFileSync(file, key + "\n", { mode: 0o600 });
+    const ignore = path.join(kit.root, ".gitignore");
+    if (existsSync(ignore) && !/^\.studio-key$/m.test(readFileSync(ignore, "utf8"))) appendFileSync(ignore, "\n.studio-key\n");
+  } catch {
+    // a kit that cannot be written: the key then lasts only this run, as before
+  }
+  return key;
+}
 export type AgentNote = { at: string; text: string; task?: string };
 
 const WORKING_MS = 20 * 60_000; // an assistant that took a task is considered busy this long
@@ -34,8 +57,8 @@ const RECENT_MS = 25_000; // seen this recently between two waits: still there
 type Waiter = { resolve: (t: AgentTask | null) => void; timer: NodeJS.Timeout; beat: NodeJS.Timeout };
 
 export class AgentBridge {
-  /** random for each run of Studio: a web page cannot guess it, and it stops working when Studio does */
-  readonly token = randomBytes(18).toString("hex");
+  /** random, kept in the kit between runs: a web page cannot guess it, and the door only exists while Studio runs */
+  readonly token: string;
   tasks: AgentTask[] = [];
   log: AgentNote[] = [];
   lastSeen = 0;
@@ -47,6 +70,7 @@ export class AgentBridge {
 
   constructor(kit: Kit) {
     this.kit = kit;
+    this.token = studioKey(kit);
   }
 
   private tools() {

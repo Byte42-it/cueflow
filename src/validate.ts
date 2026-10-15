@@ -1,3 +1,5 @@
+import { stat } from "node:fs/promises";
+import path from "node:path";
 import type { Guide } from "./schema.ts";
 import type { Kit } from "./kit.ts";
 import { listScenes, readScene, sceneFile, sceneFileFor } from "./kit.ts";
@@ -35,6 +37,14 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
     if (step.scene) {
       scene = step.scene;
       if (!available.has(scene)) errors.push(`${where}: scene "${scene}" does not exist`);
+    }
+    for (const [lang, own] of Object.entries(step.voice ?? {})) {
+      if (!guide.languages.includes(lang)) errors.push(`${where}: a voice is set for "${lang}", which is not a language of the guide`);
+      if (own.provider === "file") {
+        const abs = path.resolve(kit.root, own.file);
+        if (!abs.startsWith(kit.root + path.sep)) errors.push(`${where}, voice "${lang}": the audio file must be inside the kit`);
+        else if (!(await stat(abs).then((s) => s.isFile(), () => false))) errors.push(`${where}, voice "${lang}": the audio file "${own.file}" does not exist (upload it again in the step's Voice tab)`);
+      }
     }
     for (const lang of guide.languages) {
       const narration = step.narration[lang]?.trim();

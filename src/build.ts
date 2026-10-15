@@ -5,9 +5,8 @@ import { distFile, loadGuide, sceneFile, sceneFileFor, type Kit } from "./kit.ts
 import { inlineScene, type Shared } from "./scene.ts";
 import type { Guide } from "./schema.ts";
 import { loadTheme } from "./theme.ts";
-import { loadBrief } from "./brief.ts";
-import { voiceFor } from "./voices.ts";
-import { audioMime, narrationAudio, spokenText, type TtsProvider } from "./tts.ts";
+import { stepAudio, voiceFor } from "./voices.ts";
+import type { TtsProvider } from "./tts.ts";
 import { validateGuide } from "./validate.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -58,22 +57,22 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
 
   const audio: Record<string, Record<string, string>> = {};
   let audioFiles = 0;
-  const brief = await loadBrief(kit);
   // `provider` undefined: each language speaks with the voice cueflow.json gives it; null: silent (previews); a provider: forced
   let browserVoice = false;
   for (const lang of guide.languages) {
     const voice = provider === undefined ? voiceFor(kit, id, lang) : null;
-    const p = provider === undefined ? voice!.provider : provider;
     if (voice?.browser) browserVoice = true;
-    if (p) {
-      audio[lang] = {};
-      for (const step of guide.steps) {
-        const text = step.narration[lang]?.trim();
-        if (!text) continue;
-        const sound = await narrationAudio(kit, p, spokenText(text, { ...brief.pronunciation, ...guide.pronunciation }), lang);
-        audio[lang]![step.id] = `data:${audioMime(p)};base64,${sound.toString("base64")}`;
-        audioFiles += 1;
-      }
+    // the language's voice is silent, but a step asks for the browser's: the other steps must stay silent, not be read too
+    const langSilent = voice ? !voice.provider && !voice.browser : false;
+    const anyBrowser = guide.steps.some((s) => s.voice?.[lang]?.provider === "browser");
+    for (const step of guide.steps) {
+      const own = step.voice?.[lang];
+      if (own?.provider === "browser") browserVoice = true;
+      else if (langSilent && anyBrowser && !own) step.voice = { ...step.voice, [lang]: { provider: "none" } };
+      const sound = await stepAudio(kit, guide, step, lang, provider);
+      if (!sound) continue;
+      (audio[lang] ??= {})[step.id] = `data:${sound.mime};base64,${sound.data.toString("base64")}`;
+      audioFiles += 1;
     }
   }
   // a language without a recorded voice is read by the viewer's browser when that is what was chosen for it

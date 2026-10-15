@@ -12,7 +12,8 @@ import { buildShare } from "./share.ts";
 import { buildSite, loadSite, setSiteText, siteFile, syncSite } from "./site.ts";
 import { loadTheme } from "./theme.ts";
 import { describeChange, discardChanges, pendingChanges, recordChange } from "./changes.ts";
-import { agentPrompt, requestPrompt, type NewRequest, type StudioLink } from "./prompt.ts";
+import { checkForUpdate, type UpdateInfo } from "./update.ts";
+import { agentPrompt, pasteLine, requestPrompt, type NewRequest, type StudioLink } from "./prompt.ts";
 import { AgentBridge } from "./agent.ts";
 import { METHOD } from "./method.ts";
 import { deleteTutorial } from "./trash.ts";
@@ -25,7 +26,7 @@ import { narrationAudio, providerFromSpec, audioMime, spokenText } from "./tts.t
 import { VoiceSpec } from "./settings.ts";
 import { validateGuide } from "./validate.ts";
 import { readFile as read } from "node:fs/promises";
-import { readRawSettings, setVoice, voiceFor, voiceOptions, voiceTable, writeRawSettings } from "./voices.ts";
+import { readRawSettings, setVoice, stepAudio, voiceFor, voiceOptions, voiceTable, writeRawSettings } from "./voices.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS: Record<string, [string, string]> = {
@@ -138,7 +139,7 @@ body.cf-site { display: block; }
 </style></head><body class="cf-site"><main class="cf-main"><div class="cf-article" id="doc"></div></main></body></html>`;
 }
 
-type Ctx = { bridge: AgentBridge; link: () => StudioLink };
+type Ctx = { bridge: AgentBridge; link: () => StudioLink; update?: Promise<UpdateInfo | null> };
 
 async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clients: Set<ServerResponse>, ctx: Ctx) {
   Object.assign(kit, openKit(kit.root)); // cueflow.json may have been changed by someone else
@@ -158,11 +159,12 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
   }
 
   // Studio's door for an assistant (curl): its own key, not the page's header
-  if (p.startsWith("/agent/")) return agentRoutes(req, res, url, ctx);
+  if (p.startsWith("/agent/")) return agentRoutes(req, res, url, { ...ctx, kit });
 
   if (req.method !== "GET" && req.headers["x-cueflow"] !== "studio") throw new HttpError(403, "not allowed from this page");
 
   if (p === "/api/state") return json(res, await state(kit));
+  if (p === "/api/update") return json(res, { update: await (ctx.update ??= checkForUpdate()) });
 
   // ---- written guides ----
   if (p === "/article-frame" && req.method === "GET") return send(res, 200, await articleFrame(kit, lang), "text/html; charset=utf-8");
@@ -210,7 +212,7 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
   am = /^\/api\/item\/([\w-]+)$/.exec(p);
   if (am && req.method === "POST") return json(res, await updateItem(kit, am[1]!, await readBody(req)));
   if (am && req.method === "DELETE") return json(res, await deleteItem(kit, am[1]!));
-  if (p === "/api/agent-prompt") return json(res, { prompt: await agentPrompt(kit, { guide: url.searchParams.get("guide") ?? undefined, step: url.searchParams.get("step") ? Number(url.searchParams.get("step")) : undefined, lang }, ctx.link()) });
+  if (p === "/api/agent-prompt") return json(res, { short: pasteLine(ctx.link()), prompt: await agentPrompt(kit, { guide: url.searchParams.get("guide") ?? undefined, step: url.searchParams.get("step") ? Number(url.searchParams.get("step")) : undefined, lang }, ctx.link()) });
   // what the page asks of the assistant: the state of the door, a request to send, or a prompt to copy
   if (p === "/api/agent" && req.method === "GET") return json(res, ctx.bridge.state());
   if (p === "/api/agent/request-prompt" && req.method === "POST") {
@@ -281,7 +283,9 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
   m = /^\/preview\/([\w-]+)$/.exec(p);
   if (m) {
     // silent build (no paid voice is called for a preview); the browser reads the narration so it can be heard
-    const { html } = await renderGuideHtml(kit, m[1]!, null, { browserVoice: true });
+    // ?studio=1: the Timeline draws its own transport, so the player shows only the picture and the caption
+    const extras = url.searchParams.get("studio") ? { css: ".cf-bar,.cf-transcript,.cf-big,.cf-veil-text{display:none!important}" } : undefined;
+    const { html } = await renderGuideHtml(kit, m[1]!, null, { browserVoice: true, extras });
     return send(res, 200, html, "text/html; charset=utf-8");
   }
   m = /^\/scene\/([\w-]+)$/.exec(p);
@@ -347,6 +351,28 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     if (!["title", "kicker", "desc"].includes(b.field)) throw new HttpError(400, "field must be title, kicker or desc");
     await setSiteText(kit, String(b.id), b.field, String(b.lang), String(b.value ?? "")).catch((e) => { throw new HttpError(422, e.message); });
     return json(res, { saved: true });
+  }
+
+  // the audio of one step, for the waveform and for listening: an uploaded file, or what a voice already generated (never generates)
+  m = /^\/api\/step-audio\/([\w-]+)\/([\w-]+)\/([\w-]+)$/.exec(p);
+  if (m && req.method === "GET") {
+    const guide = await loadGuide(kit, m[1]!).catch(() => { throw new HttpError(404, "no such tutorial"); });
+    const step = guide.steps.find((s) => s.id === m![2]);
+    if (!step) throw new HttpError(404, "no such step");
+    const sound = await stepAudio(kit, guide, step, m[3]!, null).catch(() => null);
+    if (!sound) { res.writeHead(204, { "cache-control": "no-store" }); return void res.end(); } // not an error: most steps have no audio until built
+    res.writeHead(200, { "content-type": sound.mime, "content-length": sound.data.length, "cache-control": "no-store" });
+    return void res.end(sound.data);
+  }
+  // an audio file for one step in one language (a recording of its own instead of a voice)
+  if (p === "/api/step-audio" && req.method === "POST") {
+    const guide = url.searchParams.get("guide") ?? "", step = url.searchParams.get("step") ?? "", lang = url.searchParams.get("lang") ?? "", ext = (url.searchParams.get("ext") ?? "").toLowerCase();
+    if (![guide, step, lang].every((v) => /^[\w-]+$/.test(v))) throw new HttpError(400, "guide, step and lang are needed");
+    if (!["mp3", "m4a", "wav", "ogg", "aac"].includes(ext)) throw new HttpError(400, "the audio must be mp3, m4a, wav, ogg or aac");
+    const data = await readRaw(req);
+    const name = await saveMediaFile(kit, "media", guide, `voice/${step}.${lang}.${ext}`, data).catch((e) => { throw new HttpError(400, e.message); });
+    await recordChange(kit, { kind: "file-replaced", tutorial: guide, target: `media/${guide}/${name}`, before: "", after: `${data.length} bytes (voice of ${step}, ${lang})` });
+    return json(res, { file: `media/${guide}/${name}` });
   }
 
   m = /^\/api\/media\/([\w-]+)$/.exec(p);
@@ -491,9 +517,16 @@ const authOk = (req: IncomingMessage, url: URL, token: string) => {
 };
 
 /** The HTTP door of an assistant: everything under /agent/, with Studio's key. */
-async function agentRoutes(req: IncomingMessage, res: ServerResponse, url: URL, ctx: Ctx) {
+async function agentRoutes(req: IncomingMessage, res: ServerResponse, url: URL, ctx: Ctx & { kit: Kit }) {
   const { bridge } = ctx;
-  if (!authOk(req, url, bridge.token)) throw new HttpError(401, "missing or wrong key: use the header Authorization: Bearer <key> given in the prompt of Studio (the key changes each time Studio starts)");
+  // the link printed at start: the key is in the address, so an assistant can read the full prompt with one plain GET
+  const link = /^\/agent\/instructions\/(\w+)$/.exec(url.pathname);
+  if (link) {
+    if (req.method !== "GET" || link[1] !== bridge.token) throw new HttpError(401, "wrong key: copy the link again from the terminal or from Studio's AI button (it may belong to another project's Studio)");
+    bridge.lastSeen = Date.now();
+    return send(res, 200, await agentPrompt(ctx.kit, {}, ctx.link()), "text/plain; charset=utf-8");
+  }
+  if (!authOk(req, url, bridge.token)) throw new HttpError(401, "missing or wrong key: use the header Authorization: Bearer <key> given in the prompt of Studio (the key is in .studio-key of the kit, so it may be another project's Studio)");
   bridge.lastSeen = Date.now();
   const p = url.pathname;
 

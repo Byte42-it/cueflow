@@ -410,13 +410,15 @@
       var lastEnd = 0;
       st.actions.forEach(function (a) { lastEnd = Math.max(lastEnd, endOf(a, narrDur)); });
       cur = { i: i, t: 0, total: Math.max(narrDur, lastEnd) + (st.hold != null ? st.hold : 600), narrDur: narrDur, actions: actions, text: text,
-        audio: info.audio && info.ms != null ? info.audio : null, speaking: false };
+        audio: info.audio && info.ms != null ? info.audio : null, speaking: false,
+        // a step can be muted ("none") in this language: no browser voice either
+        mute: !!(st.voice && st.voice[lang] && st.voice[lang].provider === "none") };
       if (cur.audio) { cur.audio.playbackRate = speed; cur.audio.muted = !voiceOn; }
       showCaption(text);
       applyCamera(st.camera || cam, instant ? 0 : 700);
       if (!instant && playing) {
         if (cur.audio) { cur.audio.currentTime = 0; cur.audio.play().catch(function () {}); }
-        else speak(cur, text);
+        else if (!cur.mute) speak(cur, text);
       }
       paintChapters();
     }
@@ -437,7 +439,7 @@
       if (synth) {
         if (!v) synth.pause();
         else if (cur && cur.speaking) synth.resume();
-        else if (cur && !cur.audio && cur.t < cur.narrDur) { synth.resume(); speak(cur, cur.text); }
+        else if (cur && !cur.audio && !cur.mute && cur.t < cur.narrDur) { synth.resume(); speak(cur, cur.text); }
       }
       if (v) { last = performance.now(); raf = requestAnimationFrame(tick); } else cancelAnimationFrame(raf);
     }
@@ -682,6 +684,10 @@
     goTo(stepFromHash() || 0, 0);
     return {
       seek: seek, probe: probe, restart: restart, jump: jump, transcript: transcriptText, downloadTranscript: downloadTranscript,
+      // for an editor that draws its own transport (Studio's timeline): where we are, and play/pause from outside
+      state: function () { return { step: cur ? cur.i : 0, t: cur ? cur.t : 0, total: cur ? cur.total : 0, playing: playing, loading: loading, ended: app.classList.contains("cf-ended") }; },
+      play: async function () { if (playing) return; if (!cur || app.classList.contains("cf-ended")) await restart(); setPlaying(true); },
+      pause: function () { setPlaying(false); },
       element: app, steps: function () { return steps.map(function (st, i) { return stepTitle(st, i); }); },
       setLang: function (l) { lang = l; langSel.value = l; pickVoice(); }
     };

@@ -179,10 +179,19 @@ export function spokenText(text: string, pronunciation: Record<string, string> =
 const inFlight = new Map<string, Promise<Buffer>>();
 
 /** The audio for this text, from the cache or freshly generated (in the provider's format, mp3 by default). */
-export async function narrationAudio(kit: Kit, provider: TtsProvider, text: string, lang: string): Promise<Buffer> {
+function cacheKey(kit: Kit, provider: TtsProvider, text: string, lang: string) {
   const spoken = text.replace(/\s+/g, " ").trim();
   const hash = createHash("sha256").update(JSON.stringify([provider.id, provider.fingerprint, lang, spoken])).digest("hex").slice(0, 40);
-  const file = path.join(audioDir(kit), `${hash}.${provider.format ?? "mp3"}`);
+  return { spoken, hash, file: path.join(audioDir(kit), `${hash}.${provider.format ?? "mp3"}`) };
+}
+
+/** The audio of this text only if it was generated before: never calls the provider (previews must not cost anything). */
+export async function cachedNarration(kit: Kit, provider: TtsProvider, text: string, lang: string): Promise<Buffer | null> {
+  return readFile(cacheKey(kit, provider, text, lang).file).catch(() => null);
+}
+
+export async function narrationAudio(kit: Kit, provider: TtsProvider, text: string, lang: string): Promise<Buffer> {
+  const { spoken, hash, file } = cacheKey(kit, provider, text, lang);
   try {
     return await readFile(file);
   } catch {

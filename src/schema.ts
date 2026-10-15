@@ -1,3 +1,4 @@
+import { VoiceSpec } from "./settings.ts";
 import { z } from "zod";
 
 /** A CSS selector resolved inside the scene document. */
@@ -85,6 +86,13 @@ export const Camera = z.object({
   padding: z.number().min(0).optional()
 });
 
+/** What reads one step in one language when it should not follow the project's voice: any voice of the project, or an audio file of its own. */
+export const StepVoice = z.union([
+  VoiceSpec,
+  z.object({ provider: z.literal("file"), file: z.string().describe("an audio file of the kit, e.g. media/<tutorial>/voice/<step>.<lang>.mp3") })
+]);
+export type StepVoice = z.infer<typeof StepVoice>;
+
 export const Step = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/i).describe("unique within the guide"),
   title: Localized.optional().describe("chapter name, shown on the progress bar and in the transcript"),
@@ -92,7 +100,8 @@ export const Step = z.object({
   camera: Camera.optional().describe("framing at the start of the step; omitted = keep the previous framing"),
   actions: z.array(Action).default([]),
   narration: z.record(z.string()).default({}).describe("text read aloud and shown as caption, per language code"),
-  hold: z.number().min(0).default(600).describe("pause after the step, in ms")
+  hold: z.number().min(0).default(600).describe("pause after the step, in ms"),
+  voice: z.record(StepVoice).optional().describe("per language: the voice of this step only (provider browser, none = muted, openai, say, command, or file). Absent = the project's voice (Auto)")
 });
 export type Step = z.infer<typeof Step>;
 

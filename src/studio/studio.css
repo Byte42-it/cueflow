@@ -53,7 +53,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .55); }
 .pagebar button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .pagebar button:hover { color: #eceef2; }
 .pagebar button.on { color: var(--accent); background: #1f232c; }
-.strip { flex: none; height: 188px; background: #14161b; color: #eceef2; border-top: 1px solid #000; display: flex; flex-direction: column; }
+.strip { flex: none; height: 236px; background: #14161b; color: #eceef2; border-top: 1px solid #000; display: flex; flex-direction: column; }
 .strip .stripbar { display: flex; align-items: center; gap: 10px; padding: 4px 12px; font-size: 12px; color: #98a0ae; border-bottom: 1px solid #262a33; }
 .strip .stripbar button { border: 1px solid #333945; background: #1f232c; color: #eceef2; border-radius: 6px; width: 24px; height: 22px; padding: 0; }
 .strip .scroll { flex: 1; overflow: auto; position: relative; }
@@ -268,3 +268,28 @@ body:not(.doc-mode) .docpage, body:not(.doc-mode) .docbar { display: none !impor
 .rowcap { margin: 8px 2px 0; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .tilewrap.dragging { opacity: .35; }
 .tilewrap[draggable="true"] { cursor: grab; }
+
+/* timeline transport and playhead */
+.strip .stripbar .transport { display: flex; align-items: center; gap: 4px; margin-right: 6px; }
+.strip .stripbar button.tp { width: 28px; height: 24px; display: grid; place-items: center; }
+.strip .stripbar button.tp svg { width: 13px; height: 13px; fill: currentColor; display: block; }
+.strip .stripbar button.tp:hover { border-color: var(--accent); }
+.tptime { font-variant-numeric: tabular-nums; color: #eceef2; min-width: 84px; margin-left: 6px; }
+.ruler { cursor: col-resize; touch-action: none; user-select: none; }
+.lane > .lbl { font-size: 10px; letter-spacing: .03em; }
+.playhead { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid #ff5a4d; z-index: 6; pointer-events: none; }
+.playhead::before { content: ""; position: absolute; top: 0; left: -7px; width: 12px; height: 10px; background: #ff5a4d; clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.mk.tr { background: #1e4d3a; color: #bfe8d2; }
+.mk.tr svg { width: 13px; height: 13px; display: block; }
+.mk.tr.on { outline: 2px solid #62c48b; }
+.act.focus { outline: 2px solid var(--accent); }
+
+/* the Voice lane: a waveform when there is audio, a dashed bar when the voice is made at build time */
+.blk.vo { background: #2c2750; color: #d9d3ff; cursor: pointer; padding: 0; border-color: #433b7a; }
+.blk.vo canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.blk.vo .vlbl { position: absolute; left: 6px; top: 2px; font-size: 10.5px; text-shadow: 0 1px 2px #000; pointer-events: none; }
+.blk.vo:not(.has) { background: #232731; border: 1px dashed #4a4470; color: #a79fd8; }
+.blk.vo:not(.has) .vlbl { top: 8px; }
+.blk.vo.muted { background: #3a2326; border-color: #6a3a40; color: #e8a9b0; }
+.blk.vo.on { border-color: #b8aaff; }
+.lab.auto { display: flex; align-items: center; gap: 8px; font-weight: 600; }

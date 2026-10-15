@@ -7,7 +7,8 @@ import { captureScenes } from "./capture.ts";
 import { initKit } from "./brief.ts";
 import { findKitRoot, loadGuide, openKit } from "./kit.ts";
 import { startStudio } from "./studio.ts";
-import { agentPrompt } from "./prompt.ts";
+import { checkForUpdate } from "./update.ts";
+import { pasteLine } from "./prompt.ts";
 import { voiceOptions, voiceTable } from "./voices.ts";
 import { checkLayout } from "./layout.ts";
 import { startMcp } from "./mcp.ts";
@@ -146,7 +147,9 @@ try {
     console.log(`${project.root}  (output: ${project.out})\nNext: put OPENAI_API_KEY in .cueflow/.env only if you choose an external voice; connect your assistant with the MCP server (see README).`);
   } else if (command === "studio") {
     const studio = await startStudio(kit, { port: values.port ? Number(values.port) : undefined, open: !values["no-open"] });
-    console.log(`${createdKit ? `No .cueflow in ${projectFolder}: created ${kit.root}\n` : ""}Cueflow Studio: ${studio.url}\nProject: ${projectFolder}\nKit: ${kit.root}\nCtrl+C to stop.\n\nTo work with an AI assistant, paste this into it (the key is valid until Studio stops; it is also in Studio, button AI):\n\n${await agentPrompt(kit, {}, studio.link)}\n`);
+    console.log(`${createdKit ? `No .cueflow in ${projectFolder}: created ${kit.root}\n` : ""}Cueflow Studio: ${studio.url}\nProject: ${projectFolder}\nKit: ${kit.root}\nCtrl+C to stop.\n\nTo work with an AI assistant, copy and paste this into it (the link carries the key; it keeps working if you restart Studio; the same is in Studio, button AI):\n\n${pasteLine(studio.link)}\n\nClosed the Studio tab by mistake? Open it again: ${studio.url}\n`);
+    // never delays the start: the answer comes when it comes, and silence means up to date, offline or switched off
+    void checkForUpdate().then((u) => { if (u) console.log(`A newer Cueflow is available: ${u.latest} (you have ${u.current}).\nUpdate with: ${u.command}\n(To stop this check: CUEFLOW_NO_UPDATE_CHECK=1)\n`); });
     await new Promise(() => {}); // runs until stopped
   } else if (command === "voices") {
     for (const o of voiceOptions()) console.log(`${o.available ? "●" : "○"} ${o.provider.padEnd(8)} ${o.title}\n    ${o.summary}\n    needs: ${o.needs}; cost: ${o.cost}`);

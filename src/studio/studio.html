@@ -13,10 +13,11 @@
   <div class="current" id="current"></div>
   <div class="where" id="where"></div>
   <label class="lang">Language <select id="lang"></select></label>
+  <button class="btn chip" id="update" title="A newer Cueflow is available" hidden></button>
   <button class="btn chip" id="notes" title="Hand edits the assistant has not read yet" hidden></button>
   <button class="btn ai" id="ai" title="A prompt for your AI assistant: carry on in a new session without starting over"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5M22 9v6"/></svg><span>AI</span><i class="dot" id="aidot" title="No assistant connected"></i></button>
   <button class="btn" id="dashboard" title="The titles and descriptions of the dashboard">Dashboard</button>
-  <button class="btn" id="project" title="Audience, tone, languages, rules, pronunciation">Project</button>
+  <button class="btn" id="project" title="Settings: audience, tone, languages, rules, pronunciation">Settings</button>
   <button class="themebtn" id="theme" title="Dark / light" aria-label="Dark or light">◐</button>
   <button class="btn primary" id="exportall" title="Build every tutorial and the dashboard that gathers them">Build</button>
 </header>
@@ -70,7 +71,7 @@
           <div class="tabs" role="tablist">
             <button data-tab="narration" class="on">Narration</button>
             <button data-tab="actions">Actions</button>
-            <button data-tab="assistant">Assistant</button>
+            <button data-tab="voice">Voice</button>
           </div>
           <div class="body" id="panel"></div>
         </aside>
