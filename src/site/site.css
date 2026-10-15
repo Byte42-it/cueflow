@@ -265,6 +265,10 @@ a.cf-ask:hover .cf-tile-media { border-color: var(--cf-site-accent); }
 .cf-video-zone h1 { font-size: clamp(26px, 1.4vw + 14px, 36px); letter-spacing: -.01em; margin: 0 0 18px; }
 #cf-player, .cf-section { scroll-margin-top: 18px; }
 #cf-player .cf-stage { max-height: calc(100vh - 150px); }
+/* on a docs page the veil over a still video is light and blurred, the button and its words in the site's colours */
+#cf-player { --cf-veil-bg: color-mix(in srgb, var(--cf-site-bg) 66%, transparent); --cf-veil-blur: 4px; }
+#cf-player .cf-big { width: 72px; height: 72px; box-shadow: 0 12px 30px color-mix(in srgb, var(--cf-site-primary) 30%, transparent); }
+#cf-player .cf-veil-text { top: calc(50% + 28px); --cf-veil-fg: var(--cf-site-primary); --cf-veil-muted: var(--cf-site-muted); --cf-veil-shadow: none; }
 .cf-transcript-section .cf-transcript { margin-top: 16px; }
 .cf-tr-sub { font-weight: 400; color: var(--cf-site-muted); }
 .cf-deep-head { margin: 0 0 36px; padding-top: 30px; border-top: 1px solid var(--cf-site-line); }

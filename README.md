@@ -193,7 +193,10 @@ Each guide can tune the player in a `player` block (all optional):
 `captions` (`below`, `overlay`, `off`), `chapters`, `speeds` (e.g. `[1, 1.5]`), `transcript`, `brand` (`stage`,
 `controls`, `off`), and
 `fallbackVoice: "browser"` to read silent builds with the browser's voice. `pronunciation` maps written words to
-how the voice must say them (audio only; the brief's pronunciation applies to every guide). A link ending in `#step-3` opens the guide at that step.
+how the voice must say them (audio only; the brief's pronunciation applies to every guide). A link ending in `#step-3` opens the guide at that step; the word for step in the guide's languages works too (`#passo-3`).
+Before the video starts, and when it ends, the play button sits on a veil with its words under it (what it does, the item's
+`duration`, or the step a link starts from); a theme changes the veil with `--cf-veil-bg`, `--cf-veil-blur`, `--cf-veil-fg`
+and `--cf-veil-muted`.
 
 ## Use
 
