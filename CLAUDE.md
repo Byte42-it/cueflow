@@ -17,6 +17,12 @@ Decisions taken with the owner (Luca) — do not re-litigate:
   equivalent of illegal-move rejection in the chess project).
 - Name: **Cueflow** (npm `cueflow` and scope `@cueflow` were free on 2026-10-14; not registered yet).
 - Scenes use the site's real CSS/fonts via `shared/`, with **fake data only** (privacy: never real client documents).
+- **Everything reusable on any site lives in Cueflow; anything specific to one product stays in that product's repo.**
+  `sol/docs` (SAUL) grew its own tutorial player, guide shell and catalog in parallel; the plan to fold the generic
+  parts into Cueflow, leaving only a SAUL kit in `sol`, is in [docs/merge-sol-docs.md](docs/merge-sol-docs.md)
+  (steps 1, 5 and 7 are done in `main`; 3 and 4 partly — providers and a per-guide pronunciation, theme but no `brief.json`; 2, 6 and the `sol` clean-up are not). Target flow: the user adds the MCP
+  server (a local stdio server, not a hosted link) → Claude first asks which site (local folder, later https) →
+  studies it → agrees a brief → authors tutorials → `build_site`.
 
 ## Architecture (src/)
 
@@ -81,7 +87,8 @@ improvements of 2026-10-14 (branch `feat/real-kit-improvements`): capture, share
 `select`/`value`/`check` actions, `player.brand`, site `colorScheme` and `--cf-site-on-primary`/`--cf-site-veil`,
 raster logos, computed durations. 37 tests green (no browser needed).
 **Audio verified end to end with `CUEFLOW_TTS=say`** (m4a, real durations read by the player, live playback);
-**the OpenAI path has still never run against the real API.** On the dev machine Playwright 1.64 wants a Chromium build
+**the OpenAI path ran once against the real API (2026-10-14, 8 mp3 for the demo; not listened to, player timing with
+those files not checked).** On the dev machine Playwright 1.64 wants a Chromium build
 that is not installed: use `CUEFLOW_CHROMIUM=~/Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell`.
 
 ## Roadmap (suggested order)

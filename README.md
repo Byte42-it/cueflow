@@ -31,6 +31,32 @@ Product onboarding, support tutorials and internal training often become outdate
 
 Cueflow is an early open-source prototype. Feedback, example kits, bug reports and contributions are welcome through this repository's issues and pull requests.
 
+## Getting started
+
+Cueflow is a tool you install once and point at any number of projects. It does not live inside your product.
+
+1. **Install it once** (Node.js 22.18+). Until the package is on npm:
+   ```bash
+   git clone https://github.com/Byte42-it/cueflow.git ~/tools/cueflow
+   cd ~/tools/cueflow && npm install && npx playwright install chromium
+   ```
+2. **Make a kit inside the project you want to document**, for example `my-product/tutorials/` (see [The kit](#the-kit)).
+   The kit is data you version with your product: scenes, guides, theme, catalog. Start from a copy of
+   `examples/demo-kit`, or let `capture` build the scenes from your running site.
+3. **Connect your AI assistant to that kit** (here Claude Code, run from the kit's folder; any MCP client works):
+   ```bash
+   claude mcp add cueflow -- node ~/tools/cueflow/src/cli.ts mcp --kit "$(pwd)"
+   ```
+   Put `OPENAI_API_KEY` (or `CUEFLOW_TTS=say|command`) in a `.env` file in the kit; it is never read from the kit's
+   scenes and should be git-ignored.
+4. **Ask for tutorials.** Open the assistant in the product's folder and say which flow to explain, who it is for and in
+   which languages. It captures the screens, writes the steps (each one checked against the real elements), looks at
+   frames with `preview_frame`, and builds the guide and the docs site. You review the previews and the narration.
+5. **Publish** the folder `dist/` (one HTML per guide, plus `dist/site/` for the catalog). No server is needed to view it.
+
+The kit stays in your product's repo; Cueflow stays in one place on your machine and is updated with `git pull`.
+Nothing product-specific (names, colors, texts, rules) belongs in Cueflow itself.
+
 ## The kit
 
 ```
