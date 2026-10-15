@@ -155,10 +155,14 @@ a.btn { color: var(--ink); }
 .eledit { border: 1px solid var(--accent); border-radius: var(--radius); padding: 12px; margin-bottom: 16px; background: color-mix(in srgb, var(--accent) 6%, transparent); }
 .eledit code { color: var(--accent-ink); word-break: break-all; }
 .item { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 10px; }
-.note { padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.note { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.note span { flex: 1; }
+.note-del { flex: none; width: 24px; height: 24px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; }
+.note-del:hover, .note-del:focus-visible { border-color: var(--line); color: var(--fg, inherit); }
 dialog.big { width: min(760px, 94vw); max-height: 88vh; overflow: auto; }
 textarea.code { font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace; min-height: 340px; }
-.btn.ai { display: inline-flex; align-items: center; gap: 6px; }
+.btn.ai, .btn.icon { display: inline-flex; align-items: center; gap: 6px; }
+.btn.icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .btn.ai svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .welcome { flex: 1; overflow: auto; display: grid; place-items: start center; padding: 40px 20px; }
 .welcome[hidden] { display: none; }

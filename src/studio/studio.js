@@ -330,11 +330,64 @@
           .then(function (r) { S.msg = { kind: r.warnings.length ? "warn" : "ok", text: r.warnings.length ? "Saved. " + r.warnings.join(" ") : "Saved." }; renderPanel(); })
           .catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
       } }, "Save"),
-      h("button", { class: "btn", onclick: function () { speak(area.value, S.lang); } }, "Listen (browser voice)")));
+      listenButton(function () { return area.value; }, msg)));
     if (S.msg) { msg.className = "msg " + S.msg.kind; msg.textContent = S.msg.text; }
     p.appendChild(msg);
   }
-  function speak(t, lang) { if (!window.speechSynthesis) return; speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance(t); u.lang = lang; speechSynthesis.speak(u); }
+  /* the browser's voice, chosen as the player chooses it (same language, a natural voice when there is one) */
+  function browserVoice(lang) {
+    var base = String(lang).slice(0, 2).toLowerCase();
+    var mine = speechSynthesis.getVoices().filter(function (v) { return String(v.lang).toLowerCase().indexOf(base) === 0; });
+    return mine.filter(function (v) { return /Google|Natural|Online/i.test(v.name); })[0] || mine[0] || null;
+  }
+  function speak(t, lang, onend) {
+    if (!window.speechSynthesis) return;
+    speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(t); u.lang = lang;
+    var v = browserVoice(lang); if (v) u.voice = v;
+    if (onend) u.onend = u.onerror = onend;
+    speechSynthesis.speak(u);
+  }
+  var SPEAKER = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>';
+  var STOP = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>';
+  var playing = null; // what Listen is playing now: an <audio>, or the browser voice
+  function stopListening() {
+    if (playing && playing.pause) playing.pause();
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    if (playing && playing.done) playing.done();
+    playing = null;
+  }
+  /** Listen: the narration with the tutorial's own voice and pronunciation; a second click stops it. */
+  function listenButton(textOf, msg) {
+    var b = h("button", { class: "btn icon", title: "Listen with the voice of this tutorial" });
+    var idle = function () { b.innerHTML = SPEAKER + "<span>Listen</span>"; };
+    idle();
+    b.onclick = function () {
+      if (playing) return stopListening();
+      var t = (textOf() || "").trim();
+      if (!t || !S.guide) return;
+      b.innerHTML = STOP + "<span>Stop</span>";
+      var mine = { done: idle };
+      playing = mine;
+      fetch("/api/listen", { method: "POST", headers: { "x-cueflow": "studio", "content-type": "application/json" }, body: JSON.stringify({ guide: S.guide.id, language: S.lang, text: t }) })
+        .then(function (r) {
+          if (!r.ok) return r.json().then(function (d) { throw new Error(d.error); });
+          return /json/.test(r.headers.get("content-type") || "") ? r.json() : r.blob();
+        })
+        .then(function (d) {
+          if (playing !== mine) return;
+          if (d && d.browser && d.silent && msg) { msg.className = "msg"; msg.textContent = "This video has no voice in this language: the browser reads it here, the viewers will only see captions."; }
+          if (d && d.browser) return speak(d.text, S.lang, function () { if (playing === mine) { playing = null; idle(); } });
+          var a = new Audio(URL.createObjectURL(d));
+          a.onended = a.onerror = function () { if (playing === a) { playing = null; idle(); } };
+          a.done = idle;
+          playing = a;
+          a.play();
+        })
+        .catch(function (e) { if (playing === mine) playing = null; idle(); if (msg) { msg.className = "msg err"; msg.textContent = e.message; } });
+    };
+    return b;
+  }
 
   function assistantTab(p) {
     p.appendChild(h("h3", null, "Ask your assistant"));
@@ -812,9 +865,20 @@
     api("/api/changes").then(function (list) {
       dialog("Edits the assistant has not read yet", function (body, close) {
         body.appendChild(h("p", null, "Your hand edits are saved. They are kept here as notes for your assistant, which reads them (get_changes), understands why you made them and takes them into account: for example a narration that still names the old button."));
-        if (!list.length) body.appendChild(h("p", { class: "empty" }, "None."));
-        list.forEach(function (c) { body.appendChild(h("div", { class: "note" }, c.sentence)); });
-        body.appendChild(h("div", { class: "row" }, h("button", { class: "btn", onclick: close }, "Close")));
+        body.appendChild(h("p", null, "Delete a note when the assistant should not read it: the edit itself stays saved."));
+        var box = h("div", { class: "notes" }), empty = h("p", { class: "empty" }, "None.");
+        var discard = function (body2) {
+          return api("/api/changes/discard", { method: "POST", body: body2 }).then(function () { if (!box.children.length) { box.replaceWith(empty); all.disabled = true; } }).catch(function (e) { flash(e.message, "err"); });
+        };
+        list.forEach(function (c) {
+          var row = h("div", { class: "note" }, h("span", null, c.sentence));
+          row.appendChild(h("button", { class: "note-del", title: "Delete this note", "aria-label": "Delete this note", onclick: function () { row.remove(); discard({ ids: [c.id] }); } }, "×"));
+          box.appendChild(row);
+        });
+        body.appendChild(list.length ? box : empty);
+        var all = h("button", { class: "btn", onclick: function () { if (!confirm("Delete all the notes? Your edits stay saved; the assistant will not be told about them.")) return; box.textContent = ""; discard({ all: true }); } }, "Delete all");
+        all.disabled = !list.length;
+        body.appendChild(h("div", { class: "row" }, all, h("button", { class: "btn", onclick: close }, "Close")));
       });
     });
   }
