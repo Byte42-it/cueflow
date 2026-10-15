@@ -5,6 +5,7 @@ import { buildGuide, writeAtomic } from "./build.ts";
 import { captureScenes } from "./capture.ts";
 import { initKit } from "./brief.ts";
 import { findKitRoot, loadGuide, openKit } from "./kit.ts";
+import { startStudio } from "./studio.ts";
 import { voiceOptions, voiceTable } from "./voices.ts";
 import { checkLayout } from "./layout.ts";
 import { startMcp } from "./mcp.ts";
@@ -16,6 +17,7 @@ const USAGE = `cueflow — narrated UI walkthroughs from static HTML scenes
 
   cueflow init [--out-dir <dir>]        create .cueflow/ in this folder: the kit of the project, and fix where the output goes
                                         (default ../cueflow-dist, next to .cueflow)
+  cueflow studio [--port <n>] [--no-open]  the editor in your browser: videos, steps, narration, voices, picking elements
   cueflow voices                        the voices to choose from, and which one each video speaks with
   cueflow capture [--scene <name>]...   capture the scenes described in capture.json from the live site
   cueflow build <guide>                 build <output>/<guide>.html, with narration audio when a voice is set (CUEFLOW_TTS)
@@ -51,6 +53,8 @@ const { values, positionals } = parseArgs({
     stage: { type: "boolean" },
     out: { type: "string" },
     "out-dir": { type: "string" },
+    port: { type: "string" },
+    "no-open": { type: "boolean" },
     lang: { type: "string" },
     help: { type: "boolean", short: "h" }
   }
@@ -106,6 +110,10 @@ try {
     const project = openKit(path.join(process.cwd(), ".cueflow"));
     await initKit(project, undefined, values["out-dir"]);
     console.log(`${project.root}  (output: ${project.out})\nNext: put OPENAI_API_KEY in .cueflow/.env only if you choose an external voice; connect your assistant with the MCP server (see README).`);
+  } else if (command === "studio") {
+    const studio = await startStudio(kit, { port: values.port ? Number(values.port) : undefined, open: !values["no-open"] });
+    console.log(`Cueflow Studio: ${studio.url}\nKit: ${kit.root}\nCtrl+C to stop.`);
+    await new Promise(() => {}); // runs until stopped
   } else if (command === "voices") {
     for (const o of voiceOptions()) console.log(`${o.available ? "●" : "○"} ${o.provider.padEnd(8)} ${o.title}\n    ${o.summary}\n    needs: ${o.needs}; cost: ${o.cost}`);
     console.log("\nEvery video speaks with:");

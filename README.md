@@ -55,6 +55,21 @@ Cueflow is a tool you install once and point at any number of projects. It does 
 Nothing product-specific (names, colors, texts, rules) belongs in Cueflow itself. Until the package is on npm, clone
 this repository, `npm install && npm run build`, and run `node <clone>/build/cli.js …` (or `npm link`).
 
+### Cueflow Studio
+
+`cueflow studio` opens an editor in your browser (it listens on this computer only). Videos and their steps on the
+left, the video playing in the middle, and on the right:
+
+- **Narration**: edit what a step says, save (it is checked first, and you get the same warnings as `validate`), listen to it;
+- **Pick an element**: click anything in the screen of the step to get its selector, and frame it with the camera in one click;
+- **Voices**: choose who reads the tutorials, in plain words, for everything, a language or one video; a voice can be tried
+  before it is saved; an OpenAI key is typed here once and kept in the kit's `.env`, never shown again;
+- **Assistant**: write what you want changed and copy the request to your own assistant. Studio does not embed one:
+  your assistant edits the same files through Cueflow's tools, and Studio shows its changes as they happen. If you edit
+  something that an assistant changed meanwhile, the save is refused with a message instead of overwriting.
+
+It is a first version: there is no timeline yet, actions are not edited by hand, and scenes are not captured from here.
+
 ### Voices
 
 By default a tutorial is read by **the viewer's browser**: free, no key, nothing to set up (it sounds different on every
