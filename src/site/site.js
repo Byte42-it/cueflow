@@ -48,7 +48,7 @@
       subVideo: "Video and guide", subGuide: "Guide · video to come", subSoon: "In preparation",
       watch: "Watch the video", readTranscript: "Read the transcript", transcript: "Transcript", guide: "Guide", readGuide: "Read the guide",
       chipVoice: "Voice and captions", chipRead: "Guide to read", chipPdf: "PDF", featured: "Featured", quick: "Quick access",
-      soonKicker: "Coming next", soonLede: "The next videos in preparation. If the one you need is not here, you can ask for it.",
+      soonKicker: "Coming next", soonLede: "The next videos in preparation. If the one you need is not here, you can ask for it.", soonLedePlain: "The next videos in preparation.",
       availableTitle: "Available", askTitle: "Missing something?", askSub: "Suggest a topic", back: "Back", forward: "Forward",
       askKicker: "Missing something?", askHeading: "Request a tutorial",
       askLede: "Something is not clear, or the video you need is missing? Write the topic: requests help choose the next tutorials.",
@@ -74,7 +74,7 @@
       subVideo: "Video e guida", subGuide: "Guida · video in arrivo", subSoon: "In preparazione",
       watch: "Guarda il video", readTranscript: "Leggi la trascrizione", transcript: "Trascrizione", guide: "Guida", readGuide: "Leggi la guida",
       chipVoice: "Voce e sottotitoli", chipRead: "Guida da leggere", chipPdf: "PDF", featured: "In evidenza", quick: "Accesso rapido",
-      soonKicker: "Prossimamente", soonLede: "I prossimi video in preparazione. Se ne serve uno che non c'è, si può chiedere.",
+      soonKicker: "Prossimamente", soonLede: "I prossimi video in preparazione. Se ne serve uno che non c'è, si può chiedere.", soonLedePlain: "I prossimi video in preparazione.",
       availableTitle: "Disponibili", askTitle: "Manca qualcosa?", askSub: "Segnala l'argomento", back: "Indietro", forward: "Avanti",
       askKicker: "Manca qualcosa?", askHeading: "Richiedi un tutorial",
       askLede: "Una funzione non è chiara, o manca il video che servirebbe? Scrivi l'argomento: le richieste aiutano a scegliere i prossimi tutorial da preparare.",
@@ -391,7 +391,7 @@
       sec.id = row.id; sec.setAttribute("aria-label", row.title);
       sec.innerHTML = (row.kicker || row.band ? '<p class="cf-kicker">' + esc(row.kicker || L("soonKicker")) + "</p>" : "") +
         '<div class="cf-sec-head"><h2>' + esc(row.title) + "</h2>" + (row.note ? "<span>" + esc(row.note) + "</span>" : "") + "</div>" +
-        (row.lede || row.band ? '<p class="cf-sec-lede">' + esc(row.lede || L("soonLede")) + "</p>" : "");
+        (row.lede || row.band ? '<p class="cf-sec-lede">' + esc(row.lede || L(cat.requestEndpoint ? "soonLede" : "soonLedePlain")) /* no promise of a request form the site does not have */ + "</p>" : "");
       var nodes = items.map(tile);
       if (row.askTile && cat.requestEndpoint) nodes.push(askTile());
       sec.appendChild(rail(nodes));
