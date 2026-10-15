@@ -65,3 +65,27 @@ describe("quality warnings", () => {
     assert.equal(report.errors.length, 0);
   });
 });
+
+describe("the prompt for an assistant", () => {
+  it("on a first start says how to begin: method, brief, ask which site", async () => {
+    const { agentPrompt } = await import("../src/prompt.ts");
+    const fresh = openKit(path.join(dir, "first"));
+    await initKit(fresh);
+    const p = await agentPrompt(fresh);
+    assert.match(p, /There is no tutorial yet/);
+    assert.match(p, /get_method/);
+    assert.match(p, /which site/i);
+    assert.match(p, /claude mcp add cueflow -- node ".*" mcp --kit ".*first"/);
+  });
+
+  it("later says where things stand, so a new session carries on", async () => {
+    const { agentPrompt } = await import("../src/prompt.ts");
+    await updateBrief(kit, { audience: "office staff", languages: ["en", "it"] });
+    const p = await agentPrompt(kit, { guide: "upload", step: 1, lang: "it" });
+    assert.match(p, /do not start over/);
+    assert.match(p, /upload: .*How to upload a document/);
+    assert.match(p, /Audience: office staff/);
+    assert.match(p, /tutorial "upload", step 2 \(choose\), language it/);
+    assert.match(p, /get_brief/);
+  });
+});

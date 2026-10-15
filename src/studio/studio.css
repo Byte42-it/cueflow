@@ -158,3 +158,17 @@ a.btn { color: var(--ink); }
 .note { padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 dialog.big { width: min(760px, 94vw); max-height: 88vh; overflow: auto; }
 textarea.code { font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace; min-height: 340px; }
+.btn.ai { display: inline-flex; align-items: center; gap: 6px; }
+.btn.ai svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.welcome { flex: 1; overflow: auto; display: grid; place-items: start center; padding: 40px 20px; }
+.welcome[hidden] { display: none; }
+.wbox { max-width: 760px; width: 100%; } .wbox h2 { margin: 0 0 8px; font-size: 24px; } .wbox p { color: var(--muted); } .wbox li { margin: 4px 0; }
+.wbox pre, pre.prompt { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; white-space: pre-wrap; font: 12.5px/1.55 ui-monospace, Menlo, Consolas, monospace; max-height: 46vh; overflow: auto; color: var(--ink); }
+body.no-tutorials .pagebar { display: none; }
+body.no-tutorials .pages > .page { display: none !important; }
+body.no-tutorials #page-timeline { display: none !important; }
+.tilewrap { position: relative; }
+.tilewrap .del { position: absolute; top: 10px; right: 10px; width: 26px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); opacity: 0; transition: opacity .12s; font-size: 13px; line-height: 1; }
+.tilewrap:hover .del, .tilewrap .del:focus-visible { opacity: 1; }
+.tilewrap .del:hover { border-color: var(--err); color: var(--err); }
+.btn.danger { background: var(--err); border-color: var(--err); color: #1a0705; font-weight: 600; }

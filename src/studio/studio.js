@@ -57,17 +57,37 @@
   }
 
   /* ---------- rendering ---------- */
-  function renderAll() { renderLang(); renderSide(); renderView(false); renderPanel(); renderStrip(); renderPage(); }
+  /* first start: no tutorial yet, so a prompt to give the assistant; the first tutorial brings the normal view */
+  function renderWelcome() {
+    var empty = !S.state.guides.length;
+    document.body.classList.toggle("no-tutorials", empty);
+    $("#welcome").hidden = !empty;
+    if (!empty) return;
+    S.welcomeShown = true;
+    api("/api/agent-prompt").then(function (r) { S.welcomePrompt = r.prompt; $("#welcome-prompt").textContent = r.prompt; });
+  }
+  function copyText(t, okMsg, el) {
+    return (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { flash(okMsg, "ok"); }, function () { if (el) { var r = document.createRange(); r.selectNodeContents(el); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); } flash("Select the text and copy it (Ctrl+C).", ""); });
+  }
+  function aiDialog() {
+    var q = "/api/agent-prompt?lang=" + encodeURIComponent(S.lang || "") + (S.guideId ? "&guide=" + encodeURIComponent(S.guideId) + "&step=" + S.step : "");
+    api(q).then(function (r) {
+      dialog("Carry on with your AI assistant", function (body, close) {
+        body.parentNode.classList.add("big");
+        body.appendChild(h("p", null, "Paste this into your assistant to continue in a new session without starting over: it says where the kit is, what exists, what you are looking at and what to read first. It is rewritten each time with the current state."));
+        var pre = h("pre", { class: "prompt" }, r.prompt);
+        body.appendChild(pre);
+        body.appendChild(h("div", { class: "row" }, h("button", { class: "btn primary", onclick: function () { copyText(r.prompt, "Prompt copied.", pre); } }, "Copy the prompt"), h("button", { class: "btn", onclick: close }, "Close")));
+      });
+    }).catch(function (e) { flash(e.message, "err"); });
+  }
+  function renderAll() { renderWelcome(); renderLang(); renderSide(); renderView(false); renderPanel(); renderStrip(); renderPage(); }
   /* the bottom bar: Media, Timeline, Voice, Export (as in a video editor) */
   function showPage(name) {
     if (name !== S.page && !confirmLeave()) return;
     S.page = name;
     document.querySelectorAll(".page").forEach(function (el) { el.hidden = el.id !== "page-" + name; });
-    $("#project").addEventListener("click", projectDialog);
-  $("#dashboard").addEventListener("click", dashboardDialog);
-  $("#notes").addEventListener("click", notesDialog);
-  $("#exportall").addEventListener("click", exportAll);
-  document.querySelectorAll(".pagebar button").forEach(function (b) { b.className = b.getAttribute("data-page") === name ? "on" : ""; });
+    document.querySelectorAll(".pagebar button").forEach(function (b) { b.className = b.getAttribute("data-page") === name ? "on" : ""; });
     renderPage();
   }
   function renderPage() {
@@ -96,12 +116,30 @@
       var total = (g.timing[S.lang] || g.timing[g.languages[0]] || []).reduce(function (n, t) { return n + t.total; }, 0);
       var tile = h("button", { class: "tile" + (on ? " on" : ""), title: text(g.title, S.lang), onclick: function () { selectGuide(g.id); } },
         thumb, h("span", { class: "cap" }, (i + 1) + ". " + text(g.title, S.lang)), h("span", { class: "sub" }, g.steps.length + " steps · " + fmt(total)));
-      film.appendChild(tile);
+      var del = h("button", { class: "del", title: "Delete this tutorial", "aria-label": "Delete this tutorial", onclick: function (e) { e.stopPropagation(); deleteTutorialDialog(g); } },
+        h("span", null, "🗑"));
+      film.appendChild(h("div", { class: "tilewrap" }, tile, del));
       requestAnimationFrame(function () { fr.style.transform = "scale(" + thumb.clientWidth / vp.width + ")"; });
     });
     film.appendChild(h("button", { class: "tile add", title: "New tutorial", onclick: newTutorialDialog }, h("div", { class: "thumb" }, "+"), h("span", { class: "cap" }, "New tutorial")));
     var g = video();
     $("#current").textContent = g ? text(g.title, S.lang) : "";
+  }
+  function deleteTutorialDialog(g) {
+    dialog("Delete “" + text(g.title, S.lang) + "”?", function (body, close) {
+      body.appendChild(h("p", null, "Its " + g.steps.length + " steps, its narration and its own media move to the trash folder of the kit (trash/), and it leaves the dashboard. Nothing is erased: you can put it back from there. The screens and shared files stay, because other tutorials may use them."));
+      var msg = h("div", { class: "msg" });
+      body.appendChild(h("div", { class: "row" },
+        h("button", { class: "btn danger", onclick: function () {
+          api("/api/guide/" + g.id, { method: "DELETE" }).then(function (r) {
+            close();
+            if (S.guideId === g.id) { S.guideId = null; S.guide = null; S.step = 0; mediaData = null; prevKey = ""; }
+            return loadState().then(function () { flash("Moved to " + r.trash + (r.removedFromCatalog.length ? " and removed from the dashboard." : "."), "ok"); });
+          }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+        } }, "Delete"),
+        h("button", { class: "btn", onclick: close }, "Cancel")));
+      body.appendChild(msg);
+    });
   }
   function dialog(title, build) {
     var d = $("#dlg"); d.textContent = ""; d.className = "";
@@ -806,7 +844,7 @@
   function exportAll() {
     api("/api/voices").then(function (v) {
       var external = v.table.filter(function (r) { return ["browser", "none"].indexOf(r.provider) < 0; });
-      dialog("Export everything", function (body, close) {
+      dialog("Build everything", function (body, close) {
         body.appendChild(h("p", null, "Builds every tutorial (" + S.state.guides.length + ") and the dashboard that gathers them: the home with all the videos, one page per tutorial. The files go to " + S.state.outDir + "."));
         if (external.length) body.appendChild(h("p", { class: "msg warn" }, "Audio will be generated with external voices (" + external.map(function (r) { return r.guide + "/" + r.language + ": " + r.provider; }).join(", ") + "): the narration text is sent to that service and it may cost. Texts already generated are not paid again."));
         var posters = h("input", { type: "checkbox" });
@@ -821,7 +859,7 @@
             result.appendChild(h("a", { href: r.url, target: "_blank", rel: "noopener", class: "btn" }, "Open the dashboard"));
             go.disabled = false;
           }).catch(function (e) { result.textContent = ""; result.appendChild(h("div", { class: "msg err" }, e.message)); go.disabled = false; });
-        } }, "Export");
+        } }, "Build");
         body.appendChild(h("div", { class: "row" }, go, h("button", { class: "btn", onclick: close }, "Close")));
         body.appendChild(result);
       });
@@ -860,6 +898,13 @@
 
   /* ---------- wiring ---------- */
   document.querySelectorAll(".tabs button").forEach(function (b) { b.addEventListener("click", function () { S.tab = b.getAttribute("data-tab"); renderPanel(); }); });
+  $("#ai").addEventListener("click", aiDialog);
+  $("#welcome-copy").addEventListener("click", function () { copyText(S.welcomePrompt || "", "Prompt copied. Paste it in your assistant.", $("#welcome-prompt")); });
+  $("#welcome-new").addEventListener("click", function () { if (S.state.scenes.length) newTutorialDialog(); else flash("There are no screens yet: the assistant creates them from your site. Paste the prompt in it first.", ""); });
+  $("#project").addEventListener("click", projectDialog);
+  $("#dashboard").addEventListener("click", dashboardDialog);
+  $("#notes").addEventListener("click", notesDialog);
+  $("#exportall").addEventListener("click", exportAll);
   document.querySelectorAll(".pagebar button").forEach(function (b) { b.addEventListener("click", function () { showPage(b.getAttribute("data-page")); }); });
   $("#theme").addEventListener("click", function () {
     var next = document.documentElement.dataset.theme === "light" ? "dark" : "light";

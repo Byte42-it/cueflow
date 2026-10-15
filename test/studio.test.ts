@@ -183,6 +183,28 @@ describe("studio", () => {
     assert.equal((await fetch(url + "api/media-text?area=shared&guide=upload&name=a.png", { method: "PUT", headers: { "x-cueflow": "studio" }, body: "x" })).status, 400);
   });
 
+  it("hands out a prompt for the assistant that knows what is selected", async () => {
+    const r = (await (await fetch(url + "api/agent-prompt?guide=upload&step=2&lang=en")).json()) as any;
+    assert.match(r.prompt, /Carry on from here/);
+    assert.match(r.prompt, /step 3/);
+  });
+
+  it("deletes a tutorial into the trash, and takes it out of the dashboard", async () => {
+    const make = await fetch(url + "api/guide-create", { method: "POST", headers: H, body: JSON.stringify({ id: "gone", title: "To delete", scene: "upload", languages: ["en"] }) });
+    assert.equal(make.status, 200);
+    await fetch(url + "api/export-all", { method: "POST", headers: H, body: "{}" }); // puts it in the catalog
+    assert.ok(JSON.parse(await readFile(path.join(dir, ".cueflow", "site.json"), "utf8")).items.some((i: any) => i.guide === "gone"));
+    const r = await fetch(url + "api/guide/gone", { method: "DELETE", headers: H });
+    assert.equal(r.status, 200);
+    const out = (await r.json()) as any;
+    assert.match(out.trash, /^trash\/.*-gone$/);
+    assert.deepEqual(out.removedFromCatalog, ["gone"]);
+    assert.ok(await fs.stat(path.join(dir, ".cueflow", out.trash, "gone.json")), "the guide is kept in the trash");
+    assert.equal((await fetch(url + "api/guide/gone")).status, 500, "and is gone from the kit");
+    assert.ok(!JSON.parse(await readFile(path.join(dir, ".cueflow", "site.json"), "utf8")).items.some((i: any) => i.guide === "gone"));
+    assert.equal((await fetch(url + "api/guide/gone", { method: "DELETE", headers: H })).status, 404);
+  });
+
   it("refuses something that does not look like an OpenAI key", async () => {
     const r = await fetch(url + "api/key", { method: "POST", headers: H, body: JSON.stringify({ key: "hello" }) });
     assert.equal(r.status, 400);
