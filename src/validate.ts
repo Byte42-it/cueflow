@@ -2,6 +2,8 @@ import type { Guide } from "./schema.ts";
 import type { Kit } from "./kit.ts";
 import { listScenes, readScene, sceneFile, sceneFileFor } from "./kit.ts";
 import { countMatches } from "./scene.ts";
+import { estimateDuration } from "./build.ts";
+import { loadBrief } from "./brief.ts";
 
 export type Report = { errors: string[]; warnings: string[] };
 
@@ -19,6 +21,13 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
   if (!available.has(scene)) errors.push(`guide scene "${scene}" does not exist`);
   if (guide.steps.length === 0) warnings.push("the guide has no steps");
 
+  // one idea per tutorial, one or two sentences per step: longer ones are better split
+  const { maxSeconds } = await loadBrief(kit);
+  for (const lang of guide.languages) {
+    const seconds = Math.round(estimateDuration(guide, lang) / 1000);
+    if (seconds > maxSeconds) warnings.push(`the guide lasts about ${seconds} s in "${lang}", over the ${maxSeconds} s of the brief: split it into two tutorials`);
+  }
+
   for (const [i, step] of guide.steps.entries()) {
     const where = `step ${i + 1} (${step.id})`;
     if (seen.has(step.id)) errors.push(`${where}: duplicate step id`);
@@ -28,7 +37,9 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
       if (!available.has(scene)) errors.push(`${where}: scene "${scene}" does not exist`);
     }
     for (const lang of guide.languages) {
-      if (!step.narration[lang]?.trim()) warnings.push(`${where}: no narration in "${lang}"`);
+      const narration = step.narration[lang]?.trim();
+      if (!narration) warnings.push(`${where}: no narration in "${lang}"`);
+      else if ((narration.match(/[.!?…]+(\s|$)/g)?.length ?? 1) > 2) warnings.push(`${where}: more than two sentences in "${lang}": a step carries one idea, split it`);
     }
     for (const lang of Object.keys(step.narration)) {
       if (!guide.languages.includes(lang)) warnings.push(`${where}: narration in "${lang}", which is not a language of the guide`);

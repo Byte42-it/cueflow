@@ -20,7 +20,7 @@ Decisions taken with the owner (Luca) — do not re-litigate:
 - **Everything reusable on any site lives in Cueflow; anything specific to one product stays in that product's repo.**
   `sol/docs` (SAUL) grew its own tutorial player, guide shell and catalog in parallel; the plan to fold the generic
   parts into Cueflow, leaving only a SAUL kit in `sol`, is in [docs/merge-sol-docs.md](docs/merge-sol-docs.md)
-  (steps 1, 5 and 7 are done in `main`; 3 and 4 partly — providers and a per-guide pronunciation, theme but no `brief.json`; 2, 6 and the `sol` clean-up are not). Target flow: the user adds the MCP
+  (steps 1, 2, 4, 5, 6 and 7 are done; 3 partly — providers and pronunciation from the brief, but the voice style is still fixed in `tts.ts`; the `sol` clean-up is not). Target flow: the user adds the MCP
   server (a local stdio server, not a hosted link) → Claude first asks which site (local folder, later https) →
   studies it → agrees a brief → authors tutorials → `build_site`.
 
@@ -41,6 +41,7 @@ Decisions taken with the owner (Luca) — do not re-litigate:
 | `site/site.js`, `site.css` | docs-site runtime (left bar, drawer, request dialog, tiles/rows/hover preview, item page index/search/print); shipped with the player in `assets/cueflow.js`/`.css` |
 | `preview.ts` | `launchChromium` (lang, `CUEFLOW_CHROMIUM`), `openPreview` session over a built guide: `seek` (ms or "80%"), `frame` (player, or stage without cursor/ring/mark), `probe`, contact `sheet` |
 | `layout.ts` | `checkLayout`: plays the guide and probes every element used by camera/move/click/highlight/type/form actions at its moment (found, visible, inside the scene) |
+| `brief.ts`, `method.ts` | `brief.json` (what was agreed with the user: source, audience, tone, languages, rules, pronunciation, maxSeconds; the only home of product rules) and `kitStatus` (what to do next); `METHOD`/`INSTRUCTIONS`, the working method served by `get_method` — must never name a product |
 | `mcp.ts` | MCP server (stdio): capture_scenes, list_scenes, inspect_scene, create_guide, get_guide, add_step, replace_step, remove_step, set_narration, validate_guide (+layout), build_guide, preview_frame, validate_site, build_site |
 | `cli.ts` | `cueflow capture|build|validate [--layout]|preview|site|mcp --kit <dir>` |
 

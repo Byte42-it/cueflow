@@ -2,6 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { buildGuide } from "./build.ts";
+import { Brief, initKit, kitStatus, updateBrief } from "./brief.ts";
+import { INSTRUCTIONS, METHOD } from "./method.ts";
 import { captureScenes } from "./capture.ts";
 import { listGuides, listScenes, loadGuide, readScene, saveGuide, type Kit } from "./kit.ts";
 import { checkLayout } from "./layout.ts";
@@ -13,7 +15,9 @@ import { defaultProvider } from "./tts.ts";
 import { validateGuide } from "./validate.ts";
 
 const text = (value: unknown) => ({ content: [{ type: "text" as const, text: typeof value === "string" ? value : JSON.stringify(value, null, 2) }] });
-const fail = (e: unknown) => ({ isError: true, content: [{ type: "text" as const, text: e instanceof Error ? e.message : String(e) }] });
+const describeError = (e: unknown): string =>
+  e instanceof z.ZodError ? "invalid value: " + e.issues.map((i) => `${i.path.join(".") || "value"}: ${i.message.toLowerCase()}`).join("; ") + ". Correct it and call again." : e instanceof Error ? e.message : String(e);
+const fail = (e: unknown) => ({ isError: true, content: [{ type: "text" as const, text: describeError(e) }] });
 
 /** Wraps a tool body so that errors come back as readable tool errors instead of protocol failures. */
 const safe =
@@ -27,8 +31,64 @@ const safe =
   };
 
 export function createServer(kit: Kit): McpServer {
-  const server = new McpServer({ name: "cueflow", version: "0.0.1" });
+  const server = new McpServer({ name: "cueflow", version: "0.0.1" }, { instructions: INSTRUCTIONS });
   const guideId = z.string().describe("guide id");
+
+  server.registerTool(
+    "get_method",
+    { description: "READ THIS FIRST. The working method: which questions to ask, how to study a site, how to write steps and narration, what to check before building. The same for every product." },
+    safe(async () => text(METHOD))
+  );
+
+  server.registerTool(
+    "get_brief",
+    { description: "Where the kit stands: the brief (site, source, audience, tone, languages, rules, pronunciation, maximum length), the scenes and guides that exist, and `next`, what to do now." },
+    safe(async () => text(await kitStatus(kit)))
+  );
+
+  server.registerTool(
+    "init_kit",
+    { description: "Create the kit's folders (scenes, shared, guides) and an empty brief.json if there is none. Safe to call again.", inputSchema: { site: z.string().optional().describe("name of the product or site") } },
+    safe(async ({ site }) => {
+      await initKit(kit, site);
+      return text(await kitStatus(kit));
+    })
+  );
+
+  server.registerTool(
+    "set_source",
+    {
+      description: "Record which site the tutorials are for: a local folder or a live address. Ask the user first; do not guess.",
+      inputSchema: { type: z.enum(["folder", "url"]), value: z.string().describe("the folder's path, or the address (https://…)") }
+    },
+    safe(async ({ type, value }) => {
+      const source = type === "folder" ? { type, path: value } : { type, url: value };
+      await initKit(kit);
+      await updateBrief(kit, { source: Brief.shape.source.parse(source) });
+      return text(await kitStatus(kit));
+    })
+  );
+
+  server.registerTool(
+    "set_brief",
+    {
+      description: "Save what was agreed with the user. Only the fields you pass change; `languages` and `rules` are replaced as lists, `pronunciation` entries are added to the existing ones.",
+      inputSchema: {
+        site: z.string().optional(),
+        audience: z.string().optional(),
+        tone: z.string().optional(),
+        languages: z.array(z.string().min(2)).optional(),
+        rules: z.array(z.string()).optional(),
+        pronunciation: z.record(z.string()).optional(),
+        maxSeconds: z.number().positive().optional()
+      }
+    },
+    safe(async (patch) => {
+      await initKit(kit);
+      await updateBrief(kit, Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)));
+      return text(await kitStatus(kit));
+    })
+  );
 
   server.registerTool(
     "capture_scenes",

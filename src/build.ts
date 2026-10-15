@@ -5,6 +5,7 @@ import { distFile, loadGuide, sceneFile, sceneFileFor, type Kit } from "./kit.ts
 import { inlineScene, type Shared } from "./scene.ts";
 import type { Guide } from "./schema.ts";
 import { loadTheme } from "./theme.ts";
+import { loadBrief } from "./brief.ts";
 import { audioMime, narrationAudio, spokenText, type TtsProvider } from "./tts.ts";
 import { validateGuide } from "./validate.ts";
 
@@ -56,13 +57,14 @@ export async function guideBundle(kit: Kit, id: string, provider: TtsProvider | 
 
   const audio: Record<string, Record<string, string>> = {};
   let audioFiles = 0;
+  const brief = await loadBrief(kit);
   if (provider) {
     for (const lang of guide.languages) {
       audio[lang] = {};
       for (const step of guide.steps) {
         const text = step.narration[lang]?.trim();
         if (!text) continue;
-        const sound = await narrationAudio(kit, provider, spokenText(text, guide.pronunciation), lang);
+        const sound = await narrationAudio(kit, provider, spokenText(text, { ...brief.pronunciation, ...guide.pronunciation }), lang);
         audio[lang]![step.id] = `data:${audioMime(provider)};base64,${sound.toString("base64")}`;
         audioFiles += 1;
       }
