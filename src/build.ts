@@ -119,12 +119,18 @@ export async function writeAtomic(file: string, content: string | Buffer): Promi
   await rename(tmp, file); // never leave a half-written file where readers look
 }
 
-/** Builds guides/<id>.json into dist/<id>.html: one self-contained file with player, scenes, timeline and audio. */
-export async function buildGuide(kit: Kit, id: string, provider?: TtsProvider | null): Promise<BuildResult> {
+/** The page of a guide, as a string. `browserVoice` makes a silent build read its narration with the browser's voice (previews). */
+export async function renderGuideHtml(kit: Kit, id: string, provider?: TtsProvider | null, opts: { browserVoice?: boolean } = {}) {
   const bundle = await guideBundle(kit, id, provider);
+  if (opts.browserVoice) bundle.guide.player = { ...bundle.guide.player, fallbackVoice: "browser" };
   const { js, css, theme } = await playerAssets(kit);
   const styles = theme.css ? `${css}\n/* kit theme */\n${theme.css}` : css;
-  const html = pageHtml(bundle.guide, styles, js, { ...bundle.data, labels: theme.labels });
+  return { bundle, html: pageHtml(bundle.guide, styles, js, { ...bundle.data, labels: theme.labels }) };
+}
+
+/** Builds guides/<id>.json into <output>/<id>.html: one self-contained file with player, scenes, timeline and audio. */
+export async function buildGuide(kit: Kit, id: string, provider?: TtsProvider | null): Promise<BuildResult> {
+  const { bundle, html } = await renderGuideHtml(kit, id, provider);
   const file = distFile(kit, id);
   await writeAtomic(file, html);
   return { file, scenes: bundle.scenes, audioFiles: bundle.audioFiles, silent: bundle.audioFiles === 0, warnings: bundle.warnings };

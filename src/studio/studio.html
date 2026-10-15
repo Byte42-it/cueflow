@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cueflow Studio</title>
+<link rel="stylesheet" href="/studio.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><svg viewBox="152 152 950 950" width="22" height="22" aria-hidden="true"><g fill="none" stroke="#ff7a59" stroke-linecap="round" stroke-linejoin="round"><path d="M880 370A338 338 0 1 0 880 890" stroke-width="210"/><path d="M830 525L1040 640L830 755Z" fill="#ff7a59" stroke-width="70"/></g></svg><b>Cueflow</b> <span>Studio</span></div>
+  <div class="where" id="where"></div>
+  <label class="lang">Language <select id="lang"></select></label>
+</header>
+<div class="banner" id="banner" hidden></div>
+<main class="grid">
+  <nav class="side" id="side" aria-label="Videos and steps"></nav>
+  <section class="center">
+    <div class="bar">
+      <div class="seg" role="tablist">
+        <button id="m-video" class="on">Video</button>
+        <button id="m-pick">Pick an element</button>
+      </div>
+      <div class="pick" id="pickinfo" hidden></div>
+    </div>
+    <div class="stage"><iframe id="view" title="Preview"></iframe></div>
+  </section>
+  <aside class="panel">
+    <div class="tabs" role="tablist">
+      <button data-tab="narration" class="on">Narration</button>
+      <button data-tab="voices">Voices</button>
+      <button data-tab="assistant">Assistant</button>
+    </div>
+    <div class="body" id="panel"></div>
+  </aside>
+</main>
+<script src="/studio.js"></script>
+</body>
+</html>
