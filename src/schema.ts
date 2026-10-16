@@ -165,6 +165,11 @@ export const SiteItem = z.object({
   posterAt: z.object({ step: z.number().int().min(0).default(0), at: z.number().min(0).default(1500) }).optional().describe("frame used as poster"),
   duration: Localized.optional().describe('as shown to people, e.g. "about 1 min"'),
   icon: z.string().optional().describe("image file in the kit (SVG, or png, jpg, gif, webp), shown in the quick-access squares"),
+  added: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "a date, YYYY-MM-DD")
+    .optional()
+    .describe("when it was made (YYYY-MM-DD), for the most recent in quick access; without it the build reads it from git (the commit that added its guide or article), or from the file"),
   contents: List.default([]).describe("what the page contains, listed in the hover preview")
 });
 export type SiteItem = z.infer<typeof SiteItem>;
@@ -200,7 +205,16 @@ export const Site = z.object({
     .optional()
     .describe("POST endpoint for tutorial requests (JSON: topic, message?, name?, email?, company? as honeypot, page); without it the request form is not shown. On another origin than `url` it must answer the CORS preflight for that origin"),
   featured: z.string().optional().describe("id of the item shown big at the top of the home"),
-  quickAccess: z.boolean().default(true),
+  quickAccess: z
+    .union([
+      z.boolean(),
+      z.object({
+        order: z.enum(["recent", "catalog"]).default("recent").describe("recent: the latest made first; catalog: the order of the rows"),
+        max: z.number().int().min(1).optional().describe("how many squares at most (default: 5 for recent, all for catalog)")
+      })
+    ])
+    .default(true)
+    .describe("the squares under the featured item: true = the 5 most recent ready items, false = none, or { order, max }"),
   rows: z.array(SiteRow).default([]),
   items: z.array(SiteItem).default([]),
   labels: z.record(z.record(z.string())).default({}).describe("override the site's interface words per language, e.g. { en: { quick: 'Shortcuts' } } (keys: the en labels in src/site/site.js)")

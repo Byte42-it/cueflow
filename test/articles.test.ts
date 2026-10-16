@@ -74,6 +74,15 @@ describe("written guides", () => {
     await assert.rejects(updateItem(kit, "upload", { status: "guide" }), /plays a video/);
   });
 
+  it("features an item on the home page, but not an announced one", async () => {
+    await updateItem(kit, "sharing", { featured: true });
+    assert.equal((await site()).featured, "sharing");
+    await updateItem(kit, "sharing", { status: "soon" });
+    assert.equal((await site()).featured, "upload", "announcing the featured item hands the place to one with a page");
+    await assert.rejects(updateItem(kit, "sharing", { featured: true }), /cannot be featured/);
+    await updateItem(kit, "sharing", { status: "guide" });
+  });
+
   it("moves an item within its row", async () => {
     const order = async () => (await site()).items.filter((i: any) => i.row === "ready").map((i: any) => i.id);
     const before = await order();

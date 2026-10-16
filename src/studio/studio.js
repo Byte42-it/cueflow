@@ -1271,7 +1271,7 @@
             if (!jobs.length) { msg.textContent = "Nothing changed."; return; }
             Promise.all(jobs.map(function (k) { return api("/api/site-text", { method: "POST", body: { id: it.id, field: k, lang: S.lang, value: f[k].el.value } }); }))
               .then(function () { jobs.forEach(function (k) { f[k].orig = f[k].el.value; }); msg.className = "msg ok"; msg.textContent = "Saved."; loadState(); }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
-          } }, "Save"), msg));
+          } }, "Save"), featureButton(it, site.featured, function () { close(); dashboardDialog(); }), msg));
           body.appendChild(box);
         });
         body.appendChild(h("div", { class: "row" }, h("button", { class: "btn", onclick: close }, "Close")));
@@ -1720,13 +1720,23 @@
         api("/api/item/" + it.id, { method: "POST", body: patch }).then(function () { return loadState(); }).then(function () { flash("Saved.", "ok"); renderDocAll(); }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
       } }, "Save"),
       h("button", { class: "btn", title: "Earlier in its row", onclick: function () { moveItem(-1); } }, "← Earlier in its row"),
-      h("button", { class: "btn", title: "Later in its row", onclick: function () { moveItem(1); } }, "Later in its row →")));
+      h("button", { class: "btn", title: "Later in its row", onclick: function () { moveItem(1); } }, "Later in its row →"),
+      featureButton(it, c.featured)));
     body.appendChild(msg);
     if (it.status !== "video") {
       body.appendChild(h("div", { class: "danger-zone" },
         h("p", null, "Taking the guide off the dashboard moves its text (every language) to the trash folder of the kit: nothing is erased."),
         h("button", { class: "btn danger", onclick: function () { deleteItemDialog(it); } }, "Delete this guide")));
     }
+  }
+  /* the item shown big at the top of the home page: one at a time, never an announced one (it has no page) */
+  function featureButton(it, featured, done) {
+    if (it.status === "soon") return null;
+    if (featured === it.id) return h("span", { class: "hint", title: "Shown big at the top of the home page" }, "★ Featured on the home page");
+    return h("button", { class: "btn", title: "Show it big at the top of the home page, instead of the one featured now", onclick: function () {
+      api("/api/item/" + it.id, { method: "POST", body: { featured: true } }).then(function () { return loadState(); })
+        .then(function () { flash("Featured on the home page. Build to publish it.", "ok"); if (done) done(); else renderDetails(); }).catch(function (e) { flash(e.message, "err"); });
+    } }, "★ Feature on the home page");
   }
   function moveItem(dir) { api("/api/item/" + D.id, { method: "POST", body: { move: dir } }).then(function () { return loadState(); }).then(function () { flash(dir < 0 ? "Moved earlier." : "Moved later.", "ok"); }).catch(function (e) { flash(e.message, "err"); }); }
   function deleteItemDialog(it) {

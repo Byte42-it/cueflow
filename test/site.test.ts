@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { openKit, type Kit } from "../src/kit.ts";
 import { Site } from "../src/schema.ts";
-import { buildSite, checkEndpoint, loadSite, siteFile, validateSite } from "../src/site.ts";
+import { buildSite, checkEndpoint, itemDates, loadSite, siteFile, validateSite } from "../src/site.ts";
 
 let dir: string;
 let kit: Kit;
@@ -98,6 +99,42 @@ describe("site", () => {
   it("refuses paths that leave the kit", async () => {
     const site = Site.parse(await withSite((s) => { s.items[0].poster = "../../etc/passwd"; }));
     await assert.rejects(validateSite(kit, site), /outside the kit/);
+  });
+
+  it("gives quick access the most recent ready items by default, and keeps the catalog order when asked", async () => {
+    const original = await readFile(siteFile(kit), "utf8");
+    try {
+      await writeFile(siteFile(kit), JSON.stringify(await withSite((s) => { s.items.find((i: any) => i.id === "sharing").added = "2026-05-01"; })));
+      let cat = pageData(await readFile(path.join((await buildSite(kit, { provider: null })).dir, "index.html"), "utf8")).catalog;
+      assert.deepEqual(cat.quickAccess, { order: "recent", max: 5 });
+      const by = (id: string) => cat.items.find((i: { id: string }) => i.id === id);
+      assert.equal(by("sharing").added, "2026-05-01", "an explicit date wins");
+      assert.match(by("upload").added, /^\d{4}-\d{2}-\d{2}T/, "without one, the date of its guide");
+      assert.equal(by("search").added, undefined, "an announced item has none");
+
+      await writeFile(siteFile(kit), JSON.stringify(await withSite((s) => { s.quickAccess = { order: "catalog" }; })));
+      cat = pageData(await readFile(path.join((await buildSite(kit, { provider: null })).dir, "index.html"), "utf8")).catalog;
+      assert.deepEqual(cat.quickAccess, { order: "catalog", max: null });
+      await writeFile(siteFile(kit), JSON.stringify(await withSite((s) => { s.quickAccess = false; })));
+      cat = pageData(await readFile(path.join((await buildSite(kit, { provider: null })).dir, "index.html"), "utf8")).catalog;
+      assert.equal(cat.quickAccess, false);
+    } finally {
+      await writeFile(siteFile(kit), original);
+    }
+  });
+
+  it("dates an item by the commit that added its guide, and an uncommitted one as new", async (t) => {
+    const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, stdio: "pipe", env: { ...process.env, GIT_COMMITTER_DATE: "2025-03-04T10:00:00Z", GIT_AUTHOR_DATE: "2025-03-04T10:00:00Z" } });
+    try { git("init", "-q"); } catch { return t.skip("git is not available"); }
+    try {
+      git("-c", "user.email=t@example.com", "-c", "user.name=t", "add", "guides/upload.json");
+      git("-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "-m", "upload");
+      const dates = await itemDates(kit, await loadSite(kit));
+      assert.equal(dates.upload, "2025-03-04T10:00:00.000Z");
+      assert.ok(dates.sharing! > "2026", "its article is not committed: made now");
+    } finally {
+      await rm(path.join(dir, ".git"), { recursive: true, force: true });
+    }
   });
 
   it("hides the request form when there is no endpoint", async () => {

@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -5,7 +6,7 @@ import { parseHTML } from "linkedom";
 import { buildGuide, embed, escapeHtml, estimateDuration, guideBundle, playerAssets, writeAtomic } from "./build.ts";
 import { loadBrief } from "./brief.ts";
 import { recordChange } from "./changes.ts";
-import { listGuides, loadGuide, type Kit } from "./kit.ts";
+import { guideFile, listGuides, loadGuide, type Kit } from "./kit.ts";
 import { renderFrame } from "./preview.ts";
 import { dataUri } from "./scene.ts";
 import { pick, Site, siteLanguages, type Localized, type SiteItem } from "./schema.ts";
@@ -94,6 +95,36 @@ export async function validateSite(kit: Kit, site: Site): Promise<{ errors: stri
   if (site.favicon && !(await exists(inKit(kit, site.favicon)))) errors.push(`favicon "${site.favicon}" not found in the kit`);
   return { errors, warnings };
 }
+
+/**
+ * When each ready item was made, for "the most recent" in quick access: `added` in site.json when given, else the
+ * commit that added its guide (a video) or its article (a written guide), through renames, else that file's date. A file not committed
+ * yet is new, so it counts as made now. Dates are ISO strings (YYYY-MM-DD, with the time when read from git or the
+ * file, so two guides of the same day keep their order); an item with no file gets none and goes last.
+ */
+export async function itemDates(kit: Kit, site: Site): Promise<Record<string, string>> {
+  const iso = (d: Date) => d.toISOString();
+  const inGit = await git(kit.root, ["rev-parse", "--is-inside-work-tree"]).then((o) => o.trim() === "true", () => false);
+  const out: Record<string, string> = {};
+  for (const it of site.items) {
+    if (it.status === "soon") continue;
+    if (it.added) { out[it.id] = it.added; continue; }
+    const file = it.guide ? guideFile(kit, it.guide) : await articleFile(kit, it);
+    if (!file || !(await exists(file))) continue;
+    if (inGit) {
+      // --follow: a kit moved to another folder keeps the dates of its tutorials
+      const log = await git(kit.root, ["log", "--follow", "--diff-filter=A", "--format=%cI", "--", file]).catch(() => "");
+      const first = log.trim().split("\n").filter(Boolean).pop();
+      out[it.id] = first ? iso(new Date(first)) : iso(new Date());
+      continue;
+    }
+    const s = await stat(file);
+    out[it.id] = iso(s.birthtimeMs > 0 ? s.birthtime : s.mtime);
+  }
+  return out;
+}
+const git = (cwd: string, args: string[]) =>
+  new Promise<string>((resolve, reject) => execFile("git", args, { cwd, windowsHide: true }, (e, stdout) => (e ? reject(e) : resolve(stdout))));
 
 type Section = { id: string; title: string; subs: { id: string; title: string }[] };
 
@@ -211,6 +242,8 @@ export async function buildSite(kit: Kit, opts: { provider?: TtsProvider | null;
     chapters[it.id] = b.guide.steps.map((s, i) => s.title ?? `${i + 1}`);
     if (!it.duration) durations[it.id] = durationLabel(b.guide, languages);
   }
+  const added = await itemDates(kit, site);
+  const quick = site.quickAccess === true ? { order: "recent" as const } : site.quickAccess;
   const catalog = {
     title: site.title,
     lang: site.lang,
@@ -220,7 +253,7 @@ export async function buildSite(kit: Kit, opts: { provider?: TtsProvider | null;
     footer: site.footer,
     requestEndpoint: site.requestEndpoint,
     featured: site.featured,
-    quickAccess: site.quickAccess,
+    quickAccess: quick && { order: quick.order, max: quick.max ?? (quick.order === "recent" ? 5 : null) },
     rows: site.rows,
     labels: site.labels,
     items: await Promise.all(
@@ -236,7 +269,8 @@ export async function buildSite(kit: Kit, opts: { provider?: TtsProvider | null;
         chapters: chapters[it.id] ?? [],
         href: it.status === "soon" ? undefined : `${it.id}/index.html`,
         poster: posterOf[it.id],
-        icon: await imageInline(kit, it.icon)
+        icon: await imageInline(kit, it.icon),
+        added: added[it.id]
       }))
     )
   };

@@ -154,6 +154,8 @@ export type ItemPatch = {
   row?: string;
   status?: "video" | "guide" | "soon";
   move?: -1 | 1;
+  /** true: shown big at the top of the home page, instead of the one featured so far */
+  featured?: boolean;
 };
 
 /** Changes an item of the catalog: its texts in one language (the others keep theirs), its row, status or place. */
@@ -197,6 +199,13 @@ export async function updateItem(kit: Kit, id: string, patch: ItemPatch) {
     item.status = patch.status;
     if (patch.status === "guide") await startArticle(kit, id, site.lang, pick(item.title, site.lang, site.lang) ?? id);
     await recordChange(kit, { kind: "catalog", lang, target: `${id}.status`, before: statusWord(was), after: statusWord(patch.status) });
+    // an announced item has no page to feature: the home keeps a featured item that can be opened
+    if (patch.status === "soon" && raw.featured === id) raw.featured = (raw.items as any[]).find((i) => i.status !== "soon")?.id;
+  }
+  if (patch.featured && raw.featured !== id) {
+    if (item.status === "soon") throw new ArticleError(400, "an announced item has no page yet: it cannot be featured");
+    await recordChange(kit, { kind: "catalog", lang, target: "featured", before: raw.featured ?? "", after: id });
+    raw.featured = id;
   }
   if (patch.move) {
     // the order inside a row is the order of the items in site.json: swap with the neighbour in the same row

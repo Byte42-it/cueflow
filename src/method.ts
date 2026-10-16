@@ -57,7 +57,8 @@ Listen to the voice before publishing: it may misread names, acronyms and number
 
 ## 7. Build
 build_guide per tutorial, then the catalog: write site.json (items, rows, featured), a short written guide per item in
-pages/<id>.html if wanted, then build_site. The user opens the output folder (cueflow.json outDir, cueflow-dist by default) in a browser: no server needed.
+pages/<id>.html if wanted, then build_site. Quick access shows the most recent tutorials by itself (dated from git):
+do not reorder the rows to put a new one there. The user opens the output folder (cueflow.json outDir, cueflow-dist by default) in a browser: no server needed.
 
 ## Voice
 The default is the viewer's browser voice: free, no key. Never switch to an external voice on your own: describe the

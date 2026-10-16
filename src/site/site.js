@@ -36,7 +36,7 @@
     rows: src.rows.map(function (r) { return { id: r.id, title: P(r.title), note: P(r.note), kicker: P(r.kicker), lede: P(r.lede), band: r.band, askTile: r.askTile }; }),
     items: src.items.map(function (it) {
       return { id: it.id, row: it.row, status: it.status, title: P(it.title), kicker: P(it.kicker), desc: P(it.desc), duration: P(it.duration),
-        contents: P(it.contents) || [], chapters: (it.chapters || []).map(P), href: it.href, poster: P(it.poster), icon: it.icon };
+        contents: P(it.contents) || [], chapters: (it.chapters || []).map(P), href: it.href, poster: P(it.poster), icon: it.icon, added: it.added };
     })
   };
 
@@ -368,10 +368,18 @@
           : '<a class="cf-btn cf-primary cf-big-btn" href="' + esc(href(f)) + '">' + L("readGuide") + "</a>") + "</div></div>";
       main.appendChild(bb);
     }
-    if (cat.quickAccess && ready.length) {
+    var quick = cat.quickAccess === true ? { order: "catalog" } : cat.quickAccess; // true: a catalog built before the option
+    if (quick && ready.length) {
       var q = el("section", "cf-sec cf-pad", '<div class="cf-sec-head"><h2>' + L("quick") + '</h2></div><div class="cf-quick"></div>');
       var box = q.querySelector(".cf-quick");
-      ready.forEach(function (it) {
+      var picked = ready.slice();
+      // the latest made first, whatever the order of the rows; equal or unknown dates keep the catalog's order
+      if (quick.order === "recent") picked = picked.map(function (it, i) { return { it: it, i: i }; }).sort(function (a, b) {
+        var x = a.it.added || "", y = b.it.added || "";
+        return x === y ? a.i - b.i : x < y ? 1 : -1;
+      }).map(function (o) { return o.it; });
+      if (quick.max) picked = picked.slice(0, quick.max);
+      picked.forEach(function (it) {
         var a = el("a", "cf-qk", "<i>" + (it.icon || '<b class="cf-qk-letter">' + esc(it.title.charAt(0)) + "</b>") + "</i><b>" + esc(it.title) + "</b>");
         a.href = href(it, it.status === "video" ? "#cf-player" : "");
         a.setAttribute("data-kicker", it.kicker || "");
