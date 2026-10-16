@@ -47,7 +47,7 @@
       tagVideo: "Video", tagGuide: "Guide", tagSoon: "Coming soon", ctaVideo: "Watch the video →", ctaGuide: "Read the guide →",
       subVideo: "Video and guide", subGuide: "Guide · video to come", subSoon: "In preparation",
       watch: "Watch the video", readTranscript: "Read the transcript", transcript: "Transcript", guide: "Guide", readGuide: "Read the guide",
-      chipVoice: "Voice and captions", chipRead: "Guide to read", chipPdf: "PDF", featured: "Featured", quick: "Quick access",
+      chipVoice: "Voice and captions", chipRead: "Guide to read", chipPdf: "PDF", featured: "Featured", quick: "Quick access", latest: "Latest",
       soonKicker: "Coming next", soonLede: "The next videos in preparation. If the one you need is not here, you can ask for it.", soonLedePlain: "The next videos in preparation.",
       availableTitle: "Available", askTitle: "Missing something?", askSub: "Suggest a topic", back: "Back", forward: "Forward",
       askKicker: "Missing something?", askHeading: "Request a tutorial",
@@ -73,7 +73,7 @@
       tagVideo: "Video", tagGuide: "Guida", tagSoon: "In arrivo", ctaVideo: "Guarda il video →", ctaGuide: "Leggi la guida →",
       subVideo: "Video e guida", subGuide: "Guida · video in arrivo", subSoon: "In preparazione",
       watch: "Guarda il video", readTranscript: "Leggi la trascrizione", transcript: "Trascrizione", guide: "Guida", readGuide: "Leggi la guida",
-      chipVoice: "Voce e sottotitoli", chipRead: "Guida da leggere", chipPdf: "PDF", featured: "In evidenza", quick: "Accesso rapido",
+      chipVoice: "Voce e sottotitoli", chipRead: "Guida da leggere", chipPdf: "PDF", featured: "In evidenza", quick: "Accesso rapido", latest: "Ultime pubblicate",
       soonKicker: "Prossimamente", soonLede: "I prossimi video in preparazione. Se ne serve uno che non c'è, si può chiedere.", soonLedePlain: "I prossimi video in preparazione.",
       availableTitle: "Disponibili", askTitle: "Manca qualcosa?", askSub: "Segnala l'argomento", back: "Indietro", forward: "Avanti",
       askKicker: "Manca qualcosa?", askHeading: "Richiedi un tutorial",
@@ -100,6 +100,16 @@
     return s.replace(/\{(\w+)\}/g, function (_, v) { return vars && vars[v] != null ? vars[v] : ""; });
   }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  /* how long ago an item was made, in the visitor's language and counted on the visitor's clock, so it stays true
+     without rebuilding the site: today, yesterday, 3 days ago, 2 weeks ago, 4 months ago, 1 year ago */
+  function ago(iso) {
+    var d = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(iso + "T00:00:00") : new Date(iso);
+    if (isNaN(d)) return "";
+    var day = function (x) { return new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime(); };
+    var days = Math.max(0, Math.round((day(new Date()) - day(d)) / 864e5));
+    var n = days < 7 ? [days, "day"] : days < 30 ? [Math.floor(days / 7), "week"] : days < 365 ? [Math.floor(days / 30), "month"] : [Math.floor(days / 365), "year"];
+    try { return new Intl.RelativeTimeFormat(lang, { numeric: "auto" }).format(-n[0], n[1]); } catch (e) { return d.toLocaleDateString(lang); }
+  }
   function langName(l) { try { return new Intl.DisplayNames([lang], { type: "language" }).of(l); } catch (e) { return l; } }
   function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
 
@@ -370,17 +380,19 @@
     }
     var quick = cat.quickAccess === true ? { order: "catalog" } : cat.quickAccess; // true: a catalog built before the option
     if (quick && ready.length) {
-      var q = el("section", "cf-sec cf-pad", '<div class="cf-sec-head"><h2>' + L("quick") + '</h2></div><div class="cf-quick"></div>');
+      var recent = quick.order === "recent";
+      var q = el("section", "cf-sec cf-pad", '<div class="cf-sec-head"><h2>' + L(recent ? "latest" : "quick") + '</h2></div><div class="cf-quick"></div>');
       var box = q.querySelector(".cf-quick");
       var picked = ready.slice();
       // the latest made first, whatever the order of the rows; equal or unknown dates keep the catalog's order
-      if (quick.order === "recent") picked = picked.map(function (it, i) { return { it: it, i: i }; }).sort(function (a, b) {
+      if (recent) picked = picked.map(function (it, i) { return { it: it, i: i }; }).sort(function (a, b) {
         var x = a.it.added || "", y = b.it.added || "";
         return x === y ? a.i - b.i : x < y ? 1 : -1;
       }).map(function (o) { return o.it; });
       if (quick.max) picked = picked.slice(0, quick.max);
       picked.forEach(function (it) {
-        var a = el("a", "cf-qk", "<i>" + (it.icon || '<b class="cf-qk-letter">' + esc(it.title.charAt(0)) + "</b>") + "</i><b>" + esc(it.title) + "</b>");
+        var a = el("a", "cf-qk", "<i>" + (it.icon || '<b class="cf-qk-letter">' + esc(it.title.charAt(0)) + "</b>") + "</i><b>" + esc(it.title) + "</b>" +
+          (recent && it.added ? '<small class="cf-qk-when">' + esc(ago(it.added)) + "</small>" : ""));
         a.href = href(it, it.status === "video" ? "#cf-player" : "");
         a.setAttribute("data-kicker", it.kicker || "");
         box.appendChild(a);

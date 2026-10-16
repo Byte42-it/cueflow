@@ -278,11 +278,13 @@ tutorials, the index of the page (searchable, with print to PDF of chosen sectio
 set, a dialog that POSTs `{ topic, message?, name?, email?, page }` to it. `--posters` renders a frame of each
 guide as its cover (needs Playwright). An item without `duration` gets one computed from its guide ("about 3 min").
 
-`featured` is the item shown big at the top (Studio: "★ Feature on the home page"). Quick access, the squares under
-it, shows the **most recent** ready items, 5 at most, whatever the order of the rows: an item is dated by its
+`featured` is the item shown big at the top (Studio: "★ Feature on the home page"). The squares under it ("Latest")
+show the **most recent** ready items, 5 at most, whatever the order of the rows, each with how long ago it was made
+("yesterday", "3 days ago": counted in the visitor's browser, so it stays true without a rebuild). An item is dated by its
 `added` (YYYY-MM-DD) when given, else by the commit that added its guide (a video) or its article (a written guide),
 else by the file; one not committed yet counts as new. `"quickAccess": { "order": "catalog" }` lists them in the
-order of the rows instead, `"max": n` changes how many, `false` hides them.
+order of the rows instead, as "Quick access" and without dates; `"max": n` changes how many, `false` hides them.
+The titles are the labels `latest` and `quick`.
 
 ```json
 {

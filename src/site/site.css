@@ -217,7 +217,8 @@ a.cf-ask:hover .cf-tile-media { border-color: var(--cf-site-accent); }
 .cf-qk:hover, .cf-qk:focus-visible { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(0, 0, 0, .12); border-color: transparent; }
 .cf-qk i { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-style: normal; background: var(--cf-site-cover); }
 .cf-qk i svg, .cf-qk i img { width: 19px; height: 19px; object-fit: contain; }
-.cf-qk > b { font-size: 13px; font-weight: 600; line-height: 1.3; }
+.cf-qk > b { font-size: 13px; font-weight: 600; line-height: 1.3; margin-top: auto; }
+.cf-qk-when { margin-top: 4px; font-size: 11.5px; color: var(--cf-site-muted); }
 .cf-qk.cf-ask { border-style: dashed; background: transparent; }
 .cf-qk.cf-ask i { background: var(--cf-site-primary); color: var(--cf-site-on-primary); }
 .cf-foot { color: var(--cf-site-faint); font-size: 12px; padding-block: 30px 36px; margin: 0; }
