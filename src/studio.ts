@@ -8,6 +8,7 @@ import { ArticleError, catalogOverview, createArticle, deleteItem, readArticle, 
 import { Brief, loadBrief, updateBrief } from "./brief.ts";
 import { buildGuide, estimateStepDuration, renderGuideHtml, writeAtomic } from "./build.ts";
 import { checkLayout } from "./layout.ts";
+import { buildVideo, VIDEO_PRESETS, videoPreset } from "./video.ts";
 import { buildShare } from "./share.ts";
 import { buildSite, loadSite, setSiteText, siteFile, syncSite } from "./site.ts";
 import { loadTheme } from "./theme.ts";
@@ -113,7 +114,7 @@ async function state(kit: Kit) {
     for (const lang of g.languages) timing[lang] = g.steps.map((s) => estimateStepDuration(s, lang));
     guides.push({ id, title: g.title, languages: g.languages, scene: g.scene, viewport: g.viewport, timing, steps: g.steps.map((s) => ({ id: s.id, title: s.title ?? null, narration: s.narration, actions: s.actions.map((a) => ({ do: a.do, at: "at" in a ? a.at : 0, duration: "duration" in a ? a.duration : undefined })) })) });
   }
-  return { kitRoot: kit.root, projectRoot: projectRoot(kit), outDir: kit.out, outDirShown: path.relative(projectRoot(kit), kit.out).split(path.sep).join("/") || ".", defaultOutDirShown: path.relative(projectRoot(kit), path.resolve(kit.root, defaultOutDir(kit))).split(path.sep).join("/"), brief: await loadBrief(kit), pending: (await pendingChanges(kit)).length, guides, scenes: await listScenes(kit), hasKey: Boolean(process.env.OPENAI_API_KEY), catalog: await catalogOverview(kit).catch((e) => ({ exists: false as const, error: e instanceof Error ? e.message : String(e) })) };
+  return { videoPresets: VIDEO_PRESETS, kitRoot: kit.root, projectRoot: projectRoot(kit), outDir: kit.out, outDirShown: path.relative(projectRoot(kit), kit.out).split(path.sep).join("/") || ".", defaultOutDirShown: path.relative(projectRoot(kit), path.resolve(kit.root, defaultOutDir(kit))).split(path.sep).join("/"), brief: await loadBrief(kit), pending: (await pendingChanges(kit)).length, guides, scenes: await listScenes(kit), hasKey: Boolean(process.env.OPENAI_API_KEY), catalog: await catalogOverview(kit).catch((e) => ({ exists: false as const, error: e instanceof Error ? e.message : String(e) })) };
 }
 
 /**
@@ -295,7 +296,7 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
   if (p.startsWith("/out/") && req.method === "GET") {
     const file = path.resolve(kit.out, "." + decodeURIComponent(p.slice(4)));
     if (file !== kit.out && !file.startsWith(kit.out + path.sep)) throw new HttpError(403, "outside the output folder");
-    const type = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".svg": "image/svg+xml", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".json": "application/json" }[path.extname(file)] ?? "application/octet-stream";
+    const type = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".svg": "image/svg+xml", ".mp3": "audio/mpeg", ".mp4": "video/mp4", ".m4a": "audio/mp4", ".json": "application/json" }[path.extname(file)] ?? "application/octet-stream";
     try {
       return send(res, 200, await read(file), type);
     } catch {
@@ -416,6 +417,25 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
       }
     }
     return json(res, out);
+  }
+
+  if (p === "/api/export-mp4" && req.method === "POST") {
+    const b = await readBody(req);
+    let size: string;
+    try { size = videoPreset(b.size).id; } catch (e) { throw new HttpError(400, (e as Error).message); }
+    if (b.progress === true) {
+      res.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "no-store", "x-accel-buffering": "no" });
+      const event = (value: unknown) => { if (!res.destroyed) res.write(JSON.stringify(value) + "\n"); };
+      try {
+        const r = await buildVideo(kit, String(b.guide), String(b.lang), (progress) => event({ progress }), { size });
+        event({ result: { url: `/out/${encodeURIComponent(r.name)}`, warnings: r.warnings } });
+      } catch (e) {
+        event({ error: e instanceof Error ? e.message : String(e) });
+      }
+      return void res.end();
+    }
+    const r = await buildVideo(kit, String(b.guide), String(b.lang), undefined, { size });
+    return json(res, { url: `/out/${encodeURIComponent(r.name)}`, warnings: r.warnings });
   }
 
   if (p === "/api/build" && req.method === "POST") {

@@ -705,6 +705,55 @@
   }
 
   /* ---------- check and build ---------- */
+  var mp4Exports = {};
+  function paintMp4(id, lang, size) {
+    var key = id + "|" + lang + "|" + size, box = $("#mp4-result"), state = mp4Exports[key];
+    if (!box || box.dataset.key !== key) return;
+    box.textContent = "";
+    var button = $("#export-mp4");
+    if (button) button.disabled = !!S.busy || !!(state && state.running);
+    if (!state) return;
+    if (state.progress) {
+      var pct = state.progress.percent;
+      box.appendChild(h("div", { class: "mp4-progress-label", role: "status" }, pct + "% · " + state.progress.phase));
+      box.appendChild(h("progress", { class: "mp4-progress", max: 100, value: pct, "aria-label": "MP4 export progress" }));
+    }
+    if (state.error) box.appendChild(h("div", { class: "msg err" }, state.error));
+    if (state.result) {
+      box.appendChild(h("a", { class: "btn", href: state.result.url, download: "" }, "Download MP4"));
+      state.result.warnings.forEach(function (w) { box.appendChild(h("div", { class: "msg warn" }, w)); });
+    }
+  }
+  async function runMp4(id, lang, size) {
+    var key = id + "|" + lang + "|" + size;
+    if (mp4Exports[key] && mp4Exports[key].running) return;
+    var state = mp4Exports[key] = { running: true, progress: { percent: 0, phase: "Preparing export…" } };
+    paintMp4(id, lang, size);
+    try {
+      var response = await fetch("/api/export-mp4", { method: "POST", headers: { "x-cueflow": "studio", "content-type": "application/json" }, body: JSON.stringify({ guide: id, lang: lang, size: size, progress: true }) });
+      if (!response.ok) { var failure = await response.json(); throw new Error(failure.error || "Export failed"); }
+      var reader = response.body.getReader(), decoder = new TextDecoder(), buffer = "";
+      try {
+        while (true) {
+          var chunk = await reader.read();
+          buffer += decoder.decode(chunk.value, { stream: !chunk.done });
+          var lines = buffer.split("\n"); buffer = lines.pop();
+          for (var i = 0; i < lines.length; i++) {
+            if (!lines[i].trim()) continue;
+            var event = JSON.parse(lines[i]);
+            if (event.error) throw new Error(event.error);
+            if (event.progress) state.progress = event.progress;
+            if (event.result) state.result = event.result;
+            paintMp4(id, lang, size);
+          }
+          if (chunk.done) break;
+        }
+        if (!state.result) throw new Error("The connection closed before the export completed.");
+      } finally { reader.releaseLock(); }
+    } catch (e) { state.error = e.message; }
+    finally { state.running = false; paintMp4(id, lang, size); }
+  }
+
   function checkTab(p) {
     if (!S.guide) { p.appendChild(h("p", { class: "empty" }, "Select a video first.")); return; }
     var id = S.guideId;
@@ -720,6 +769,20 @@
       btn("Build this video", "", function () { runBuild({ target: "guide", guide: id }); }),
       btn("Build the whole site", "", function () { runBuild({ target: "site" }); })));
     if (external.length) p.appendChild(h("p", { class: "msg warn" }, "Building generates audio with the external voice chosen for this video (" + external.map(function (r) { return r.language + ": " + r.provider; }).join(", ") + "): the narration text is sent to that service, and it may cost. Texts already generated are not paid again."));
+    p.appendChild(h("h3", null, "MP4 video"));
+    p.appendChild(h("p", null, "Export in " + S.lang + ". Includes recorded audio; browser voices cannot be included. Requires Chromium; FFmpeg is included with Cueflow. Rendering may take several minutes."));
+    var size = S.mp4Size || "medium", presets = S.state.videoPresets;
+    var sizeSelect = h("select", { id: "mp4-size", onchange: function () { S.mp4Size = this.value; renderPage(); } });
+    Object.keys(presets).forEach(function (key) {
+      var preset = presets[key];
+      sizeSelect.appendChild(h("option", { value: key }, preset.label + " · " + preset.width + " × " + preset.height));
+    });
+    sizeSelect.value = size;
+    p.appendChild(h("div", { class: "row" }, h("label", { for: "mp4-size" }, "Video size"), sizeSelect));
+    var mp4Key = id + "|" + S.lang + "|" + size;
+    p.appendChild(h("button", { id: "export-mp4", class: "btn", disabled: !!busy || !!(mp4Exports[mp4Key] && mp4Exports[mp4Key].running), onclick: function () { runMp4(id, S.lang, size); } }, "Export MP4"));
+    p.appendChild(h("div", { id: "mp4-result", class: "result", "data-key": mp4Key }));
+    paintMp4(id, S.lang, size);
     p.appendChild(h("h3", null, "Page for phones"));
     p.appendChild(h("p", null, "A page ready to send: the picture fills the screen and turns when the phone turns, with the captions over it. It has its own picture and title for the link card of a chat. Publish the whole folder it makes."));
     p.appendChild(h("div", { class: "row" }, btn("Make the page for phones", "", function () { runShare(); })));
@@ -1360,15 +1423,16 @@
     var bar = $("#prev-bar"), fr = $("#prev-view"), g = video();
     bar.textContent = "";
     if (!g) { fr.removeAttribute("src"); prevKey = ""; bar.appendChild(h("span", null, "Select or create a tutorial.")); return; }
-    var key = "draft:" + g.id + ":" + S.lang;
-    if (prevKey !== key && prevKey.indexOf("final:") !== 0) { prevKey = key; fr.src = "/preview/" + g.id + "?lang=" + S.lang; }
+    var final = prevKey.indexOf("final:") === 0;
+    var key = (final ? "final:" : "draft:") + g.id + ":" + S.lang;
+    if (prevKey !== key) { prevKey = key; fr.src = (final ? "/out/" + g.id + ".html" : "/preview/" + g.id) + "?lang=" + S.lang; }
     var external = (S.voicesTable || []).filter(function (r) { return r.guide === g.id && ["browser", "none"].indexOf(r.provider) < 0; });
     bar.appendChild(h("b", null, text(g.title, S.lang)));
     bar.appendChild(h("button", { class: "btn", onclick: function () { prevKey = "draft:" + g.id + ":" + S.lang; fr.src = "/preview/" + g.id + "?lang=" + S.lang + "&t=" + Date.now(); } }, "Play from the start (working copy, browser voice)"));
     bar.appendChild(h("button", { class: "btn", onclick: function () {
       if (external.length && !confirm("This builds the video with the external voice chosen (" + external.map(function (r) { return r.language + ": " + r.provider; }).join(", ") + "): the narration text is sent to that service and it may cost. Continue?")) return;
       flash("Building with the final voices…", "");
-      api("/api/build", { method: "POST", body: { target: "guide", guide: g.id } }).then(function (r) { prevKey = "final:" + g.id; fr.src = r.url + "?t=" + Date.now(); flash(r.silent ? "Built: no recorded audio, the browser reads it." : "Built with " + r.audioFiles + " audio file(s).", "ok"); }).catch(function (e) { flash(e.message, "err"); });
+      api("/api/build", { method: "POST", body: { target: "guide", guide: g.id } }).then(function (r) { prevKey = "final:" + g.id + ":" + S.lang; fr.src = r.url + "?lang=" + S.lang + "&t=" + Date.now(); flash(r.silent ? "Built: no recorded audio, the browser reads it." : "Built with " + r.audioFiles + " audio file(s).", "ok"); }).catch(function (e) { flash(e.message, "err"); });
     } }, "With the final voices"));
     bar.appendChild(h("a", { class: "btn", href: "/preview/" + g.id + "?lang=" + S.lang, target: "_blank", rel: "noopener" }, "Open in a new tab"));
     bar.appendChild(h("span", { style: "color:var(--muted);font-size:12.5px" }, "Plays exactly what viewers get: scenes, camera, cursor, captions, chapters."));

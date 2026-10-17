@@ -35,7 +35,7 @@ export type GuideBundle = {
   warnings: string[];
 };
 
-export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider | null): Promise<GuideBundle> {
+export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider | null, opts: { lang?: string } = {}): Promise<GuideBundle> {
   const guide = await loadGuide(kit, id);
   const report = await validateGuide(kit, guide);
   if (report.errors.length) throw new Error(`the guide "${id}" is not valid:\n- ${report.errors.join("\n- ")}`);
@@ -59,7 +59,7 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
   let audioFiles = 0;
   // `provider` undefined: each language speaks with the voice cueflow.json gives it; null: silent (previews); a provider: forced
   let browserVoice = false;
-  for (const lang of guide.languages) {
+  for (const lang of opts.lang ? [opts.lang] : guide.languages) {
     const voice = provider === undefined ? voiceFor(kit, id, lang) : null;
     if (voice?.browser) browserVoice = true;
     // the language's voice is silent, but a step asks for the browser's: the other steps must stay silent, not be read too
@@ -119,8 +119,8 @@ export async function writeAtomic(file: string, content: string | Buffer): Promi
 }
 
 /** The page of a guide, as a string. `browserVoice` makes a silent build read its narration with the browser's voice (previews). */
-export async function renderGuideHtml(kit: Kit, id: string, provider?: TtsProvider | null, opts: { browserVoice?: boolean; extras?: PageExtras } = {}) {
-  const bundle = await guideBundle(kit, id, provider);
+export async function renderGuideHtml(kit: Kit, id: string, provider?: TtsProvider | null, opts: { browserVoice?: boolean; extras?: PageExtras; lang?: string } = {}) {
+  const bundle = await guideBundle(kit, id, provider, { lang: opts.lang });
   if (opts.browserVoice) bundle.guide.player = { ...bundle.guide.player, fallbackVoice: "browser" };
   const { js, css, theme } = await playerAssets(kit);
   const styles = theme.css ? `${css}\n/* kit theme */\n${theme.css}` : css;
@@ -151,7 +151,7 @@ ${extras.head ?? ""}
 <body class="cf-page">
 <div id="cueflow"></div>
 <script>${rawText(player, "script")}</script>
-<script>window.__cueflow = Cueflow.mount(document.getElementById("cueflow"), ${embed(data)}${extras.mountOptions ? `, ${extras.mountOptions}` : ""});</script>
+<script>window.__cueflow = Cueflow.mount(document.getElementById("cueflow"), ${embed(data)}, Object.assign({ lang: new URLSearchParams(location.search).get("lang") }, ${extras.mountOptions ?? "{}"}));</script>
 ${extras.bodyEnd ? `<script>${rawText(extras.bodyEnd, "script")}</script>` : ""}
 </body>
 </html>

@@ -31,6 +31,24 @@ after(async () => {
 });
 
 describe("studio", () => {
+  it("offers three video sizes and rejects invalid export sizes", async () => {
+    const st = await (await fetch(url + "api/state")).json() as any;
+    assert.equal(st.videoPresets.large.width, 1920);
+    assert.equal(st.videoPresets.medium.width, 1280);
+    assert.equal(st.videoPresets.small.width, 854);
+    const response = await fetch(url + "api/export-mp4", { method: "POST", headers: H, body: JSON.stringify({ guide: "upload", lang: "en", size: "huge", progress: true }) });
+    assert.equal(response.status, 400);
+    assert.match((await response.json() as any).error, /size must be/);
+  });
+
+  it("streams MP4 progress and reports export errors in the stream", async () => {
+    const response = await fetch(url + "api/export-mp4", { method: "POST", headers: H, body: JSON.stringify({ guide: "upload", lang: "unknown", progress: true }) });
+    assert.match(response.headers.get("content-type")!, /application\/x-ndjson/);
+    const events = (await response.text()).trim().split("\n").map((line) => JSON.parse(line));
+    assert.equal(events[0].progress.percent, 0);
+    assert.match(events.at(-1).error, /Unknown tutorial language/);
+  });
+
   it("serves the page and the state of the kit", async () => {
     assert.match(await (await fetch(url)).text(), /Cueflow/);
     const st = (await (await fetch(url + "api/state")).json()) as any;

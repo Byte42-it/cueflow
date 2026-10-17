@@ -293,3 +293,6 @@ body:not(.doc-mode) .docpage, body:not(.doc-mode) .docbar { display: none !impor
 .blk.vo.muted { background: #3a2326; border-color: #6a3a40; color: #e8a9b0; }
 .blk.vo.on { border-color: #b8aaff; }
 .lab.auto { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+
+.mp4-progress { display: block; width: 100%; max-width: 560px; height: 16px; margin: 8px 0 12px; accent-color: var(--accent); }
+.mp4-progress-label { font-variant-numeric: tabular-nums; }

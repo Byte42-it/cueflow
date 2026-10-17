@@ -396,10 +396,14 @@ Use synthetic data in scene kits. Narration is sent to the configured TTS provid
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Every PR must disclose whether an AI agent was used, including the agent, model when known, scope of assistance and human verification. Contributions without AI assistance are equally welcome.
 
+## MP4 export
+
+Export a single tutorial from Studio → Export → **Export MP4**. Choose Large (1920×1080), Medium (1280×720, default), or Small (854×480). It renders the selected language, with recorded narration (generated or uploaded). Steps using browser speech export silently. FFmpeg is included with Cueflow. Install Playwright Chromium (`npx playwright install chromium`); `CUEFLOW_FFMPEG` can point to a custom FFmpeg executable. Windows installations made with WinGet, Scoop or Chocolatey are also detected when missing from PATH. Each size has its own output file. Rendering can take several minutes.
+
 ## Status
 
 Proof of concept, used on a first real kit (a back office: 5 scenes captured with `capture`, a 17-step guide, a docs
-site). Not done yet: exporting an mp4, word-level sync with the narration, a TypeScript build step for publishing to
+site). Not done yet: word-level sync with the narration, a TypeScript build step for publishing to
 npm.
 
 Audio has been verified end to end with the macOS voices (`CUEFLOW_TTS=say`): real durations, playback, seeking.
