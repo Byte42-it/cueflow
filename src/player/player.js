@@ -120,8 +120,8 @@
     var last = 0;
     var raf = 0;
     // A sleeping sound device (Bluetooth, power saving) swallows the start of a sound and fades it in. While playing, a
-    // silent stream keeps the device open; after a long silence the clock and the voice wait a moment for it to wake.
-    var keepAlive = null, holdUntil = 0, lastSound = -1e9;
+    // silent stream keeps the device open; every Play makes the clock and the voice wait a moment for it to wake.
+    var keepAlive = null, holdUntil = 0;
     function wake() {
       var Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return;
@@ -460,8 +460,8 @@
       playBtn.innerHTML = v ? ICON_PAUSE : ICON_PLAY;
       playBtn.setAttribute("aria-label", v ? L("pause") : L("play"));
       var now = performance.now();
-      if (v) { if (now - lastSound > 4000) holdUntil = now + 900; wake(); }
-      else { lastSound = now; if (keepAlive) keepAlive.suspend().catch(function () {}); }
+      if (v) { holdUntil = now + 800; wake(); }
+      else { if (keepAlive) keepAlive.suspend().catch(function () {}); }
       if (cur && cur.audio) { if (v) startAudio(cur.audio); else cur.audio.pause(); }
       if (synth) {
         if (!v) synth.pause();
@@ -485,7 +485,6 @@
       if (ts < holdUntil) { last = ts; raf = requestAnimationFrame(tick); return; }
       var dt = ts - last;
       last = ts;
-      lastSound = ts;
       cur.t += dt * speed;
       runDue(cur, cur.t, { instant: false });
       progressBar();

@@ -467,9 +467,12 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     // builds with the voices chosen in cueflow.json: an external voice is called here, deliberately
     const b = await readBody(req);
     if (b.target === "site") {
-      await syncSite(kit);
-      const r = await buildSite(kit, { posters: b.posters === true });
-      return json(res, { target: "site", url: "/out/site/index.html", pages: r.pages.length, warnings: r.warnings });
+      return progressive(res, b.progress === true, async (report) => {
+        report(0, "Building the site…");
+        await syncSite(kit);
+        const r = await buildSite(kit, { posters: b.posters === true });
+        return { target: "site", url: "/out/site/index.html", pages: r.pages.length, warnings: r.warnings };
+      });
     }
     const id = String(b.guide);
     return progressive(res, b.progress === true, async (report) => {
