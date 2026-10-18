@@ -17,25 +17,27 @@
     en: { play: "Play", pause: "Pause", replay: "Replay this step", speed: "Speed", captions: "Captions", voice: "Voice", steps: "Steps", step: "Step",
       transcript: "Transcript", download: "Download (.txt)", watch: "Watch this step", language: "Language",
       start: "Play the video", note: "With voice and captions", noteCaptions: "With captions", ended: "End of the video", again: "Click to watch it again",
-      resume: "Starts from step {n}: {title}" },
+      resume: "Starts from step {n}: {title}", next: "Go to {title}" },
     it: { play: "Avvia", pause: "Pausa", replay: "Ripeti il passo", speed: "Velocità", captions: "Sottotitoli", voice: "Voce", steps: "Passi", step: "Passo",
       transcript: "Trascrizione", download: "Scarica (.txt)", watch: "Guarda questo passo", language: "Lingua",
       start: "Avvia il video", note: "Con voce e sottotitoli", noteCaptions: "Con sottotitoli", ended: "Fine del video", again: "Clic per rivederlo da capo",
-      resume: "Riparte dal passo {n}: {title}" },
+      resume: "Riparte dal passo {n}: {title}", next: "Vai a {title}" },
     fr: { play: "Lire", pause: "Pause", replay: "Revoir l'étape", speed: "Vitesse", captions: "Sous-titres", voice: "Voix", steps: "Étapes", step: "Étape",
       transcript: "Transcription", download: "Télécharger (.txt)", watch: "Voir cette étape", language: "Langue",
       start: "Lancer la vidéo", note: "Avec voix et sous-titres", noteCaptions: "Avec sous-titres", ended: "Fin de la vidéo", again: "Cliquez pour la revoir",
-      resume: "Reprend à l'étape {n} : {title}" },
+      resume: "Reprend à l'étape {n} : {title}", next: "Aller à {title}" },
     de: { play: "Abspielen", pause: "Pause", replay: "Schritt wiederholen", speed: "Tempo", captions: "Untertitel", voice: "Stimme", steps: "Schritte", step: "Schritt",
       transcript: "Transkript", download: "Herunterladen (.txt)", watch: "Diesen Schritt ansehen", language: "Sprache",
       start: "Video abspielen", note: "Mit Stimme und Untertiteln", noteCaptions: "Mit Untertiteln", ended: "Ende des Videos", again: "Klicken, um es erneut anzusehen",
-      resume: "Beginnt bei Schritt {n}: {title}" }
+      resume: "Beginnt bei Schritt {n}: {title}", next: "Weiter zu {title}" }
   };
 
   /**
    * options (all optional): fluid (fill the container instead of stopping at the stage width, for docs pages),
    * lang (start in this language when the guide has it), langSelect (false hides the language selector),
-   * duration (e.g. "about 1 min", shown with the play button before the video starts).
+   * duration (e.g. "about 1 min", shown with the play button before the video starts),
+   * autoplay (start at once; if the browser refuses sound without a click, wait on the play button as usual),
+   * next ({ title, href }: the video to propose in a banner over the picture when this one ends; title as text or per language).
    */
   function mount(root, DATA, options) {
     options = options || {};
@@ -70,6 +72,7 @@
       '<p class="cf-subs" aria-live="polite" hidden><span></span></p>' +
       '<button class="cf-big" aria-label="Play">' + ICON_PLAY + "</button>" +
       '<p class="cf-veil-text" aria-hidden="true"><strong></strong><span></span></p>' +
+      '<a class="cf-up-next" hidden></a>' +
       '<a class="cf-brand" href="' + REPO + '" target="_blank" rel="noopener" title="Made with Cueflow">' + MARK + "<span>cueflow</span></a></div>" +
       '<div class="cf-caption" aria-live="polite"></div>' +
       '<div class="cf-bar"><button class="cf-play" aria-label="Play/Pause">' + ICON_PLAY + "</button>" +
@@ -89,12 +92,18 @@
     var chapters = $(".cf-chapters"), speedBtn = $(".cf-speed"), ccBtn = $(".cf-cc"), voiceBtn = $(".cf-voice");
     var transcript = $(".cf-transcript");
     var veilTitle = $(".cf-veil-text strong"), veilNote = $(".cf-veil-text span");
+    // the next video, proposed over the picture when this one ends (a docs site passes it; a lone guide has none)
+    var nextLink = $(".cf-up-next");
+    if (options.next && options.next.href) nextLink.href = options.next.href;
+    else nextLink.remove();
     // the Cueflow mark: over the picture by default; in the control bar it never covers the scene
     var brand = $(".cf-brand");
     if (opts.brand === "off") brand.remove();
     else if (opts.brand === "controls") { brand.classList.add("cf-brand-bar"); $(".cf-bar").appendChild(brand); }
 
     stage.style.aspectRatio = guide.stage.width + " / " + guide.stage.height;
+    // a page that must fit the player in a height narrows it with this ratio, instead of cropping the picture
+    app.style.setProperty("--cf-aspect", String(guide.stage.width / guide.stage.height));
     if (!options.fluid) app.style.maxWidth = guide.stage.width + "px";
     world.style.width = vw + "px";
     world.style.height = vh + "px";
@@ -138,10 +147,22 @@
         keepAlive.resume();
       } catch (e) { keepAlive = null; }
     }
+    // autoplay (a docs site arriving from "Go to …"): the browser may refuse sound without a click on this page.
+    // Then the video goes back to its play button instead of running silent; once a sound has played, nothing changes.
+    var autoTrying = false;
+    function playSound(a) {
+      return a.play().then(function () { autoTrying = false; }, function (e) {
+        if (!autoTrying || !e || e.name !== "NotAllowedError") return;
+        autoTrying = false;
+        setPlaying(false);
+        app.classList.remove("cf-started");
+        paintVeil();
+      });
+    }
     function startAudio(a) {
       var wait = holdUntil - performance.now();
-      if (wait > 0) setTimeout(function () { if (playing && cur && cur.audio === a) a.play().catch(function () {}); }, wait);
-      else a.play().catch(function () {});
+      if (wait > 0) setTimeout(function () { if (playing && cur && cur.audio === a) playSound(a); }, wait);
+      else playSound(a);
     }
     var speed = speeds[0];
     var captionsOn = captionMode !== "off";
@@ -441,7 +462,7 @@
       showCaption(text);
       applyCamera(st.camera || cam, instant ? 0 : 700);
       if (!instant && playing) {
-        if (cur.audio) { cur.audio.currentTime = 0; cur.audio.play().catch(function () {}); }
+        if (cur.audio) { cur.audio.currentTime = 0; playSound(cur.audio); }
         else if (!cur.mute) speak(cur, text);
       }
       paintChapters();
@@ -555,6 +576,7 @@
 
     // ---- the words beside the big play button: what it does, and from where it starts ----
     function paintVeil() {
+      paintNext();
       if (app.classList.contains("cf-ended")) {
         veilTitle.textContent = L("ended");
         veilNote.textContent = L("again");
@@ -567,6 +589,16 @@
       parts.push(voiceBtn.hidden ? (captionMode === "off" ? "" : L("noteCaptions")) : L("note"));
       var note = parts.filter(Boolean).join(" · ");
       veilNote.textContent = note.charAt(0).toUpperCase() + note.slice(1);
+    }
+
+    /** "Go to {title}", with the title in bold: shown only once the video has ended. */
+    function paintNext() {
+      if (!nextLink.isConnected) return;
+      var ended = app.classList.contains("cf-ended");
+      nextLink.hidden = !ended;
+      if (!ended) return;
+      var parts = L("next", { title: "\u0000" }).split("\u0000");
+      nextLink.innerHTML = "<span>" + esc(parts[0]) + "<b>" + esc(tx(options.next.title)) + "</b>" + esc(parts.slice(1).join("")) + '</span><i aria-hidden="true">→</i>';
     }
 
     // ---- chapters ----
@@ -709,7 +741,12 @@
       root.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
       jump(i);
     });
-    goTo(stepFromHash() || 0, 0);
+    var opening = goTo(stepFromHash() || 0, 0);
+    if (options.autoplay) opening.then(function () {
+      // a step without its own audio has nothing that could be refused: it just plays
+      autoTrying = !!(cur && cur.audio);
+      setPlaying(true);
+    });
     return {
       seek: seek, probe: probe, restart: restart, jump: jump, transcript: transcriptText, downloadTranscript: downloadTranscript,
       // for an editor that draws its own transport (Studio's timeline): where we are, and play/pause from outside

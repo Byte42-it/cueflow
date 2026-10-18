@@ -111,6 +111,26 @@ describe("site", () => {
     }
   });
 
+  it("proposes what follows in the catalog, row by row: videos and written guides alike, never an announced item", async () => {
+    const original = await readFile(siteFile(kit), "utf8");
+    try {
+      await writeFile(siteFile(kit), JSON.stringify(await withSite((s) => {
+        // a video in the last row, after the announced items: upload (video) → sharing (written guide) → upload-again (video)
+        s.items.push({ id: "upload-again", row: "soon", status: "video", guide: "upload", title: { en: "Upload, once more", it: "Ancora un caricamento" } });
+      })));
+      const r = await buildSite(kit, { provider: null });
+      const upload = pageData(await readFile(path.join(r.dir, "upload", "index.html"), "utf8"));
+      assert.equal(upload.next.id, "sharing", "after a video, the written guide that follows it");
+      assert.equal(upload.next.href, "../sharing/index.html");
+      const sharing = pageData(await readFile(path.join(r.dir, "sharing", "index.html"), "utf8"));
+      assert.deepEqual(sharing.next, { id: "upload-again", title: { en: "Upload, once more", it: "Ancora un caricamento" }, href: "../upload-again/index.html" }, "after a written guide, the next video, skipping announced items");
+      const last = pageData(await readFile(path.join(r.dir, "upload-again", "index.html"), "utf8"));
+      assert.equal(last.next, undefined, "the last page proposes nothing");
+    } finally {
+      await writeFile(siteFile(kit), original);
+    }
+  });
+
   it("says when the request endpoint must allow the site's origin", async () => {
     const site = Site.parse(await withSite((s) => { s.url = "https://help.example.org/docs/"; s.requestEndpoint = "https://api.example.org/requests"; }));
     const { warnings } = await validateSite(kit, site);

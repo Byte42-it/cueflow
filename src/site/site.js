@@ -65,7 +65,7 @@
       printOne: "Print this section only", include: "Include in the PDF", next: "Next", previous: "Previous",
       deepTitle: "The full guide", deepLede: "Everything the video shows, in detail: section by section, each one printable on its own.",
       transcriptTitle: "Video transcript", transcriptSub: "the narration, step by step", contents: "Contents", docsOf: "{title} · documentation",
-      language: "Language", articleIn: "This guide is not translated yet: here it is in {lang}.", videoIn: "This video is not available in your language yet: it plays in {lang}."
+      language: "Language", goTo: "Go to {title}", articleIn: "This guide is not translated yet: here it is in {lang}.", videoIn: "This video is not available in your language yet: it plays in {lang}."
     },
     it: {
       home: "Home della guida", tutorials: "Tutorial", index: "Indice della guida", request: "Richiedi un tutorial", pdf: "Genera PDF",
@@ -91,7 +91,7 @@
       printOne: "Stampa solo questa sezione", include: "Includi nel PDF", next: "Successivo", previous: "Precedente",
       deepTitle: "La guida completa", deepLede: "Tutto quello che il video mostra, con i dettagli: sezione per sezione, ognuna stampabile anche da sola.",
       transcriptTitle: "Trascrizione del video", transcriptSub: "i testi letti nel video, passo per passo", contents: "Indice", docsOf: "{title} · documentazione",
-      language: "Lingua", articleIn: "Questa guida non è ancora tradotta: eccola in {lang}.", videoIn: "Questo video non è ancora disponibile nella tua lingua: si vede in {lang}."
+      language: "Lingua", goTo: "Vai a {title}", articleIn: "Questa guida non è ancora tradotta: eccola in {lang}.", videoIn: "Questo video non è ancora disponibile nella tua lingua: si vede in {lang}."
     }
   };
   var WORDS = LABELS[lang] || LABELS[lang.slice(0, 2)] || LABELS.en;
@@ -418,11 +418,20 @@
   }
   var side = document.querySelector(".cf-side");
   var player = null;
+  /* "Go to …" asks the next page to start its video at once (?play=1); the address is cleaned so a reload or a shared
+     link does not autoplay. Whether sound may start without a click there is up to the browser: if not, the play button waits. */
+  var PLAY_ON_ARRIVAL = "?play=1";
+  var arrivedToPlay = /[?&]play=1(&|$)/.test(location.search);
+  if (arrivedToPlay && history.replaceState) {
+    try { history.replaceState(null, "", location.pathname + location.search.replace(/([?&])play=1(&|$)/, "$1").replace(/[?&]$/, "") + location.hash); } catch (e) { /* a file: page may refuse it */ }
+  }
   var transcriptSec = document.getElementById("transcript");
   if (S.guide && window.Cueflow) {
     // every player follows the site's language; a guide without it plays in the fallback, or its first language
     var gl = S.guide.guide.languages, playLang = gl.indexOf(lang) >= 0 ? lang : gl.indexOf(fallback) >= 0 ? fallback : gl[0];
-    player = window.Cueflow.mount(document.getElementById("cf-player"), S.guide, { fluid: true, lang: playLang, langSelect: false, duration: current.duration });
+    // at the end, the banner over the picture proposes the next video of the catalog (its title in the site's language)
+    var nextUp = S.next ? { title: P(S.next.title), href: S.next.href + PLAY_ON_ARRIVAL } : null;
+    player = window.Cueflow.mount(document.getElementById("cf-player"), S.guide, { fluid: true, lang: playLang, langSelect: false, duration: current.duration, next: nextUp, autoplay: arrivedToPlay });
     if (playLang !== lang) document.getElementById("cf-player").insertAdjacentHTML("beforebegin", '<p class="cf-lang-note">' + esc(L("videoIn", { lang: langName(playLang) })) + "</p>");
     window.__cueflow = player;
     // the player's transcript becomes a printable section of the page
@@ -459,6 +468,18 @@
         (next ? '<a class="cf-pager-link cf-next" href="#' + esc(next.id) + '"><span>' + L("next") + "</span><b>" + esc(next.title) + " →</b></a>" : "")));
     }
   });
+
+  /* a written guide has no video to end: what follows it in the catalog is proposed at the end of its text,
+     with the same words as the banner over a finished video */
+  if (!player && S.next) {
+    var goParts = L("goTo", { title: "\u0000" }).split("\u0000");
+    var goLink = el("a", "cf-up-next-card cf-no-print",
+      "<span>" + esc(goParts[0]) + "<b>" + esc(P(S.next.title)) + "</b>" + esc(goParts.slice(1).join("")) + '</span><i aria-hidden="true">→</i>');
+    goLink.href = S.next.href + PLAY_ON_ARRIVAL;
+    // inside the article, so it takes the text's width; a page with no text at all puts it before the footer
+    if (artBox) artBox.appendChild(goLink);
+    else { var mainBox = document.querySelector(".cf-main"); mainBox.insertBefore(goLink, mainBox.querySelector(".cf-foot")); }
+  }
 
   /* the side index: video (steps, transcript) and in-depth sections, as two accordions */
   var printable = [];

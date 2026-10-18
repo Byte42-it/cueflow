@@ -54,6 +54,23 @@ html:has(> .cf-page), .cf-page { margin: 0; background: var(--cf-bg); color: var
 /* with its words under it, the button and the words are centered together */
 .cf-app:not(.cf-started) .cf-big, .cf-ended .cf-big { inset: -40px 0 0; }
 
+/* the next video, proposed over the picture once this one has ended; above the veil, clear of the mark.
+   Light on purpose: it always sits on the dark veil, whatever the theme's accent (--cf-up-next-bg/-fg/-arrow restyle it) */
+.cf-app a.cf-up-next { position: absolute; left: 50%; bottom: 7%; z-index: 3; transform: translateX(-50%); max-width: min(78%, 640px);
+  display: flex; align-items: center; gap: 12px; padding: 10px 16px 10px 20px; border-radius: var(--cf-up-next-radius, 12px);
+  background: var(--cf-up-next-bg, #fff); color: var(--cf-up-next-fg, #15171c); text-decoration: none;
+  font-size: clamp(13px, 2vw, 18px); line-height: 1.3; box-shadow: 0 8px 26px rgba(0, 0, 0, .45); animation: cf-up-next-in 350ms ease-out; }
+.cf-app a.cf-up-next[hidden] { display: none; }
+.cf-up-next span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-up-next b { font-weight: 700; }
+.cf-up-next i { color: var(--cf-up-next-arrow, currentColor); font-style: normal; font-size: 1.25em; transition: transform .2s; }
+.cf-up-next:hover i, .cf-up-next:focus-visible i { transform: translateX(4px); }
+.cf-up-next:focus-visible { outline: 2px solid var(--cf-fg); outline-offset: 3px; }
+/* with the banner low in the picture, the replay button and its words move up a little */
+.cf-ended:has(.cf-up-next:not([hidden])) .cf-big { inset: -90px 0 0; }
+.cf-ended:has(.cf-up-next:not([hidden])) .cf-veil-text { top: calc(50% - 1px); }
+@keyframes cf-up-next-in { from { opacity: 0; transform: translate(-50%, 10px); } }
+
 /* captions: under the stage, or over its bottom edge like subtitles */
 .cf-caption { min-height: 3.2em; padding: 10px 4px 0; color: var(--cf-fg); text-align: center; }
 .cf-captions-overlay .cf-caption, .cf-captions-off .cf-caption { display: none; }
@@ -97,6 +114,7 @@ html:has(> .cf-page), .cf-page { margin: 0; background: var(--cf-bg); color: var
 @keyframes cf-click { 0% { opacity: .9; transform: scale(.3); } 100% { opacity: 0; transform: scale(1.4); } }
 @media (prefers-reduced-motion: reduce) {
   .cf-world, .cf-cursor, .cf-chap small { transition: none !important; }
+  .cf-up-next { animation: none; }
   .cf-ring { animation: none; }
 }
 @media (max-width: 480px) { .cf-chap small { display: none; } }

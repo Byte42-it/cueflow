@@ -263,6 +263,16 @@ ${body}
 </html>
 `;
 
+  // what follows each page, in the order the home shows them (row by row, then the row's own order): a video or a
+  // written guide alike, never an announced item (it has no page). A video offers it over the picture when it ends,
+  // a written guide at the end of its text.
+  const readingOrder = site.rows.flatMap((r) => site.items.filter((it) => it.row === r.id && it.status !== "soon"));
+  const nextOf = (id: string) => {
+    const i = readingOrder.findIndex((it) => it.id === id);
+    const n = i >= 0 ? readingOrder[i + 1] : undefined;
+    return n ? { id: n.id, title: n.title, href: `../${n.id}/index.html` } : undefined;
+  };
+
   const pages: string[] = [];
   const name = (v: Localized) => pick(v, fallback, fallback) ?? "";
   await writeAtomic(path.join(out, "index.html"), page(name(site.title), "", '<main id="cf-home"></main>', { page: "home", root: "", catalog }));
@@ -293,6 +303,7 @@ ${body}
       catalog,
       item: it.id,
       articles,
+      next: nextOf(it.id),
       guide: b ? { ...b.data, labels: theme.labels } : undefined
     };
     await writeAtomic(path.join(out, it.id, "index.html"), page(`${name(it.title)} · ${name(site.title)}`, "../", body, data));

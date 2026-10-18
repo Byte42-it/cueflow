@@ -63,6 +63,16 @@ Player model worth knowing before touching it:
 - `DATA.shared` holds stylesheets/images once; `loadScene` expands the placeholders (`withShared`) before `srcdoc`.
 - `window.__cueflow` also exposes `probe(selector)` (used by `checkLayout`); `seek` accepts a percentage like `at`.
 - Cursor/camera movement uses CSS transitions (they keep running while paused: known, minor).
+- "What comes next": `site.ts` gives every item page a `next` (the following item of the catalog, row by row, videos
+  and written guides alike, never a `soon` one). A video page passes it to `mount(..., { next: { title, href } })` and the
+  player shows a "Go to {title}" banner (`.cf-up-next`, label `next`) over the picture once the video has ended; a
+  written guide shows the same words as a card at the end of its text (`.cf-up-next-card`, site label `goTo`). The
+  banner is light on purpose (it sits on the dark veil whatever the accent); `.cf-next` was already the site's
+  section pager, hence the other name. Both links add `?play=1`: the page that receives it mounts with `autoplay`
+  and cleans its address. If the browser refuses sound without a click (`NotAllowedError` on the first audio), the
+  player goes back to its untouched state with the play button, never a silent run.
+- On a docs page the player fits the window by **narrowing** (`--cf-aspect`, set by `mount`, times the available
+  height), never by capping the stage height: a capped stage cropped the bottom of every scene on wide screens.
 
 ## Commands
 
