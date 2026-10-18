@@ -647,9 +647,20 @@ export async function startStudio(kit: Kit, opts: { port?: number; open?: boolea
 
   const start = opts.port ?? 4310;
   const port = await new Promise<number>((resolve, reject) => {
+    // a failed attempt must not leave its "listening" callback behind: it would resolve with the busy port
     const tryPort = (n: number) => {
-      server.once("error", (e: NodeJS.ErrnoException) => (e.code === "EADDRINUSE" && n < start + 20 ? tryPort(n + 1) : reject(e)));
-      server.listen(n, "127.0.0.1", () => resolve(n));
+      const onError = (e: NodeJS.ErrnoException) => {
+        server.off("listening", onListening);
+        if (e.code === "EADDRINUSE" && n < start + 20) tryPort(n + 1);
+        else reject(e);
+      };
+      const onListening = () => {
+        server.off("error", onError);
+        resolve(n);
+      };
+      server.once("error", onError);
+      server.once("listening", onListening);
+      server.listen(n, "127.0.0.1");
     };
     tryPort(start);
   });
