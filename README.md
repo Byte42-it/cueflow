@@ -12,6 +12,8 @@
   <img src="assets/demo.svg" alt="Install Cueflow, paste instructions in your AI assistant, build tutorials in Studio" width="800">
 </p>
 
+<p align="center"><a href="https://cueflow.byte42.it/">See what Cueflow produces → cueflow.byte42.it</a></p>
+
 Narrated, animated walkthroughs of a web interface — without recording a video.
 
 You give Cueflow a **kit**: the static HTML of your site's screens (the real CSS, fonts and layout, no backend).
