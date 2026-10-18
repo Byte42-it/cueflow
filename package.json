@@ -1,6 +1,6 @@
 {
   "name": "@byte-42/cueflow",
-  "version": "0.1.48",
+  "version": "0.1.49",
   "description": "Build narrated, animated UI walkthroughs from static HTML scenes, driven by an MCP server",
   "keywords": [
     "tutorial",

@@ -119,6 +119,30 @@
     var loading = false;
     var last = 0;
     var raf = 0;
+    // A sleeping sound device (Bluetooth, power saving) swallows the start of a sound and fades it in. While playing, a
+    // silent stream keeps the device open; after a long silence the clock and the voice wait a moment for it to wake.
+    var keepAlive = null, holdUntil = 0, lastSound = -1e9;
+    function wake() {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      try {
+        if (!keepAlive) {
+          keepAlive = new Ctx();
+          var src = keepAlive.createBufferSource();
+          // digital silence does not wake most devices (or is dropped before it gets there): a noise around -60 dB is a signal nobody hears
+          var buf = keepAlive.createBuffer(1, keepAlive.sampleRate, keepAlive.sampleRate), data = buf.getChannelData(0);
+          for (var k = 0; k < data.length; k++) data[k] = (Math.random() * 2 - 1) * 0.001;
+          src.buffer = buf; // a second, looped
+          src.loop = true; src.connect(keepAlive.destination); src.start();
+        }
+        keepAlive.resume();
+      } catch (e) { keepAlive = null; }
+    }
+    function startAudio(a) {
+      var wait = holdUntil - performance.now();
+      if (wait > 0) setTimeout(function () { if (playing && cur && cur.audio === a) a.play().catch(function () {}); }, wait);
+      else a.play().catch(function () {});
+    }
     var speed = speeds[0];
     var captionsOn = captionMode !== "off";
     var voiceOn = true;
@@ -364,7 +388,7 @@
         var a = new Audio();
         var done = false;
         function fin(v) { if (!done) { done = true; resolve({ audio: a, ms: v }); } }
-        a.preload = "metadata";
+        a.preload = "auto"; // decoded before play(): a cold start also eats the first words
         a.onloadedmetadata = function () { fin(isFinite(a.duration) ? a.duration * 1000 : null); };
         a.onerror = function () { fin(null); };
         setTimeout(function () { fin(null); }, 1500);
@@ -435,7 +459,10 @@
       app.classList.toggle("cf-playing", v);
       playBtn.innerHTML = v ? ICON_PAUSE : ICON_PLAY;
       playBtn.setAttribute("aria-label", v ? L("pause") : L("play"));
-      if (cur && cur.audio) { if (v) cur.audio.play().catch(function () {}); else cur.audio.pause(); }
+      var now = performance.now();
+      if (v) { if (now - lastSound > 4000) holdUntil = now + 900; wake(); }
+      else { lastSound = now; if (keepAlive) keepAlive.suspend().catch(function () {}); }
+      if (cur && cur.audio) { if (v) startAudio(cur.audio); else cur.audio.pause(); }
       if (synth) {
         if (!v) synth.pause();
         else if (cur && cur.speaking) synth.resume();
@@ -455,8 +482,10 @@
 
     function tick(ts) {
       if (!playing || loading) { if (playing) raf = requestAnimationFrame(tick); return; }
+      if (ts < holdUntil) { last = ts; raf = requestAnimationFrame(tick); return; }
       var dt = ts - last;
       last = ts;
+      lastSound = ts;
       cur.t += dt * speed;
       runDue(cur, cur.t, { instant: false });
       progressBar();
