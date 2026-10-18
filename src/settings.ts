@@ -12,10 +12,15 @@ export const VoiceSpec = z.discriminatedUnion("provider", [
   z.object({ provider: z.literal("browser") }).describe("the voice of the viewer's browser: free, no key, differs from computer to computer"),
   z.object({ provider: z.literal("none") }).describe("silent: captions only"),
   z.object({
-    provider: z.literal("openai"),
-    voice: z.string().optional().describe("alloy, ash, ballad, coral (default), echo, fable, nova, onyx, sage, shimmer, verse"),
-    model: z.string().optional().describe("gpt-4o-mini-tts (default, follows the style) or tts-1"),
-    style: z.string().optional().describe("how it should speak, e.g. 'calm, like a colleague explaining to a lawyer' (gpt-4o models)")
+    provider: z.literal("fantastico"),
+    voice: z.string().min(1).describe("a supported voice from the Fantastico speech model catalogue"),
+    model: z.string().min(1).describe("the model id from Fantastico audio.speech.models()"),
+    style: z
+      .string()
+      .optional()
+      // a key pasted here would be saved in cueflow.json (versioned) and sent to the service as spoken instructions
+      .refine((s) => !s || !/^(?:sk-[\w-]{16,}|ck-fant-[\w-]+)$/.test(s.trim()), { message: "the style is how the voice should speak, not the API key: the key goes in the kit's .env file (FANTASTICO_API_KEY=ck-fant-…), or in the key field of the voice form" })
+      .describe("how it should speak, e.g. 'calm, like a colleague explaining to a lawyer' (when supported by the model)")
   }),
   z.object({ provider: z.literal("say"), voice: z.string().optional().describe("a macOS voice; default: the first installed one for the language") }),
   z.object({
@@ -51,6 +56,21 @@ export type Settings = z.infer<typeof Settings>;
 
 export const settingsFile = (root: string) => path.join(root, "cueflow.json");
 
+/** Reading old project files must never call a retired service or select a paid voice on its own. */
+export function migrateLegacyVoices(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(migrateLegacyVoices);
+  if (!value || typeof value !== "object") return value;
+  const object = value as Record<string, unknown>;
+  if (object.provider === "openai") return { provider: "browser" };
+  return Object.fromEntries(Object.entries(object).map(([key, child]) => [key, migrateLegacyVoices(child)]));
+}
+
+export function migrateVoiceSettings(raw: Record<string, unknown>): Record<string, unknown> {
+  return raw.voices ? { ...raw, voices: migrateLegacyVoices(raw.voices) } : raw;
+}
+
+const warnedLegacyRoots = new Set<string>();
+
 /** Synchronous because `openKit` needs the output folder right away. A kit without the file gets the defaults. */
 export function readSettingsSync(root: string): Settings {
   let raw: string;
@@ -60,7 +80,14 @@ export function readSettingsSync(root: string): Settings {
     return Settings.parse({});
   }
   try {
-    return Settings.parse(JSON.parse(raw));
+    const original = JSON.parse(raw);
+    const migrated = migrateVoiceSettings(original);
+    const settings = Settings.parse(migrated);
+    if (JSON.stringify(original) !== JSON.stringify(migrated) && !warnedLegacyRoots.has(root)) {
+      warnedLegacyRoots.add(root);
+      console.warn("Cueflow: old OpenAI voice choices now use the free browser voice. Choose professional voices in Settings → General audio settings with a Fantastico key from https://cueflow.fantastico.cc.");
+    }
+    return settings;
   } catch (e) {
     throw new Error(`cueflow.json is not valid: ${e instanceof z.ZodError ? e.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") : e instanceof Error ? e.message : e}`);
   }

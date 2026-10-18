@@ -78,6 +78,31 @@ describe("studio", () => {
     assert.match(JSON.stringify(await bad.json()), /does-not-exist/);
   });
 
+  it("undoes and redoes camera edits and refuses to overwrite external changes", async () => {
+    const current = await (await fetch(url + "api/guide/upload")).json() as any;
+    const original = current.guide;
+    const changed = structuredClone(original);
+    changed.steps[0].camera = { target: "body", padding: 0 };
+    const save = await fetch(url + "api/guide/upload", { method: "PUT", headers: H, body: JSON.stringify({ guide: changed, version: current.version }) });
+    assert.equal(save.status, 200);
+    const move = (direction: string) => fetch(url + "api/history", { method: "POST", headers: H, body: JSON.stringify({ guide: "upload", direction }) });
+    assert.equal((await move("undo")).status, 200);
+    let loaded = await (await fetch(url + "api/guide/upload")).json() as any;
+    assert.deepEqual(loaded.guide.steps[0].camera, original.steps[0].camera);
+    assert.equal(loaded.history.redo, "Change camera framing");
+    assert.equal((await move("redo")).status, 200);
+    loaded = await (await fetch(url + "api/guide/upload")).json() as any;
+    assert.deepEqual(loaded.guide.steps[0].camera, changed.steps[0].camera);
+    assert.equal((await move("undo")).status, 200);
+    const file = path.join(dir, ".cueflow", "guides", "upload.json");
+    const restored = await readFile(file, "utf8");
+    await fs.writeFile(file, restored + "\n");
+    assert.equal((await move("redo")).status, 409);
+    assert.equal(await readFile(file, "utf8"), restored + "\n");
+    await fs.writeFile(file, restored);
+    assert.equal((await move("invalid")).status, 400);
+  });
+
   it("chooses voices at a level and reports where each video's voice comes from", async () => {
     const r = await fetch(url + "api/voice", { method: "POST", headers: H, body: JSON.stringify({ scope: "language", language: "it", voice: { provider: "none" } }) });
     assert.equal(r.status, 200);
@@ -135,6 +160,23 @@ describe("studio", () => {
   it("creates a video, refuses a duplicate and an unknown scene", async () => {
     const make = (body: object) => fetch(url + "api/guide-create", { method: "POST", headers: H, body: JSON.stringify(body) });
     assert.equal((await make({ id: "second", title: "Second", scene: "upload", languages: ["en"] })).status, 200);
+    const saved = JSON.parse(await readFile(path.join(dir, ".cueflow", "guides", "second.json"), "utf8"));
+    assert.equal(saved.vertical, false);
+    assert.equal((await make({ id: "portrait", title: "Portrait", scene: "upload", vertical: true })).status, 200);
+    const portrait = JSON.parse(await readFile(path.join(dir, ".cueflow", "guides", "portrait.json"), "utf8"));
+    assert.equal(portrait.vertical, true);
+    assert.deepEqual(portrait.viewport, { width: 720, height: 1280 });
+    assert.deepEqual(portrait.stage, { width: 360, height: 640 });
+    for (const id of ["portrait", "second", "upload"]) {
+      const current = await (await fetch(url + "api/guide/" + id)).json() as any;
+      const response = await fetch(url + "api/guide/" + id, { method: "PUT", headers: H, body: JSON.stringify({ ...current, guide: { ...current.guide, vertical: !current.guide.vertical } }) });
+      assert.equal(response.status, 400);
+      assert.match((await response.json() as any).error, /orientation is fixed at creation/);
+    }
+    const built = await (await fetch(url + "preview/portrait")).text();
+    assert.match(built, /"viewport":\{"width":720,"height":1280\}/);
+    assert.match(built, /"stage":\{"width":360,"height":640\}/);
+    await fs.unlink(path.join(dir, ".cueflow", "guides", "portrait.json"));
     assert.equal((await make({ id: "second", title: "Second", scene: "upload" })).status, 409);
     assert.equal((await make({ id: "third", title: "Third", scene: "nope" })).status, 400);
   });
@@ -210,6 +252,11 @@ describe("studio", () => {
     const n = notes.find((c) => c.kind === "element-text" && c.after === "Seleziona un file");
     assert.equal(n.lang, "it");
     assert.match(n.sentence, /#choose-file.*Seleziona un file/s);
+    assert.equal((await post("api/history", { guide: "upload", direction: "undo" })).status, 200);
+    assert.doesNotMatch(await (await fetch(url + "scene/upload?lang=it")).text(), /Seleziona un file/);
+    assert.match(await (await fetch(url + "scene/upload?lang=en")).text(), /Choose a file/);
+    assert.equal((await post("api/history", { guide: "upload", direction: "redo" })).status, 200);
+    assert.equal(await readFile(path.join(dir, ".cueflow", "scenes", "it", "upload.html"), "utf8"), it);
     // a copy made from the base screen keeps its stylesheet: its paths go one folder up
     const fresh = await post("api/scene-edit", { scene: "upload", lang: "fr", selector: "#choose-file", text: "Choisir un fichier" });
     assert.equal(fresh.status, 200);
@@ -218,6 +265,29 @@ describe("studio", () => {
     // the selector must match one element
     assert.equal((await post("api/scene-edit", { scene: "upload", lang: "it", selector: "button", text: "x" })).status, 422);
     assert.equal((await post("api/scene-edit", { scene: "upload", lang: "it", selector: "#choose-file", attrs: { onclick: "x" } })).status, 422);
+  });
+
+  it("deletes scene elements with undo/redo and protects page roots and animation targets", async () => {
+    const scene = "delete-demo", file = path.join(dir, ".cueflow", "scenes", scene + ".html");
+    const html = '<html><head></head><body><main id="frame"><h1 id="heading">Delete me</h1><p>Keep me</p></main></body></html>';
+    await fs.writeFile(file, html);
+    const post = (path: string, body: object) => fetch(url + path, { method: "POST", headers: H, body: JSON.stringify(body) });
+    const patch = { tutorial: "upload", scene, lang: "en", selector: "#heading", remove: true };
+    assert.equal((await post("api/scene-edit", patch)).status, 200);
+    assert.equal(await readFile(file, "utf8"), html);
+    assert.doesNotMatch(await (await fetch(url + "scene/" + scene + "?lang=en")).text(), /Delete me/);
+    assert.equal((await post("api/history", { guide: "upload", direction: "undo" })).status, 200);
+    assert.match(await (await fetch(url + "scene/" + scene + "?lang=en")).text(), /Delete me/);
+    await assert.rejects(readFile(path.join(dir, ".cueflow", "scenes", "en", scene + ".html")), { code: "ENOENT" });
+    assert.equal((await post("api/history", { guide: "upload", direction: "redo" })).status, 200);
+    assert.doesNotMatch(await (await fetch(url + "scene/" + scene + "?lang=en")).text(), /Delete me/);
+    const root = await post("api/scene-edit", { ...patch, selector: "body" });
+    assert.equal(root.status, 422);
+    const referenced = await post("api/scene-edit", { ...patch, scene: "upload", selector: "#choose-file" });
+    assert.equal(referenced.status, 422);
+    assert.match((await referenced.json() as any).error, /used by tutorial/);
+    await fs.unlink(file);
+    await fs.unlink(path.join(dir, ".cueflow", "scenes", "en", scene + ".html"));
   });
 
   it("notes the narration and title changes made in the timeline, and the dashboard texts", async () => {
@@ -347,7 +417,7 @@ describe("studio", () => {
     assert.ok(notes.some((c) => c.kind === "catalog" && c.target === "order"), "the assistant is told the order changed");
   });
 
-  it("refuses something that does not look like an OpenAI key", async () => {
+  it("refuses something that does not look like a Fantastico key", async () => {
     const r = await fetch(url + "api/key", { method: "POST", headers: H, body: JSON.stringify({ key: "hello" }) });
     assert.equal(r.status, 400);
   });

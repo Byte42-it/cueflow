@@ -80,7 +80,7 @@ of **pages for the selected tutorial** sits at the bottom, as in a video editor:
   the screen) and *Assistant* (write what you want changed and copy the request to your own assistant: Studio does not
   embed one, your assistant edits the same files through Cueflow's tools and Studio shows its changes as they happen).
 - **Voice**: who reads this tutorial, in plain words, for everything, a language or one video; try a voice before saving
-  it; an OpenAI key is typed here once and kept in the kit's `.env`, never shown again.
+  it; an Fantastico key is typed here once and kept in the kit's `.env`, never shown again.
 - **Preview**: the tutorial as viewers get it, large; with the working copy (browser voice) or built with the final voices.
 - **Export**: check this tutorial (also its layout, in a browser) and build it; built files open from here.
 
@@ -133,7 +133,7 @@ computer). An external voice is always an explicit choice, never a side effect o
 | Choice | What it is |
 |---|---|
 | `browser` (default) | the browser reads the text; nothing stored |
-| `openai` | natural, the same everywhere, generated once and stored; the narration text is sent to OpenAI; needs `OPENAI_API_KEY` in `.cueflow/.env` |
+| `fantastico` | natural, the same everywhere, generated once and stored; uses your Fantastico credit; needs `FANTASTICO_API_KEY` in `.cueflow/.env` |
 | `say` | macOS voices, free and offline |
 | `command` | any local program (e.g. Piper), nothing leaves the computer |
 | `none` | silent, captions only |
@@ -147,14 +147,20 @@ levels, and **what is not set is inherited from the level above**: one video (or
   "outDir": "../cueflow-dist",
   "voices": {
     "default": { "provider": "browser" },
-    "languages": { "it": { "provider": "openai", "voice": "coral", "style": "calm, professional" } },
+    "languages": { "it": { "provider": "fantastico", "model": "mistralai/voxtral-mini-tts-2603", "voice": "en_paul_neutral", "style": "calm, professional" } },
     "guides": { "upload": { "default": { "provider": "say" } } }
   }
 }
 ```
 
-The assistant does it with `get_voices` and `set_voice`; the future Cueflow Studio will offer the same choice with
-buttons. `CUEFLOW_TTS` still works for scripts, but only where `cueflow.json` chooses nothing.
+In Studio, open **Settings → General audio settings**, choose **Professional voices · Fantastico**, and connect your key.
+Get a key or recharge your credit at [cueflow.fantastico.cc](https://cueflow.fantastico.cc). Models and voices are loaded
+from the Fantastico catalogue; **Preview** uses the selected model, voice and style before saving the voice choice.
+Both previews and new narration use Fantastico credit; cached audio can be played again without another generation.
+When credit runs out, Studio shows the same recharge link. For account keys (`ck-fant-…`), Studio shows the available credit in USD, a low-credit notice and a refresh button. Project keys cover multiple accounts, so Studio links to the portal instead of showing a guessed balance. The key stays in the kit's ignored `.env` file and is never
+returned to the browser. No direct paid-provider key is used.
+
+The assistant uses `get_voices` (including the live speech catalogue when a key is configured) and `set_voice`. `CUEFLOW_TTS` still works for scripts, but only where `cueflow.json` chooses nothing.
 
 ## The kit
 
@@ -249,7 +255,7 @@ Open the generated HTML in a browser. Without a voice the guide is silent (capti
 
 | `CUEFLOW_TTS` | Voice |
 |---|---|
-| `openai` | OpenAI speech (`CUEFLOW_TTS_MODEL`, `CUEFLOW_TTS_VOICE`), mp3; needs `OPENAI_API_KEY`, which alone does not switch it on |
+| `fantastico` | Fantastico speech (`CUEFLOW_TTS_MODEL`, `CUEFLOW_TTS_VOICE`), stored as playable WAV; needs `FANTASTICO_API_KEY`, which alone does not switch it on |
 | `say` | the voices of macOS, offline and free: the first one installed for the guide's language, or `CUEFLOW_TTS_VOICE`; AAC in m4a |
 | `command` | any local program: `CUEFLOW_TTS_COMMAND` with `{text}` (a file with the text), `{out}`, `{lang}`, `{voice}`, and `CUEFLOW_TTS_FORMAT` (mp3, m4a, wav, ogg; default wav). Piper: `piper --model it_IT-paola-medium.onnx --output_file {out} < {text}` |
 | `none` | silent |
@@ -396,6 +402,16 @@ Use synthetic data in scene kits. Narration is sent to the configured TTS provid
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Every PR must disclose whether an AI agent was used, including the agent, model when known, scope of assistance and human verification. Contributions without AI assistance are equally welcome.
 
+## Undo and redo in Studio
+
+Use **Undo / Redo** in the top bar, or **Ctrl/Cmd+Z** and **Ctrl/Cmd+Shift+Z** outside text fields. Studio keeps the last 50 saved tutorial edits (including camera framing, steps, narration and actions) and scene text/attribute edits per tutorial, across reloads and restarts. An undo restores a newly translated scene to its previous fallback when appropriate. External file changes are preserved: undo stops if the file no longer matches the saved edit. A new edit clears redo. Text fields keep their usual native undo.
+
+**Edit** lets you click an element in a scene, change its text/attributes, or delete it in the selected language. These edits support Undo/Redo. Elements used as camera or action targets must be unlinked before deletion. Switching back to **Video** clears the selection. The action editor still offers element picking when choosing an action target. Existing edits made before this history feature cannot be undone automatically.
+
+## Tutorial orientation
+
+Set `"vertical": true` in a tutorial JSON for portrait playback and mobile MP4 exports (9:16). Omitted or `false` preserves the existing layout. New tutorials always save this boolean, defaulting to `false`. Choose the orientation when creating a video in Studio or with `create_guide`; it cannot be changed afterwards. Vertical tutorials start with a portrait viewport and stage, and scenes and camera framing should be designed for mobile from the start. To use another orientation, create a separate tutorial.
+
 ## MP4 export
 
 Export a single tutorial from Studio → Export → **Export MP4**. Choose Large (1920×1080), Medium (1280×720, default), or Small (854×480). It renders the selected language, with recorded narration (generated or uploaded). Steps using browser speech export silently. FFmpeg is included with Cueflow. Install Playwright Chromium (`npx playwright install chromium`); `CUEFLOW_FFMPEG` can point to a custom FFmpeg executable. Windows installations made with WinGet, Scoop or Chocolatey are also detected when missing from PATH. Each size has its own output file. Rendering can take several minutes.
@@ -407,7 +423,7 @@ site). Not done yet: word-level sync with the narration, a TypeScript build step
 npm.
 
 Audio has been verified end to end with the macOS voices (`CUEFLOW_TTS=say`): real durations, playback, seeking.
-The OpenAI path has not run against the real API yet.
+The Fantastico path has not run against the real API yet.
 
 ## Producer and references
 

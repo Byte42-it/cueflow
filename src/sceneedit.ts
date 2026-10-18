@@ -3,7 +3,7 @@ import path from "node:path";
 import { parseHTML } from "linkedom";
 import { writeAtomic } from "./build.ts";
 import { recordChange } from "./changes.ts";
-import { sceneFile, sceneFileFor, type Kit } from "./kit.ts";
+import { sceneFile, sceneFileFor, listGuides, loadGuide, type Kit } from "./kit.ts";
 
 export const EDITABLE_ATTRS = ["placeholder", "title", "alt", "aria-label", "value", "label"] as const;
 
@@ -48,7 +48,7 @@ function moveDeeper(document: any) {
  * the change goes to scenes/<lang>/<scene>.html, created from the version that language shows if it had none, so
  * editing English never touches Italian. What was changed is noted for the assistant.
  */
-export async function editSceneElement(kit: Kit, scene: string, lang: string, selector: string, patch: { text?: string; attrs?: Record<string, string> }, tutorial?: string) {
+export async function editSceneElement(kit: Kit, scene: string, lang: string, selector: string, patch: { text?: string; attrs?: Record<string, string>; remove?: boolean }, tutorial?: string) {
   const source = await sceneFileFor(kit, scene, lang);
   const { document } = parseHTML(await readFile(source, "utf8"));
   let found: any[];
@@ -60,16 +60,39 @@ export async function editSceneElement(kit: Kit, scene: string, lang: string, se
   if (found.length !== 1) throw new Error(`"${selector}" matches ${found.length} elements of the screen "${scene}": it must match exactly one`);
   const el = found[0];
   const target = sceneFile(kit, scene, lang);
-  const changes: { kind: "element-text" | "element-attribute"; target: string; before: string; after: string }[] = [];
+  const changes: { kind: "element-text" | "element-attribute" | "element-deleted"; target: string; before: string; after: string }[] = [];
 
-  if (patch.text !== undefined) {
+  if (patch.remove === true) {
+    if (["html", "head", "body"].includes(el.localName)) throw new Error("The page root cannot be deleted. Select an element inside the scene.");
+    // A deleted camera/action target would leave a tutorial that cannot play or export.
+    for (const id of await listGuides(kit)) {
+      const guide = await loadGuide(kit, id);
+      if (!guide.languages.includes(lang)) continue;
+      let current = guide.scene;
+      for (const step of guide.steps) {
+        current = step.scene ?? current;
+        if (current !== scene) continue;
+        const selectors = [step.camera?.target, ...step.actions.flatMap((action) => ["to" in action ? action.to : undefined, "target" in action ? action.target : undefined, "in" in action ? action.in : undefined])];
+        for (const target of selectors) {
+          if (typeof target !== "string") continue;
+          let targets: any[];
+          try { targets = [...document.querySelectorAll(target)]; } catch { continue; }
+          if (targets.some((node) => node === el || el.contains(node))) throw new Error(`This element is used by tutorial "${id}", step "${step.id}" (${target}). Change or remove that camera/action target before deleting the element.`);
+        }
+      }
+    }
+    changes.push({ kind: "element-deleted", target: selector, before: el.outerHTML, after: "" });
+    el.remove();
+  }
+
+  if (!patch.remove && patch.text !== undefined) {
     const before = ownText(el);
     if (before !== patch.text) {
       setOwnText(el, patch.text);
       changes.push({ kind: "element-text", target: selector, before, after: patch.text });
     }
   }
-  for (const [name, value] of Object.entries(patch.attrs ?? {})) {
+  for (const [name, value] of Object.entries(patch.remove ? {} : patch.attrs ?? {})) {
     if (!(EDITABLE_ATTRS as readonly string[]).includes(name)) throw new Error(`the attribute "${name}" cannot be edited here (${EDITABLE_ATTRS.join(", ")})`);
     const before = el.getAttribute(name) ?? "";
     if (before !== value) {

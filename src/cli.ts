@@ -43,11 +43,11 @@ const USAGE = `cueflow — narrated UI walkthroughs from static HTML scenes
   --version, -v  the installed version
   --lang <code>  language to preview or check (default: the guide's first)
 
-  Voice (CUEFLOW_TTS): openai (OPENAI_API_KEY), say (macOS voices), command (CUEFLOW_TTS_COMMAND, e.g. Piper), none
+  Voice (CUEFLOW_TTS): fantastico (FANTASTICO_API_KEY), say (macOS voices), command (CUEFLOW_TTS_COMMAND, e.g. Piper), none
   Browser (capture, preview, --layout, --posters): Playwright's Chromium, or CUEFLOW_CHROMIUM=<executable>
 `;
 
-// Optional local secrets (OPENAI_API_KEY…): .env in the current folder, then the kit's; real env vars win over both.
+// Optional local secrets (FANTASTICO_API_KEY…): .env in the current folder, then the kit's; real env vars win over both.
 const loadEnv = (file: string) => { try { process.loadEnvFile(file); } catch {} };
 loadEnv(".env");
 
@@ -144,7 +144,7 @@ try {
   } else if (command === "init") {
     const project = openKit(path.join(process.cwd(), ".cueflow"));
     await initKit(project, undefined, values["out-dir"]);
-    console.log(`${project.root}  (output: ${project.out})\nNext: put OPENAI_API_KEY in .cueflow/.env only if you choose an external voice; connect your assistant with the MCP server (see README).`);
+    console.log(`${project.root}  (output: ${project.out})\nNext: put FANTASTICO_API_KEY in .cueflow/.env only if you choose an external voice; connect your assistant with the MCP server (see README).`);
   } else if (command === "studio") {
     const studio = await startStudio(kit, { port: values.port ? Number(values.port) : undefined, open: !values["no-open"] });
     console.log(`${createdKit ? `No .cueflow in ${projectFolder}: created ${kit.root}\n` : ""}Cueflow Studio: ${studio.url}\nProject: ${projectFolder}\nKit: ${kit.root}\nCtrl+C to stop.\n\nTo work with an AI assistant, copy and paste this into it (the link carries the key; it keeps working if you restart Studio; the same is in Studio, button AI):\n\n${pasteLine(studio.link)}\n\nClosed the Studio tab by mistake? Open it again: ${studio.url}\n`);

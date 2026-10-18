@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { distFile, loadGuide, sceneFile, sceneFileFor, type Kit } from "./kit.ts";
 import { inlineScene, type Shared } from "./scene.ts";
-import type { Guide } from "./schema.ts";
+import { orientedGuide, type Guide } from "./schema.ts";
 import { loadTheme } from "./theme.ts";
 import { stepAudio, voiceFor } from "./voices.ts";
 import type { TtsProvider } from "./tts.ts";
@@ -36,7 +36,7 @@ export type GuideBundle = {
 };
 
 export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider | null, opts: { lang?: string } = {}): Promise<GuideBundle> {
-  const guide = await loadGuide(kit, id);
+  const guide = orientedGuide(await loadGuide(kit, id));
   const report = await validateGuide(kit, guide);
   if (report.errors.length) throw new Error(`the guide "${id}" is not valid:\n- ${report.errors.join("\n- ")}`);
 

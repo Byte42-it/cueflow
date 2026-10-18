@@ -6,6 +6,7 @@ import { Brief, initKit, kitStatus, updateBrief } from "./brief.ts";
 import { describeChange, markSeen, pendingChanges } from "./changes.ts";
 import { INSTRUCTIONS, METHOD } from "./method.ts";
 import { VoiceSpec } from "./settings.ts";
+import { speechModels } from "./tts.ts";
 import { setVoice, voiceOptions, voiceTable } from "./voices.ts";
 import { captureScenes } from "./capture.ts";
 import { listGuides, listScenes, loadGuide, readScene, saveGuide, type Kit } from "./kit.ts";
@@ -15,7 +16,7 @@ import { renderFrame } from "./preview.ts";
 import { describeScene } from "./scene.ts";
 import { buildSite, checkEndpoint, loadSite, syncSite, validateSite } from "./site.ts";
 import { createArticle, readArticle, writeArticle } from "./articles.ts";
-import { Guide, Step } from "./schema.ts";
+import { Guide, orientedGuide, Step } from "./schema.ts";
 import { validateGuide } from "./validate.ts";
 
 const text = (value: unknown) => ({ content: [{ type: "text" as const, text: typeof value === "string" ? value : JSON.stringify(value, null, 2) }] });
@@ -154,30 +155,32 @@ export function createServer(kit: Kit): McpServer {
 
   server.registerTool(
     "get_voices",
-    { description: "The voices to choose from, in plain words (browser voice by default; external voices need an explicit choice and, for OpenAI, a key), and which voice every video speaks with in each language and where that choice comes from (video, language, global, default)." },
-    safe(async () => text({ options: voiceOptions(), current: kit.settings.voices, table: await voiceTable(kit) }))
+    { description: "The voices to choose from, in plain words (browser voice by default; external voices need an explicit choice and, for Fantastico, a key), and which voice every video speaks with in each language and where that choice comes from (video, language, global, default)." },
+    safe(async () => text({ options: voiceOptions(), current: kit.settings.voices, table: await voiceTable(kit),
+      ...(process.env.FANTASTICO_API_KEY ? await speechModels().then((models) => ({ speechModels: models }), (error: Error) => ({ catalogueError: error.message })) : {})
+    }))
   );
 
   server.registerTool(
     "set_voice",
     {
       description:
-        "Choose a voice at one level, or clear it to inherit from the level above. Levels, most specific first: one video (and optionally one of its languages) > a language (all videos in it) > global > the browser's voice. Ask the user before choosing an external voice: it sends the narration text to a service, and OpenAI needs OPENAI_API_KEY in the kit's .env. Describe the options from get_voices; do not pick for them.",
+        "Choose a voice at one level, or clear it to inherit from the level above. Levels, most specific first: one video (and optionally one of its languages) > a language (all videos in it) > global > the browser's voice. Ask the user before choosing an external voice: it sends the narration text to a service, and Fantastico needs FANTASTICO_API_KEY in the kit's .env. Describe the options from get_voices; do not pick for them.",
       inputSchema: {
         scope: z.enum(["global", "language", "video"]),
         language: z.string().optional().describe("for scope language, or to narrow a video's voice to one of its languages"),
         guide: z.string().optional().describe("for scope video"),
-        voice: VoiceSpec.nullable().describe("the voice, e.g. {provider:'browser'} or {provider:'openai', voice:'coral', style:'calm'}; null clears this level")
+        voice: VoiceSpec.nullable().describe("the voice, e.g. {provider:'browser'} or {provider:'fantastico', model:'<id from get_voices>', voice:'<supported voice>', style:'calm'}; null clears this level")
       }
     },
     safe(async ({ scope, language, guide, voice }) => {
       if (scope === "language" && !language) throw new Error("scope language needs `language`, e.g. \"it\"");
       if (scope === "video" && !guide) throw new Error("scope video needs `guide`, the id of the video");
       await setVoice(kit, scope === "global" ? { scope } : scope === "language" ? { scope, language: language! } : { scope, guide: guide!, language }, voice);
-      const needsKey = voice?.provider === "openai" && !process.env.OPENAI_API_KEY;
+      const needsKey = voice?.provider === "fantastico" && !process.env.FANTASTICO_API_KEY;
       return text({
         saved: true,
-        ...(needsKey ? { warning: "OPENAI_API_KEY is not set yet: put it in the kit's .env file (OPENAI_API_KEY=sk-…) before building, or the build will stop with an error." } : {}),
+        ...(needsKey ? { warning: "FANTASTICO_API_KEY is not set yet: put it in the kit's .env file (FANTASTICO_API_KEY=ck-fant-…) before building. Get a key or recharge credit at https://cueflow.fantastico.cc." } : {}),
         table: await voiceTable(kit)
       });
     })
@@ -216,6 +219,7 @@ export function createServer(kit: Kit): McpServer {
       inputSchema: {
         id: guideId,
         title: z.string(),
+        vertical: z.boolean().default(false).describe("true for a portrait tutorial for mobile devices"),
         scene: z.string().describe("first scene"),
         languages: z.array(z.string()).default(["en"]),
         viewport: z.object({ width: z.number(), height: z.number() }).optional().describe("native size of the scenes, default 1280x720"),
@@ -225,7 +229,7 @@ export function createServer(kit: Kit): McpServer {
     safe(async (a) => {
       const existing = await listGuides(kit);
       if (existing.includes(a.id)) throw new Error(`guide "${a.id}" already exists`);
-      const guide = Guide.parse({ ...a, steps: [] });
+      const guide = orientedGuide(Guide.parse({ ...a, steps: [] }));
       await saveGuide(kit, guide);
       return text(guide);
     })

@@ -112,6 +112,7 @@ export type NewRequest = {
   title?: string;
   id?: string;
   scene?: string;
+  vertical?: boolean;
   languages?: string[];
   kicker?: string;
   desc?: string;
@@ -127,6 +128,7 @@ const KIND: Record<NewRequest["kind"], string> = {
 const HOW: Record<NewRequest["kind"], string[]> = {
   video: [
     "When I have answered: make the screens it needs if they do not exist (capture_scenes from the live site, or build them from the folder, with synthetic data only), create_guide, add the steps one by one (one idea each), validate_guide, look at preview_frame, and tell me what you made. Nothing is built or published until I say so.",
+    "Orientation is fixed at creation: use the requested vertical flag in create_guide. For vertical tutorials, design or capture scenes at 720x1280 with a 360x640 stage; compose the mobile layout, camera framing, captions and actions for portrait from the start. Create a separate tutorial for a different orientation.",
     "Each language is its own sub-project: write the narration in each language of the brief."
   ],
   guide: [
@@ -142,6 +144,7 @@ export async function requestPrompt(kit: Kit, req: NewRequest, ctx: { lang?: str
     req.title && `title: ${req.title}`,
     req.id && `id: ${req.id}`,
     req.scene && `first screen: ${req.scene}`,
+    req.kind === "video" && `vertical: ${req.vertical === true} (use this orientation in create_guide)`,
     req.languages?.length && `languages: ${req.languages.join(", ")}`,
     req.kicker && `category (kicker): ${req.kicker}`,
     req.desc && `description: ${req.desc}`,

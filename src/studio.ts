@@ -18,12 +18,14 @@ import { agentPrompt, pasteLine, requestPrompt, type NewRequest, type StudioLink
 import { AgentBridge } from "./agent.ts";
 import { METHOD } from "./method.ts";
 import { deleteTutorial } from "./trash.ts";
+import { StudioHistory, HistoryConflict } from "./history.ts";
 import { editSceneElement } from "./sceneedit.ts";
 import { deleteMediaFile, mediaOverview, saveMediaFile, areaDir, safeRel, type Area } from "./media.ts";
-import { defaultOutDir, listGuides, listScenes, loadGuide, openKit, outDirSetting, projectRoot, readScene, saveGuide, guideFile, type Kit } from "./kit.ts";
+import { defaultOutDir, listGuides, listScenes, loadGuide, openKit, outDirSetting, projectRoot, readScene, saveGuide, guideFile, sceneFile, type Kit } from "./kit.ts";
 import { describeScene, inlineScene } from "./scene.ts";
-import { Guide, pick } from "./schema.ts";
-import { narrationAudio, providerFromSpec, audioMime, spokenText } from "./tts.ts";
+import { Guide, orientedGuide, pick } from "./schema.ts";
+import { FantasticoError } from "@byte-42/fantastico-sdk";
+import { keyCredit, speechModels, FANTASTICO_PORTAL, narrationAudio, providerFromSpec, audioMime, spokenText } from "./tts.ts";
 import { VoiceSpec } from "./settings.ts";
 import { validateGuide } from "./validate.ts";
 import { readFile as read } from "node:fs/promises";
@@ -112,9 +114,9 @@ async function state(kit: Kit) {
     // estimated lengths (ms) per language, as the player computes them for a silent build: the timeline is drawn from these
     const timing: Record<string, { narration: number; total: number }[]> = {};
     for (const lang of g.languages) timing[lang] = g.steps.map((s) => estimateStepDuration(s, lang));
-    guides.push({ id, title: g.title, languages: g.languages, scene: g.scene, viewport: g.viewport, timing, steps: g.steps.map((s) => ({ id: s.id, title: s.title ?? null, narration: s.narration, actions: s.actions.map((a) => ({ do: a.do, at: "at" in a ? a.at : 0, duration: "duration" in a ? a.duration : undefined })) })) });
+    guides.push({ id, title: g.title, languages: g.languages, scene: g.scene, vertical: g.vertical, viewport: orientedGuide(g).viewport, timing, steps: g.steps.map((s) => ({ id: s.id, title: s.title ?? null, narration: s.narration, actions: s.actions.map((a) => ({ do: a.do, at: "at" in a ? a.at : 0, duration: "duration" in a ? a.duration : undefined })) })) });
   }
-  return { videoPresets: VIDEO_PRESETS, kitRoot: kit.root, projectRoot: projectRoot(kit), outDir: kit.out, outDirShown: path.relative(projectRoot(kit), kit.out).split(path.sep).join("/") || ".", defaultOutDirShown: path.relative(projectRoot(kit), path.resolve(kit.root, defaultOutDir(kit))).split(path.sep).join("/"), brief: await loadBrief(kit), pending: (await pendingChanges(kit)).length, guides, scenes: await listScenes(kit), hasKey: Boolean(process.env.OPENAI_API_KEY), catalog: await catalogOverview(kit).catch((e) => ({ exists: false as const, error: e instanceof Error ? e.message : String(e) })) };
+  return { videoPresets: VIDEO_PRESETS, kitRoot: kit.root, projectRoot: projectRoot(kit), outDir: kit.out, outDirShown: path.relative(projectRoot(kit), kit.out).split(path.sep).join("/") || ".", defaultOutDirShown: path.relative(projectRoot(kit), path.resolve(kit.root, defaultOutDir(kit))).split(path.sep).join("/"), brief: await loadBrief(kit), pending: (await pendingChanges(kit)).length, guides, scenes: await listScenes(kit), hasKey: Boolean(process.env.FANTASTICO_API_KEY), catalog: await catalogOverview(kit).catch((e) => ({ exists: false as const, error: e instanceof Error ? e.message : String(e) })) };
 }
 
 /**
@@ -140,7 +142,7 @@ body.cf-site { display: block; }
 </style></head><body class="cf-site"><main class="cf-main"><div class="cf-article" id="doc"></div></main></body></html>`;
 }
 
-type Ctx = { bridge: AgentBridge; link: () => StudioLink; update?: Promise<UpdateInfo | null> };
+type Ctx = { history: StudioHistory; bridge: AgentBridge; link: () => StudioLink; update?: Promise<UpdateInfo | null> };
 
 async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clients: Set<ServerResponse>, ctx: Ctx) {
   Object.assign(kit, openKit(kit.root)); // cueflow.json may have been changed by someone else
@@ -250,19 +252,35 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     return json(res, { discarded: await discardChanges(kit, ids) });
   }
 
+  if (p === "/api/history" && req.method === "POST") {
+    const body = await readBody(req);
+    const id = Guide.shape.id.parse(body.guide);
+    if (body.direction !== "undo" && body.direction !== "redo") throw new HttpError(400, "Choose undo or redo.");
+    await loadGuide(kit, id);
+    const result = await ctx.history.move(id, body.direction);
+    await recordChange(kit, { kind: "file-edited", tutorial: id, file: result.file, target: result.file, before: body.direction === "undo" ? result.label : "Undone: " + result.label, after: body.direction === "undo" ? "Undone: " + result.label : result.label });
+    return json(res, result);
+  }
+
   let m = /^\/api\/guide\/([\w-]+)$/.exec(p);
-  if (m && req.method === "GET") return json(res, { guide: await loadGuide(kit, m[1]!), version: await mtime(guideFile(kit, m[1]!)) });
+  if (m && req.method === "GET") return json(res, { guide: await loadGuide(kit, m[1]!), version: await mtime(guideFile(kit, m[1]!)), history: await ctx.history.status(m[1]!) });
   if (m && req.method === "PUT") {
     const body = await readBody(req);
     const id = m[1]!;
     if ((await mtime(guideFile(kit, id))) !== body.version) throw new HttpError(409, "the guide changed on disk meanwhile (an assistant, or another editor): reload it before saving");
     const guide = Guide.parse(body.guide);
     if (guide.id !== id) throw new HttpError(400, "the guide's id cannot change here");
+    const existing = await loadGuide(kit, id);
+    if (existing.vertical !== guide.vertical) throw new HttpError(400, "Tutorial orientation is fixed at creation. Create a new tutorial for a different orientation.");
     const report = await validateGuide(kit, guide);
     if (report.errors.length) return json(res, { saved: false, errors: report.errors, warnings: report.warnings }, 422);
     // what the person changed in the words of the video: noted for the assistant
     const old = await loadGuide(kit, id).catch(() => null);
-    await saveGuide(kit, guide);
+    const cameraChanged = old?.steps.some((step, i) => JSON.stringify(step.camera) !== JSON.stringify(guide.steps[i]?.camera));
+    await ctx.history.record(id, guideFile(kit, id), cameraChanged ? "Change camera framing" : "Edit tutorial", async () => {
+      if ((await mtime(guideFile(kit, id))) !== body.version) throw new HttpError(409, "The tutorial changed before saving. Reload it first.");
+      await saveGuide(kit, guide);
+    });
     if (old) {
       for (const st of guide.steps) {
         const o = old.steps.find((x) => x.id === st.id);
@@ -285,7 +303,7 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
   if (m) {
     // silent build (no paid voice is called for a preview); the browser reads the narration so it can be heard
     // ?studio=1: the Timeline draws its own transport, so the player shows only the picture and the caption
-    const extras = url.searchParams.get("studio") ? { css: ".cf-bar,.cf-transcript,.cf-big,.cf-veil-text{display:none!important}" } : undefined;
+    const extras = url.searchParams.get("studio") ? { css: ".cf-bar,.cf-transcript,.cf-big,.cf-veil-text,.cf-stage::after{display:none!important}" } : undefined;
     const { html } = await renderGuideHtml(kit, m[1]!, null, { browserVoice: true, extras });
     return send(res, 200, html, "text/html; charset=utf-8");
   }
@@ -325,7 +343,8 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
   if (p === "/api/scene-edit" && req.method === "POST") {
     const b = await readBody(req);
     if (!b.lang) throw new HttpError(400, "choose the language to edit in (the selector at the top)");
-    const r = await editSceneElement(kit, String(b.scene), String(b.lang), String(b.selector), { text: b.text, attrs: b.attrs }, b.tutorial ? String(b.tutorial) : undefined).catch((e) => { throw new HttpError(422, e.message); });
+    const r = await ctx.history.record(b.tutorial ? Guide.shape.id.parse(b.tutorial) : "scenes", sceneFile(kit, String(b.scene), String(b.lang)), `Edit scene ${String(b.scene)} (${String(b.lang)})`,
+      () => editSceneElement(kit, String(b.scene), String(b.lang), String(b.selector), { text: b.text, attrs: b.attrs, remove: b.remove === true }, b.tutorial ? String(b.tutorial) : undefined)).catch((e) => { throw new HttpError(422, e.message); });
     return json(res, { saved: true, changed: r.changed });
   }
   if (p === "/api/media-text" && req.method === "PUT") {
@@ -476,7 +495,7 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     const b = await readBody(req);
     if ((await listGuides(kit)).includes(String(b.id))) throw new HttpError(409, `a video "${b.id}" already exists`);
     if (!(await listScenes(kit)).includes(String(b.scene))) throw new HttpError(400, `the scene "${b.scene}" does not exist (available: ${(await listScenes(kit)).join(", ") || "none"})`);
-    const guide = Guide.parse({ id: b.id, title: b.title, scene: b.scene, languages: b.languages?.length ? b.languages : ["en"], steps: [] });
+    const guide = orientedGuide(Guide.parse({ id: b.id, title: b.title, scene: b.scene, vertical: b.vertical, languages: b.languages?.length ? b.languages : ["en"], steps: [] }));
     await saveGuide(kit, guide);
     return json(res, { id: guide.id });
   }
@@ -489,7 +508,9 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     return json(res, await updateBrief(kit, patch));
   }
 
-  if (p === "/api/voices") return json(res, { options: voiceOptions(), current: kit.settings.voices, table: await voiceTable(kit), hasKey: Boolean(process.env.OPENAI_API_KEY) });
+  if (p === "/api/credit" && req.method === "GET") return json(res, await keyCredit());
+  if (p === "/api/speech-models" && req.method === "GET") return json(res, { models: await speechModels() });
+  if (p === "/api/voices") return json(res, { options: voiceOptions(), current: kit.settings.voices, table: await voiceTable(kit), hasKey: Boolean(process.env.FANTASTICO_API_KEY) });
   if (p === "/api/voice" && req.method === "POST") {
     const b = await readBody(req);
     const target = b.scope === "global" ? { scope: "global" as const } : b.scope === "language" ? { scope: "language" as const, language: String(b.language) } : { scope: "video" as const, guide: String(b.guide), language: b.language ? String(b.language) : undefined };
@@ -499,12 +520,12 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
   if (p === "/api/key" && req.method === "POST") {
     // the key is written to the kit's .env (git-ignored) and never sent back to the page
     const key = String((await readBody(req)).key ?? "").trim();
-    if (!/^[\w-]{20,}$/.test(key)) throw new HttpError(400, "that does not look like an OpenAI key (it starts with sk-)");
+    if (!/^(?:sk|ck)-fant-[\w-]{8,}$/.test(key)) throw new HttpError(400, `Enter a Fantastico key (ck-fant-… or sk-fant-…). Get a key at ${FANTASTICO_PORTAL}`);
     const file = path.join(kit.root, ".env");
     const old = await readFile(file, "utf8").catch(() => "");
-    await writeAtomic(file, old.split("\n").filter((l) => l && !l.startsWith("OPENAI_API_KEY=")).concat(`OPENAI_API_KEY=${key}`).join("\n") + "\n");
+    await writeAtomic(file, old.split("\n").filter((l) => l && !l.startsWith("FANTASTICO_API_KEY=")).concat(`FANTASTICO_API_KEY=${key}`).join("\n") + "\n");
     await chmod(file, 0o600).catch(() => {});
-    process.env.OPENAI_API_KEY = key;
+    process.env.FANTASTICO_API_KEY = key;
     return json(res, { hasKey: true });
   }
   // a narration as the tutorial will say it: the voice cueflow.json gives that video in that language, with the
@@ -602,15 +623,15 @@ export async function startStudio(kit: Kit, opts: { port?: number; open?: boolea
   const clients = new Set<ServerResponse>();
   const bridge = new AgentBridge(kit);
   let link: StudioLink = { url: "", token: bridge.token };
-  const ctx: Ctx = { bridge, link: () => link };
+  const ctx: Ctx = { history: new StudioHistory(kit), bridge, link: () => link };
   bridge.onChange = () => { for (const c of clients) c.write("event: agent\ndata: changed\n\n"); };
   const server = createServer((req, res) => {
     // only this computer, under its own name: a web page elsewhere must not be able to drive the kit
     if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host ?? "")) return send(res, 403, "forbidden", "text/plain");
     handle(kit, req, res, clients, ctx).catch((e) => {
-      const status = e instanceof HttpError || e instanceof ArticleError ? e.status : e?.name === "ZodError" ? 422 : 500;
+      const status = e instanceof HttpError || e instanceof ArticleError || e instanceof HistoryConflict || e instanceof FantasticoError ? e.status : e?.name === "ZodError" ? 422 : 500;
       const message = e?.name === "ZodError" ? e.issues.map((i: any) => `${i.path.join(".")}: ${i.message}`).join("; ") : e instanceof Error ? e.message : String(e);
-      if (!res.headersSent) json(res, { error: message }, status);
+      if (!res.headersSent) json(res, { error: message, ...(e instanceof FantasticoError ? { code: e.code, ...(status === 402 ? { rechargeUrl: FANTASTICO_PORTAL } : {}) } : {}) }, status);
       else res.end();
     });
   });

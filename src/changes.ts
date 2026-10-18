@@ -10,7 +10,7 @@ import type { Kit } from "./kit.ts";
  * decides what else should follow (a narration that names the button, a description, a pronunciation). Once read it
  * is marked seen; the file is an inbox, not a history to keep.
  */
-export type ChangeKind = "element-text" | "element-attribute" | "narration" | "title" | "file-replaced" | "file-edited" | "catalog" | "article" | "tutorial-deleted";
+export type ChangeKind = "element-deleted" | "element-text" | "element-attribute" | "narration" | "title" | "file-replaced" | "file-edited" | "catalog" | "article" | "tutorial-deleted";
 export type Change = {
   id: string;
   at: string;
@@ -84,6 +84,7 @@ export function describeChange(c: Change): string {
   const where = [c.tutorial && `tutorial "${c.tutorial}"`, c.lang && `language "${c.lang}"`, c.scene && `screen "${c.scene}"`].filter(Boolean).join(", ");
   const w = (where ? ` (${where})` : "") + (c.file && c.kind.startsWith("element") ? ` [saved in ${c.file}, which this language now uses instead of the base screen]` : "");
   switch (c.kind) {
+    case "element-deleted": return `The element ${c.target}${w} was deleted.`;
     case "element-text": return `The text of ${c.target}${w} was changed from “${c.before ?? ""}” to “${c.after ?? ""}”.`;
     case "element-attribute": return `An attribute of ${c.target}${w} was changed from “${c.before ?? ""}” to “${c.after ?? ""}”.`;
     case "narration": return `The narration of step ${c.target}${w} (what is shown as caption and read aloud) was changed from “${c.before ?? ""}” to “${c.after ?? ""}”.`;

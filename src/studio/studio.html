@@ -12,12 +12,14 @@
   <div class="brand"><svg viewBox="152 152 950 950" width="22" height="22" aria-hidden="true"><g fill="none" stroke="#ff7a59" stroke-linecap="round" stroke-linejoin="round"><path d="M880 370A338 338 0 1 0 880 890" stroke-width="210"/><path d="M830 525L1040 640L830 755Z" fill="#ff7a59" stroke-width="70"/></g></svg><b>Cueflow</b> <span>Studio</span></div>
   <div class="current" id="current"></div>
   <div class="where" id="where"></div>
+  <button class="btn" id="undo" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
+  <button class="btn" id="redo" title="Redo (Ctrl+Shift+Z)" disabled>↷ Redo</button>
   <label class="lang">Language <select id="lang"></select></label>
   <button class="btn chip" id="update" title="A newer Cueflow is available" hidden></button>
   <button class="btn chip" id="notes" title="Hand edits the assistant has not read yet" hidden></button>
   <button class="btn ai" id="ai" title="A prompt for your AI assistant: carry on in a new session without starting over"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5M22 9v6"/></svg><span>AI</span><i class="dot" id="aidot" title="No assistant connected"></i></button>
   <button class="btn" id="dashboard" title="The titles and descriptions of the dashboard">Dashboard</button>
-  <button class="btn" id="project" title="Settings: audience, tone, languages, rules, pronunciation">Settings</button>
+  <button class="btn" id="project" title="Settings: audio, audience, tone, languages, rules, pronunciation">Settings</button>
   <button class="themebtn" id="theme" title="Dark / light" aria-label="Dark or light">◐</button>
   <button class="btn primary" id="exportall" title="Build every tutorial and the dashboard that gathers them">Build</button>
 </header>
@@ -61,7 +63,7 @@
           <div class="bar">
             <div class="seg" role="tablist">
               <button id="m-video" class="on">Video</button>
-              <button id="m-pick">Pick an element</button>
+              <button id="m-pick">Edit</button>
             </div>
             <div class="pick" id="pickinfo" hidden></div>
           </div>

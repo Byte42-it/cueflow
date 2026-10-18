@@ -62,8 +62,8 @@ pages/<id>.html if wanted, then build_site. The user opens the output folder (cu
 ## Voice
 The default is the viewer's browser voice: free, no key. Never switch to an external voice on your own: describe the
 options (get_voices) and let the user choose. A choice can be global, for a language, or for one video; what is not
-set is inherited from the level above (set_voice). OpenAI needs OPENAI_API_KEY in the kit's .env, and sends the
-narration text to that service.
+set is inherited from the level above (set_voice). Fantastico needs FANTASTICO_API_KEY in the kit's .env, and sends the
+narration through the SDK using the key's Fantastico credit. Get a key or recharge credit at https://cueflow.fantastico.cc. Choose a model and one of its supported voices from get_voices.
 
 ## What the person edits by hand
 The person can change texts in Studio themselves (a button, a description, a narration, a file). get_brief says how

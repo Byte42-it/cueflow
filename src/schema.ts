@@ -101,7 +101,7 @@ export const Step = z.object({
   actions: z.array(Action).default([]),
   narration: z.record(z.string()).default({}).describe("text read aloud and shown as caption, per language code"),
   hold: z.number().min(0).default(600).describe("pause after the step, in ms"),
-  voice: z.record(StepVoice).optional().describe("per language: the voice of this step only (provider browser, none = muted, openai, say, command, or file). Absent = the project's voice (Auto)")
+  voice: z.record(StepVoice).optional().describe("per language: the voice of this step only (provider browser, none = muted, fantastico, say, command, or file). Absent = the project's voice (Auto)")
 });
 export type Step = z.infer<typeof Step>;
 
@@ -128,6 +128,7 @@ export const Guide = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/i),
   title: z.string(),
   scene: z.string().describe("first scene (name without .html)"),
+  vertical: z.boolean().default(false).describe("portrait tutorial for mobile devices; omitted or false keeps the existing landscape layout"),
   viewport: z.object({ width: z.number().default(1280), height: z.number().default(720) }).default({}),
   stage: z.object({ width: z.number().default(640), height: z.number().default(360) }).default({}).describe("size of the visible window of the 'video'"),
   languages: z.array(z.string().min(2)).min(1).default(["en"]),
@@ -139,6 +140,13 @@ export const Guide = z.object({
   steps: z.array(Step).default([])
 });
 export type Guide = z.infer<typeof Guide>;
+
+/** Apply portrait framing without changing the saved scene and stage dimensions. */
+export function orientedGuide(guide: Guide): Guide {
+  if (!guide.vertical) return guide;
+  const portrait = ({ width, height }: { width: number; height: number }) => ({ width: Math.min(width, height), height: Math.max(width, height) });
+  return { ...guide, viewport: portrait(guide.viewport), stage: portrait(guide.stage) };
+}
 
 /** The words of the player's own interface, per language: theme/labels.json in the kit. Unknown keys are typos. */
 export const LABEL_KEYS = ["play", "pause", "replay", "speed", "captions", "voice", "steps", "step", "transcript", "download", "watch", "language"] as const;

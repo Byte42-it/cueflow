@@ -4,7 +4,7 @@ import type { Kit } from "./kit.ts";
 import { loadGuide } from "./kit.ts";
 import { renderFrame } from "./preview.ts";
 import { loadSite } from "./site.ts";
-import { pick } from "./schema.ts";
+import { orientedGuide, pick } from "./schema.ts";
 
 /**
  * The page of a video made to be sent on a phone: <output>/share/<id>/index.html plus poster.png. It is the same
@@ -110,7 +110,7 @@ const clip = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, n - 1)
 
 /** Builds the page for phones of one video; `lang` is the language of the link card (the page itself follows the viewer's phone, or ?lang=). */
 export async function buildShare(kit: Kit, id: string, opts: { lang?: string } = {}): Promise<ShareResult> {
-  const guide = await loadGuide(kit, id);
+  const guide = orientedGuide(await loadGuide(kit, id));
   const lang = opts.lang && guide.languages.includes(opts.lang) ? opts.lang : guide.languages[0]!;
   const warnings: string[] = [];
   const first = guide.steps[0]?.narration[lang] ?? "";

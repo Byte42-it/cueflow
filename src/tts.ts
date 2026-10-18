@@ -1,3 +1,4 @@
+import { Fantastico, FantasticoError } from "@byte-42/fantastico-sdk";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
@@ -28,32 +29,97 @@ export const audioMime = (provider: TtsProvider) => MIME[provider.format ?? "mp3
 
 const languageName = (lang: string) => new Intl.DisplayNames(["en"], { type: "language" }).of(lang) ?? lang;
 
-export function openAiProvider(env: NodeJS.ProcessEnv = process.env, options: { voice?: string; model?: string; style?: string } = {}): TtsProvider | null {
-  const key = env.OPENAI_API_KEY;
-  if (!key) return null;
-  const baseUrl = (env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/+$/, "");
-  const model = options.model ?? env.CUEFLOW_TTS_MODEL ?? "gpt-4o-mini-tts";
-  const voice = options.voice ?? env.CUEFLOW_TTS_VOICE ?? "coral";
-  const style = options.style;
+export const FANTASTICO_PORTAL = "https://cueflow.fantastico.cc";
+
+let activeClient: { key: string; client: Fantastico } | undefined;
+export function fantasticoClient(env: NodeJS.ProcessEnv = process.env): Fantastico {
+  const key = env.FANTASTICO_API_KEY;
+  if (!key) throw new Error(`FANTASTICO_API_KEY is missing: put it in the kit's .env file, or get a key at ${FANTASTICO_PORTAL}`);
+  if (activeClient?.key !== key) activeClient = { key, client: new Fantastico({ apiKey: key }) };
+  return activeClient.client;
+}
+
+/** Preserve the SDK's credit errors across Studio, CLI and MCP. Never expose upstream provider details. */
+export function fantasticoError(error: unknown): Error {
+  if (error instanceof FantasticoError && (error.status === 402 || ["ALLOWANCE_EXHAUSTED", "PROJECT_FUNDS_EXHAUSTED"].includes(error.code))) {
+    return new FantasticoError(`Fantastico credit exhausted. Recharge your credit at ${FANTASTICO_PORTAL}`, error.code, 402);
+  }
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+export async function speechModels(env: NodeJS.ProcessEnv = process.env) {
+  try {
+    const models = await fantasticoClient(env).audio.speech.models();
+    // Models requiring a reference recording cannot be chosen with a voice selector.
+    return models.filter((model) => model.supported_voices?.length).map((model) => ({
+      id: model.id, name: model.name, voices: model.supported_voices!, pricing: model.pricing
+    }));
+  } catch (error) { throw fantasticoError(error); }
+}
+
+/** Account keys have one balance; project keys can cover multiple separate accounts. */
+export async function keyCredit(env: NodeJS.ProcessEnv = process.env) {
+  if (!env.FANTASTICO_API_KEY) return { available: false as const, reason: "Connect a Fantastico key to view your credit." };
+  const client = fantasticoClient(env);
+  if (client.surface !== "edge") return { available: false as const, reason: "Credit is available for account keys (ck-fant-…). For project keys, check the Fantastico portal." };
+  try {
+    const balance = await client.balance();
+    return { available: true as const, remainingUsd: balance.remainingUsd, lowBalance: balance.lowBalance, status: balance.status };
+  } catch (error) { throw fantasticoError(error); }
+}
+
+/** The cache always stores a playable WAV, including when the model returns raw PCM. */
+export async function speechWav(audio: Uint8Array, contentType: string): Promise<Buffer> {
+  const mime = contentType.split(";")[0]!.trim().toLowerCase();
+  if (mime === "audio/wav" || mime === "audio/x-wav") return Buffer.from(audio);
+  if (mime === "audio/pcm" || mime === "audio/l16") {
+    if (mime === "audio/l16") throw new Error("Fantastico returned unsupported big-endian PCM audio");
+    const rate = Number(/(?:^|;)\s*rate=(\d+)/i.exec(contentType)?.[1]);
+    const channels = Number(/(?:^|;)\s*channels=(\d+)/i.exec(contentType)?.[1]);
+    if (!Number.isInteger(rate) || rate < 8000 || rate > 192000 || !Number.isInteger(channels) || channels < 1 || channels > 8 || audio.byteLength % (channels * 2)) {
+      throw new Error("Fantastico returned PCM audio without valid sample rate or channels");
+    }
+    const header = Buffer.alloc(44);
+    header.write("RIFF", 0); header.writeUInt32LE(36 + audio.byteLength, 4); header.write("WAVEfmt ", 8);
+    header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20); header.writeUInt16LE(channels, 22);
+    header.writeUInt32LE(rate, 24); header.writeUInt32LE(rate * channels * 2, 28);
+    header.writeUInt16LE(channels * 2, 32); header.writeUInt16LE(16, 34);
+    header.write("data", 36); header.writeUInt32LE(audio.byteLength, 40);
+    return Buffer.concat([header, audio]);
+  }
+  if (!["audio/mpeg", "audio/mp3", "audio/ogg", "audio/mp4"].includes(mime)) throw new Error(`Fantastico returned unsupported audio: ${contentType}`);
+  const dir = await mkdtemp(path.join(tmpdir(), "cueflow-speech-"));
+  try {
+    const input = path.join(dir, "speech"), output = path.join(dir, "speech.wav");
+    await writeFile(input, audio);
+    const { resolveFFmpeg } = await import("./video.ts");
+    await run(await resolveFFmpeg(), ["-y", "-i", input, "-c:a", "pcm_s16le", output], { windowsHide: true });
+    return await readFile(output);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+
+export function fantasticoProvider(
+  env: NodeJS.ProcessEnv = process.env,
+  options: { voice?: string; model?: string; style?: string } = {},
+  client: () => Pick<Fantastico, "audio"> = () => fantasticoClient(env)
+): TtsProvider | null {
+  if (!env.FANTASTICO_API_KEY) return null;
+  const model = options.model ?? env.CUEFLOW_TTS_MODEL;
+  const voice = options.voice ?? env.CUEFLOW_TTS_VOICE;
+  if (!model || !voice) throw new Error("Choose a Fantastico speech model and voice in Studio's audio settings (or set CUEFLOW_TTS_MODEL and CUEFLOW_TTS_VOICE)");
   return {
-    id: "openai",
-    fingerprint: JSON.stringify(style ? [baseUrl, model, voice, style] : [baseUrl, model, voice]),
+    id: "fantastico",
+    format: "wav",
+    fingerprint: JSON.stringify([model, voice, options.style, createHash("sha256").update(env.FANTASTICO_API_KEY).digest("hex")]),
     async synthesize(text, lang) {
-      const res = await fetch(`${baseUrl}/audio/speech`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-        body: JSON.stringify({
-          model,
-          voice,
-          input: text,
-          response_format: "mp3",
-          ...(model.startsWith("gpt-4o")
-            ? { instructions: `Speak in ${languageName(lang)}. ${style ?? "Calm, clear and friendly, like the narrator of a product tutorial."}` }
-            : {})
-        })
-      });
-      if (!res.ok) throw new Error(`text-to-speech failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
-      return Buffer.from(await res.arrayBuffer());
+      try {
+        const result = await client().audio.speech.create({
+          model, voice, input: text,
+          instructions: `Speak in ${languageName(lang)}. ${options.style || "Calm, clear and friendly, like the narrator of a product tutorial."}`
+        });
+        if (!result.audio.byteLength) throw new Error("Fantastico returned empty audio");
+        return await speechWav(result.audio, result.contentType);
+      } catch (error) { throw fantasticoError(error); }
     }
   };
 }
@@ -131,17 +197,17 @@ export function sayProvider(env: NodeJS.ProcessEnv = process.env): TtsProvider {
 }
 
 /**
- * The provider chosen by CUEFLOW_TTS: openai, say (macOS voices), command (any local program, e.g. Piper) or none.
- * Having an OPENAI_API_KEY is not a choice: without CUEFLOW_TTS (or a voice set in cueflow.json) nothing is sent to a
+ * The provider chosen by CUEFLOW_TTS: fantastico, say (macOS voices), command (any local program, e.g. Piper) or none.
+ * Having a FANTASTICO_API_KEY is not a choice: without CUEFLOW_TTS (or a voice set in cueflow.json) nothing is sent to a
  * paid service.
  */
 export function defaultProvider(env: NodeJS.ProcessEnv = process.env): TtsProvider | null {
   const choice = env.CUEFLOW_TTS ?? "none";
   if (choice === "none") return null;
-  if (choice === "openai") return openAiProvider(env);
+  if (choice === "fantastico") return providerFromSpec({ provider: "fantastico", model: env.CUEFLOW_TTS_MODEL ?? "", voice: env.CUEFLOW_TTS_VOICE ?? "" }, env);
   if (choice === "say") return sayProvider(env);
   if (choice === "command") return commandProvider(env);
-  throw new Error(`unknown CUEFLOW_TTS "${choice}" (expected openai, say, command or none)`);
+  throw new Error(`unknown CUEFLOW_TTS "${choice}" (expected fantastico, say, command or none)`);
 }
 
 /** The provider for a voice chosen in cueflow.json. External voices are explicit: a missing key is an error, not a silent build. */
@@ -150,9 +216,9 @@ export function providerFromSpec(spec: VoiceSpec, env: NodeJS.ProcessEnv = proce
     case "browser":
     case "none":
       return null;
-    case "openai": {
-      const p = openAiProvider(env, spec);
-      if (!p) throw new Error('the voice is set to "openai" but OPENAI_API_KEY is missing: put it in the kit\'s .env file (OPENAI_API_KEY=sk-…) or choose another voice (get_voices lists them)');
+    case "fantastico": {
+      const p = fantasticoProvider(env, spec);
+      if (!p) throw new Error(`FANTASTICO_API_KEY is missing: put it in the kit's .env file, or get a key at ${FANTASTICO_PORTAL}`);
       return p;
     }
     case "say":

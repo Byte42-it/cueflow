@@ -45,7 +45,7 @@ describe("project kit", () => {
 
 describe("voices", () => {
   const s = (voices: unknown) => Settings.parse({ voices });
-  const openai = { provider: "openai", voice: "coral" } as const;
+  const fantastico = { provider: "fantastico", model: "mistralai/voxtral-mini-tts-2603", voice: "en_paul_neutral" } as const;
   const say = { provider: "say" } as const;
   const piper = { provider: "command", command: "piper --output_file {out} < {text}" } as const;
 
@@ -54,7 +54,7 @@ describe("voices", () => {
   });
 
   it("inherits: video-language > video > language > global > browser", () => {
-    const cfg = s({ default: say, languages: { it: piper }, guides: { upload: { default: openai, languages: { it: { provider: "none" } } } } });
+    const cfg = s({ default: say, languages: { it: piper }, guides: { upload: { default: fantastico, languages: { it: { provider: "none" } } } } });
     assert.equal(resolveVoice(cfg, "upload", "it").source, "video-language");
     assert.equal(resolveVoice(cfg, "upload", "en").source, "video");
     assert.equal(resolveVoice(cfg, "other", "it").source, "language");
@@ -63,23 +63,23 @@ describe("voices", () => {
   });
 
   it("a language's voice reaches every video that has no voice of its own", () => {
-    const cfg = s({ languages: { it: piper }, guides: { upload: { default: openai } } });
+    const cfg = s({ languages: { it: piper }, guides: { upload: { default: fantastico } } });
     assert.equal(resolveVoice(cfg, "sharing", "it").spec.provider, "command");
-    assert.equal(resolveVoice(cfg, "upload", "it").spec.provider, "openai");
+    assert.equal(resolveVoice(cfg, "upload", "it").spec.provider, "fantastico");
   });
 
-  it("an external voice is explicit: OpenAI without a key says what to do", () => {
-    const k = { ...kit, settings: s({ default: openai }) };
-    assert.throws(() => voiceFor(k, "upload", "en", {}), /OPENAI_API_KEY is missing.*\.env/);
-    assert.equal(voiceFor(k, "upload", "en", { OPENAI_API_KEY: "sk-test" }).provider?.id, "openai");
+  it("an external voice is explicit: Fantastico without a key says what to do", () => {
+    const k = { ...kit, settings: s({ default: fantastico }) };
+    assert.throws(() => voiceFor(k, "upload", "en", {}), /FANTASTICO_API_KEY is missing.*\.env/);
+    assert.equal(voiceFor(k, "upload", "en", { FANTASTICO_API_KEY: "sk-test" }).provider?.id, "fantastico");
   });
 
   it("a key alone chooses nothing, and the environment only decides when cueflow.json does not", () => {
     const none = { ...kit, settings: Settings.parse({}) };
-    assert.equal(voiceFor(none, "upload", "en", { OPENAI_API_KEY: "sk-test" }).provider, null);
-    assert.equal(voiceFor(none, "upload", "en", { CUEFLOW_TTS: "openai", OPENAI_API_KEY: "sk-test" }).provider?.id, "openai");
+    assert.equal(voiceFor(none, "upload", "en", { FANTASTICO_API_KEY: "sk-test" }).provider, null);
+    assert.equal(voiceFor(none, "upload", "en", { CUEFLOW_TTS: "fantastico", CUEFLOW_TTS_MODEL: fantastico.model, CUEFLOW_TTS_VOICE: fantastico.voice, FANTASTICO_API_KEY: "sk-test" }).provider?.id, "fantastico");
     const chosen = { ...kit, settings: s({ default: { provider: "browser" } }) };
-    assert.equal(voiceFor(chosen, "upload", "en", { CUEFLOW_TTS: "openai", OPENAI_API_KEY: "sk-test" }).provider, null);
+    assert.equal(voiceFor(chosen, "upload", "en", { CUEFLOW_TTS: "fantastico", CUEFLOW_TTS_MODEL: fantastico.model, CUEFLOW_TTS_VOICE: fantastico.voice, FANTASTICO_API_KEY: "sk-test" }).provider, null);
   });
 
   it("setVoice writes only what was asked, and clearing goes back to inheriting", async () => {
@@ -98,7 +98,7 @@ describe("voices", () => {
 
   it("refuses a voice for a video that does not exist, and a malformed voice", async () => {
     await assert.rejects(setVoice(kit, { scope: "video", guide: "nope" }, { provider: "none" }), /does not exist/);
-    await assert.rejects(setVoice(kit, { scope: "global" }, { provider: "openai", voice: 3 }), /voice/);
+    await assert.rejects(setVoice(kit, { scope: "global" }, { provider: "fantastico", voice: 3 }), /voice/);
   });
 
   it("with the browser voice the player reads the narration itself", async () => {
@@ -107,10 +107,10 @@ describe("voices", () => {
     assert.equal(bundle.audioFiles, 0);
   });
 
-  it("describes the options in words, and only OpenAI needs a key", () => {
+  it("describes the options in words, and only Fantastico needs a key", () => {
     const options = voiceOptions({});
     assert.equal(options[0]!.provider, "browser");
-    assert.equal(options.find((o) => o.provider === "openai")!.available, false);
+    assert.equal(options.find((o) => o.provider === "fantastico")!.available, false);
     assert.ok(options.every((o) => o.summary.length > 20));
   });
 });

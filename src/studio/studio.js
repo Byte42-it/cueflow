@@ -21,6 +21,13 @@
     for (var i = 2; i < arguments.length; i++) add(arguments[i]);
     return el;
   }
+  var fantasticoPortal = "https://cueflow.fantastico.cc";
+  function portalLink(label) { return h("a", { href: fantasticoPortal, target: "_blank", rel: "noopener" }, label || "Get a key or recharge credit"); }
+  function voiceError(msg, error) {
+    msg.className = "msg err"; msg.textContent = error.message;
+    var form = msg.closest(".voice-form");
+    if ((error.status === 402 || error.message.indexOf(fantasticoPortal) >= 0) && !(form && form.querySelector('a[href="' + fantasticoPortal + '"]'))) msg.appendChild(h("p", null, portalLink("Recharge Fantastico credit")));
+  }
   function api(path, opts) {
     opts = opts || {};
     if (opts.method && opts.method !== "GET") S.ownSave = Date.now();
@@ -28,7 +35,7 @@
     if (opts.body !== undefined) { init.body = JSON.stringify(opts.body); init.headers["content-type"] = "application/json"; }
     return fetch(path, init).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (data) {
-        if (!r.ok) { var e = new Error(data.error || (data.errors && data.errors.join("; ")) || "request failed (" + r.status + ")"); e.data = data; e.status = r.status; throw e; }
+        if (!r.ok) { var e = new Error(data.error || (data.errors && data.errors.join("; ")) || "request failed (" + r.status + ")"); e.data = data; e.status = r.status; if (r.status === 402) flash(e.message, "err"); throw e; }
         return data;
       });
     });
@@ -54,12 +61,39 @@
   }
   function loadGuide(id) {
     return api("/api/guide/" + id).then(function (r) {
-      S.guide = r.guide; S.version = r.version; S.dirty = false;
+      S.guide = r.guide; S.version = r.version; S.history = r.history; renderHistory(); S.dirty = false;
       if (S.step >= S.guide.steps.length) S.step = 0;
       var langs = r.guide.languages;
       if (!S.lang || langs.indexOf(S.lang) < 0) S.lang = langs[0];
     });
   }
+
+  function renderHistory() {
+    ["undo", "redo"].forEach(function (direction) {
+      var button = $("#" + direction), label = S.history && S.history[direction];
+      button.disabled = S.kind === "doc" || !S.guideId || !label || !!S.historyBusy;
+      button.title = label ? direction + ": " + label : "Nothing to " + direction;
+    });
+  }
+  function historyMove(direction) {
+    if (S.kind === "doc" || S.historyBusy || !S.history || !S.history[direction] || !confirmLeave()) return;
+    var p = player(); if (p) p.pause();
+    S.historyBusy = true; S.ownSave = Date.now(); renderHistory();
+    api("/api/history", { method: "POST", body: { guide: S.guideId, direction: direction } }).then(function (r) {
+      S.dirty = false; S.elementDirty = false; S.draft = null; S.pending = null; S.picked = null; S.check = null; S.msg = null;
+      viewKey = ""; prevKey = ""; $("#mview").dataset.key = ""; mediaData = null;
+      return loadState().then(function () { flash((direction === "undo" ? "Undone: " : "Redone: ") + r.label, "ok"); });
+    }).catch(function (e) { flash(e.message, "err"); }).finally(function () { S.historyBusy = false; renderHistory(); });
+  }
+  $("#undo").addEventListener("click", function () { historyMove("undo"); });
+  $("#redo").addEventListener("click", function () { historyMove("redo"); });
+  document.addEventListener("keydown", function (e) {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || S.kind === "doc" || e.target.closest("input, textarea, select, [contenteditable]")) return;
+    var key = e.key.toLowerCase();
+    if (key !== "z" && key !== "y") return;
+    var direction = key === "y" || e.shiftKey ? "redo" : "undo";
+    if (S.history && S.history[direction]) { e.preventDefault(); historyMove(direction); }
+  });
 
   /* ---------- rendering ---------- */
   /* first start: no tutorial yet, so a prompt to give the assistant; the first tutorial brings the normal view */
@@ -115,7 +149,7 @@
     }).catch(function (e) { flash(e.message, "err"); });
   }
   var aiDialog = agentDialog;
-  function renderAll() { renderWelcome(); renderLang(); renderSide(); renderView(false); renderPanel(); renderStrip(); renderPage(); }
+  function renderAll() { pickInfo(); renderHistory(); renderWelcome(); renderLang(); renderSide(); renderView(false); renderPanel(); renderStrip(); renderPage(); }
   /* the bottom bar: Media, Timeline, Voice, Export (as in a video editor) */
   function showPage(name) {
     if (name !== S.page && !confirmLeave()) return;
@@ -285,6 +319,8 @@
         f.id.addEventListener("input", function () { f.id.dataset.touched = "1"; });
         if (kind === "video") {
           f.scene = h("select", null, [h("option", { value: "" }, S.state.scenes.length ? "(choose, or leave it to the assistant)" : "(no screens yet: the assistant makes them)")].concat(S.state.scenes.map(function (n) { return h("option", { value: n }, n); })));
+          f.vertical = h("input", { type: "checkbox" });
+          fields.push(h("label", { class: "lab" }, f.vertical, "Vertical video (portrait, for mobile devices; fixed at creation)"));
           fields.push(h("label", { class: "lab" }, "First screen", f.scene));
           f.langs = h("input", { type: "text" }); f.langs.value = (S.state.brief.languages.length ? S.state.brief.languages : [S.lang || "en"]).join(", ");
           fields.push(h("label", { class: "lab" }, "Languages, separated by commas", f.langs));
@@ -307,7 +343,7 @@
         label();
         body.appendChild(h("label", { class: "agentbox" }, agent, h("span", null, h("b", null, "Create it with my local assistant"), h("small", null, "Nothing is created here: you get (or send) a request for your assistant, which asks what you want to make and does it. Remembered for next time."))));
         var request = function () {
-          return { kind: kind, title: f.title.value.trim() || undefined, id: f.id.value.trim() || undefined, scene: f.scene && f.scene.value || undefined,
+          return { kind: kind, vertical: f.vertical ? f.vertical.checked : undefined, title: f.title.value.trim() || undefined, id: f.id.value.trim() || undefined, scene: f.scene && f.scene.value || undefined,
             languages: f.langs ? f.langs.value.split(",").map(function (x) { return x.trim(); }).filter(Boolean) : undefined,
             kicker: f.kicker && f.kicker.value.trim() || undefined, desc: f.desc && f.desc.value.trim() || undefined, row: f.row && f.row.value || undefined };
         };
@@ -325,7 +361,7 @@
           var t = f.title.value.trim(), id = f.id.value.trim();
           var done = function (r, after) { close(); return loadState().then(after); };
           if (kind === "video") {
-            api("/api/guide-create", { method: "POST", body: { id: id, title: t, scene: f.scene.value, languages: f.langs.value.split(",").map(function (x) { return x.trim(); }).filter(Boolean) } })
+            api("/api/guide-create", { method: "POST", body: { id: id, title: t, scene: f.scene.value, vertical: f.vertical.checked, languages: f.langs.value.split(",").map(function (x) { return x.trim(); }).filter(Boolean) } })
               .then(function (r) { S.guideId = r.id; S.step = 0; S.kind = "video"; leaveDocMode(); return done(r, function () { showPage("timeline"); }); }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
           } else {
             api("/api/article-create", { method: "POST", body: { id: id, title: t, kicker: f.kicker.value.trim(), desc: f.desc.value.trim(), row: rows.length ? f.row.value : undefined, status: kind } })
@@ -378,16 +414,16 @@
     return scene;
   }
   var view = $("#view");
-  var viewKey = "";
+  var viewKey = "", viewRevision = 0;
   function renderView(force) {
     if (!S.guide) { view.removeAttribute("src"); return; }
     var key = S.mode === "video" ? "v:" + S.guideId + ":" + S.lang : "p:" + currentScene() + ":" + S.lang;
     if (!force && key === viewKey) { if (S.mode === "video") gotoStep(); return; }
     viewKey = key;
-    var src = S.mode === "video" ? "/preview/" + S.guideId + "?lang=" + S.lang + "&studio=1#step-" + (S.step + 1) : "/scene/" + currentScene() + "?lang=" + S.lang;
+    var revision = "&rev=" + (++viewRevision);
+    var src = S.mode === "video" ? "/preview/" + S.guideId + "?lang=" + S.lang + "&studio=1" + revision + "#step-" + (S.step + 1) : "/scene/" + currentScene() + "?lang=" + S.lang + revision;
     view.onload = S.mode === "pick" ? function () { armPicker(view); } : null;
     view.src = src;
-    if (force) view.contentWindow && view.contentWindow.location.reload();
   }
   // the step's start, paused: a hash would make the player play from there
   function gotoStep() { seekGlobal(PH ? PH.starts[S.step] || 0 : 0); }
@@ -396,18 +432,22 @@
   function selectGuide(id) {
     if (!confirmLeave()) return;
     if (S.kind === "doc") { leaveDocMode(); if (S.guideId === id) { renderAll(); return; } }
-    S.guideId = id; S.step = 0; S.picked = null; S.sel = null; S.check = null; mediaData = null; prevKey = "";
+    S.guideId = id; S.step = 0; S.picked = null; S.elementDirty = false; S.sel = null; S.check = null; mediaData = null; prevKey = "";
     loadGuide(id).then(function () { renderAll(); });
   }
-  function selectStep(i) { if (!confirmLeave()) return; S.msg = null; S.draft = null; S.pending = null; S.step = i; S.dirty = false; S.picked = null; renderSide(); renderView(false); renderPanel(); pickInfo(); }
+  function selectStep(i) { if (!confirmLeave()) return; S.msg = null; S.draft = null; S.pending = null; S.step = i; S.dirty = false; S.elementDirty = false; S.picked = null; renderSide(); renderView(false); renderPanel(); pickInfo(); }
   function confirmLeave() {
+    if (S.elementDirty && !confirm("This element has unsaved changes. Discard them?")) return false;
     if (S.kind === "doc") { pullEditor(); return !D.dirty || confirm("This written guide has changes you have not saved. Leave without saving?"); }
     return !S.dirty || confirm("The narration of this step has changes you have not saved. Leave without saving?");
   }
   function setMode(m) {
+    if (S.elementDirty && !confirmLeave()) return;
+    S.elementDirty = false;
+    if (m === "video") { S.picked = null; S.pending = null; }
     S.mode = m; viewKey = "";
     $("#m-video").className = m === "video" ? "on" : ""; $("#m-pick").className = m === "pick" ? "on" : "";
-    pickInfo(); renderView(false);
+    pickInfo(); renderView(false); renderPanel();
   }
   function save(mutate) {
     var g = JSON.parse(JSON.stringify(S.guide));
@@ -436,7 +476,10 @@
     return path.join(" > ");
   }
   function armPicker(frame, onPick) {
-    frame = frame || view; onPick = onPick || function (sel) { S.picked = sel; pickInfo(); };
+    frame = frame || view; onPick = onPick || function (sel) {
+      if (S.elementDirty && !confirmLeave()) return;
+      S.elementDirty = false; S.picked = sel; pickInfo(); renderPanel();
+    };
     var doc = frame.contentDocument; if (!doc) return;
     var box = doc.createElement("div");
     box.style.cssText = "position:fixed;pointer-events:none;z-index:2147483647;border:2px solid #ff7a59;background:rgba(255,122,89,.15);border-radius:3px;display:none";
@@ -452,13 +495,13 @@
   }
   function pickInfo() {
     var el = $("#pickinfo");
-    if (S.mode !== "pick") { el.hidden = true; return; }
+    if (S.mode !== "pick") { el.hidden = true; el.textContent = ""; return; }
     el.hidden = false; el.textContent = "";
     var pend = S.pending;
-    if (!S.picked) { el.appendChild(h("span", null, pend ? pendingText() : "Click an element in the screen to get its selector.")); return; }
-    var stepNo = S.step + 1;
+    if (!S.picked) { el.appendChild(h("span", null, pend ? pendingText() : "Click an element to edit its text or delete it.")); return; }
+    if (!pend) { el.appendChild(h("span", null, "Edit the selected element in the side panel.")); return; }
     el.appendChild(h("code", { title: S.picked }, S.picked));
-    el.appendChild(h("button", { class: "btn", onclick: function () { navigator.clipboard && navigator.clipboard.writeText(S.picked); } }, "Copy"));
+    el.appendChild(h("button", { class: "btn", onclick: function () { copyText(S.picked, "Selector copied. The tutorial is unchanged.", el.querySelector("code")); } }, "Copy selector"));
     if (pend && pend.kind === "field") {
       el.appendChild(h("button", { class: "btn primary", onclick: function () { S.draft[pend.index][pend.field] = S.picked; S.dirty = true; finishPick(); } }, "Use it for action " + (pend.index + 1)));
     } else if (pend && pend.kind === "add") {
@@ -466,12 +509,6 @@
         var a = { do: pend.type }; a[pend.type === "camera" ? "target" : "to"] = S.picked; a.at = defaultAt();
         S.draft.push(a); S.dirty = true; finishPick();
       } }, "Add “" + pend.type + "” on it"));
-    } else {
-      el.appendChild(h("button", { class: "btn primary", onclick: function () {
-        save(function (g) { var st = g.steps[S.step]; st.camera = Object.assign({}, st.camera || {}, { target: S.picked }); })
-          .then(function () { flash("Camera of step " + stepNo + " now frames " + S.picked, "ok"); setMode("video"); })
-          .catch(function (e) { flash(e.message, "err"); });
-      } }, "Frame it in step " + stepNo));
     }
     if (pend) el.appendChild(h("button", { class: "btn", onclick: function () { S.pending = null; finishPick(true); } }, "Cancel"));
   }
@@ -480,6 +517,7 @@
   function defaultAt() { var last = S.draft.length ? S.draft[S.draft.length - 1].at : 0; return typeof last === "string" ? Math.min(90, parseFloat(last) + 15) + "%" : "20%"; }
   function flash(message, kind) {
     var b = $("#banner"); b.hidden = false; b.textContent = message; b.className = "banner " + (kind || "");
+    if (String(message).indexOf(fantasticoPortal) >= 0) b.appendChild(h("span", null, " ", portalLink("Recharge Fantastico credit")));
     clearTimeout(flash.t); flash.t = setTimeout(function () { b.hidden = true; }, kind === "err" ? 9000 : 3500);
   }
 
@@ -487,6 +525,14 @@
   function renderPanel() {
     document.querySelectorAll(".tabs button").forEach(function (b) { b.className = b.getAttribute("data-tab") === S.tab ? "on" : ""; });
     var p = $("#panel"); p.textContent = "";
+    if (S.mode === "pick" && !S.pending) {
+      if (!S.picked) { p.appendChild(h("h3", null, "Edit scene")); p.appendChild(h("p", null, "Click text or an element in the scene to edit it.")); return; }
+      var selected; try { selected = view.contentDocument.querySelector(S.picked); } catch (e) {}
+      if (selected) p.appendChild(elementForm(currentScene(), S.picked, selected, function () {
+        S.picked = null; viewKey = ""; prevKey = ""; pickInfo();
+      }));
+      return;
+    }
     if (S.tab !== "narration" && S.tab !== "actions" && S.tab !== "voice") S.tab = "narration";
     if (S.tab === "narration") narrationTab(p);
     else if (S.tab === "actions") actionsTab(p);
@@ -569,7 +615,7 @@
           playing = a;
           a.play();
         })
-        .catch(function (e) { if (playing === mine) playing = null; idle(); if (msg) { msg.className = "msg err"; msg.textContent = e.message; } });
+        .catch(function (e) { if (playing === mine) playing = null; idle(); if (msg) voiceError(msg, e); });
     };
     return b;
   }
@@ -586,7 +632,7 @@
     if (cur.default) return { spec: cur.default, from: "the project file" };
     return { spec: { provider: "browser" }, from: "the default (browser voice)" };
   }
-  function voicesChanged() { S.voices = null; S.voicesRev = (S.voicesRev || 0) + 1; renderPage(); renderStrip(); if (S.tab === "voice") renderPanel(); }
+  function voicesChanged() { flash("Voice saved.", "ok"); S.voices = null; S.voicesRev = (S.voicesRev || 0) + 1; renderPage(); renderStrip(); if (S.tab === "voice") renderPanel(); }
   function uploadStepAudio(file) {
     var st = S.guide.steps[S.step], ext = (file.name.split(".").pop() || "").toLowerCase();
     S.ownSave = Date.now();
@@ -605,20 +651,10 @@
   function voiceTab(p) {
     if (!S.guide || !S.guide.steps.length) { p.appendChild(h("p", { class: "empty" }, "Select a video with steps.")); return; }
     if (!S.voices) { p.appendChild(h("p", { class: "empty" }, "Loading…")); api("/api/voices").then(function (v) { S.voices = v; if (S.tab === "voice") renderPanel(); }); return; }
-    var g = S.guide, st = g.steps[S.step], lang = S.lang, own = st.voice && st.voice[lang], inh = tutorialVoice(g.id, lang);
+    var g = S.guide, st = g.steps[S.step], lang = S.lang, own = st.voice && st.voice[lang];
     p.appendChild(h("h3", null, "Voice · step " + (S.step + 1) + " · “" + lang + "”"));
-    var box = h("div", { hidden: !own });
-    var auto = h("input", { type: "checkbox", checked: !own });
-    auto.addEventListener("change", function () {
-      if (auto.checked) { if (own) saveStepVoice(null).catch(function (e) { flash(e.message, "err"); auto.checked = false; }); else box.hidden = true; return; }
-      box.hidden = false; if (!box.firstChild) buildForm(box, S.voices, { scope: "step", language: lang }, own, function () {}, { save: saveStepVoice });
-    });
-    p.appendChild(h("label", { class: "lab auto" }, auto, " Auto: the tutorial’s voice"));
-    p.appendChild(h("p", null, own ? "This step has its own voice, only in “" + lang + "”: " + (own.provider === "file" ? "your audio file." : (own.provider === "none" ? "muted." : label(own) + ".")) : "Reads with: " + label(inh.spec) + " (from " + inh.from + "). Untick to give this step another voice, mute it, or upload your own recording."));
-    if (!own) p.appendChild(h("button", { class: "btn", onclick: function () { showPage("voice"); } }, "Change the tutorial’s default voice…"));
+    autoVoiceForm(p, S.voices, { scope: "step", guide: g.id, language: lang }, own, saveStepVoice, function () {});
     if (own && own.provider === "file") p.appendChild(h("audio", { controls: true, src: "/api/step-audio/" + enc(g.id) + "/" + enc(st.id) + "/" + enc(lang) + "?t=" + (S.audioRev || 0), style: "width:100%" }));
-    if (own) buildForm(box, S.voices, { scope: "step", language: lang }, own, function () {}, { save: saveStepVoice });
-    p.appendChild(box);
     if (S.msg) p.appendChild(h("div", { class: "msg " + S.msg.kind }, S.msg.text));
   }
 
@@ -718,7 +754,7 @@
       box.appendChild(h("div", { class: "mp4-progress-label", role: "status" }, pct + "% · " + state.progress.phase));
       box.appendChild(h("progress", { class: "mp4-progress", max: 100, value: pct, "aria-label": "MP4 export progress" }));
     }
-    if (state.error) box.appendChild(h("div", { class: "msg err" }, state.error));
+    if (state.error) { var exportError = h("div"); voiceError(exportError, new Error(state.error)); box.appendChild(exportError); }
     if (state.result) {
       box.appendChild(h("a", { class: "btn", href: state.result.url, download: "" }, "Download MP4"));
       state.result.warnings.forEach(function (w) { box.appendChild(h("div", { class: "msg warn" }, w)); });
@@ -770,12 +806,13 @@
       btn("Build the whole site", "", function () { runBuild({ target: "site" }); })));
     if (external.length) p.appendChild(h("p", { class: "msg warn" }, "Building generates audio with the external voice chosen for this video (" + external.map(function (r) { return r.language + ": " + r.provider; }).join(", ") + "): the narration text is sent to that service, and it may cost. Texts already generated are not paid again."));
     p.appendChild(h("h3", null, "MP4 video"));
+    p.appendChild(h("p", null, S.guide.vertical ? "Format: vertical (portrait)." : "Format: horizontal (landscape)."));
     p.appendChild(h("p", null, "Export in " + S.lang + ". Includes recorded audio; browser voices cannot be included. Requires Chromium; FFmpeg is included with Cueflow. Rendering may take several minutes."));
     var size = S.mp4Size || "medium", presets = S.state.videoPresets;
     var sizeSelect = h("select", { id: "mp4-size", onchange: function () { S.mp4Size = this.value; renderPage(); } });
     Object.keys(presets).forEach(function (key) {
       var preset = presets[key];
-      sizeSelect.appendChild(h("option", { value: key }, preset.label + " · " + preset.width + " × " + preset.height));
+      sizeSelect.appendChild(h("option", { value: key }, preset.label + " · " + (S.guide.vertical ? preset.height : preset.width) + " × " + (S.guide.vertical ? preset.width : preset.height)));
     });
     sizeSelect.value = size;
     p.appendChild(h("div", { class: "row" }, h("label", { for: "mp4-size" }, "Video size"), sizeSelect));
@@ -797,7 +834,7 @@
     var c = S.check;
     if (c) {
       var box = h("div", { class: "result" });
-      if (c.errors) c.errors.forEach(function (x) { box.appendChild(h("div", { class: "msg err" }, "✕ " + x)); });
+      if (c.errors) c.errors.forEach(function (x) { var error = h("div"); voiceError(error, new Error("✕ " + x)); box.appendChild(error); });
       (c.warnings || []).forEach(function (x) { box.appendChild(h("div", { class: "msg warn" }, "! " + x)); });
       (c.layout || []).forEach(function (x) { box.appendChild(h("div", { class: "msg warn" }, "▢ " + x)); });
       if (c.layoutError) box.appendChild(h("div", { class: "msg err" }, c.layoutError));
@@ -831,64 +868,180 @@
   }
 
   /* ---------- voices ---------- */
-  var label = function (spec) { if (!spec) return null; return { browser: "Browser voice", none: "Silent", file: "Audio file", openai: "OpenAI" + (spec.voice ? " · " + spec.voice : ""), say: "macOS voice" + (spec.voice ? " · " + spec.voice : ""), command: "Local program" }[spec.provider] || spec.provider; };
+  var label = function (spec) {
+    if (!spec) return null;
+    if (spec.provider === "fantastico") {
+      var vendor = (spec.model || "").split("/")[0];
+      var name = { heygen: "HeyGen", elevenlabs: "ElevenLabs", google: "Google", mistralai: "Mistral", openai: "OpenAI" }[vendor] || "Fantastico";
+      return name + (spec.voice ? ": " + spec.voice : "");
+    }
+    return { browser: "Browser voice", none: "Silent", file: "Audio file", say: "macOS voice", command: "Local program" }[spec.provider] || spec.provider;
+  };
+  // Resolve the parent only: the choice at the level being edited must not label its own Auto switch.
+  function inheritedVoice(v, target) {
+    var cur = v.current, lang = target.language || S.lang, own = (cur.guides || {})[target.guide] || {};
+    if (target.scope === "step" && (own.languages || {})[lang]) return { spec: own.languages[lang], from: "this tutorial, in “" + lang + "”" };
+    if (target.scope === "step" && own.default) return { spec: own.default, from: "this tutorial" };
+    if ((cur.languages || {})[lang]) return { spec: cur.languages[lang], from: "project settings, in “" + lang + "”" };
+    return { spec: cur.default || { provider: "browser" }, from: "project settings" };
+  }
+  function autoVoiceForm(container, v, target, spec, saveVoice, done) {
+    var inherited = inheritedVoice(v, target);
+    var auto = h("input", { type: "checkbox", checked: !spec });
+    var editor = h("div", { class: "voice-custom", hidden: !spec });
+    var note = h("p", { class: "voice-auto-note" });
+    var message = h("div", { class: "msg", "aria-live": "polite" });
+    function describe() {
+      note.textContent = auto.checked ? "From " + inherited.from + ". Turn off Auto to choose a different voice" + (target.scope === "step" ? ", mute this step or upload a recording." : ".") : "Choose a voice for " + (target.scope === "step" ? "this step" : target.language ? "this tutorial in “" + target.language + "”" : "this tutorial") + ". Turn on Auto to follow " + inherited.from + " again.";
+    }
+    function edit() {
+      if (!editor.firstChild) buildForm(editor, v, target, spec || inherited.spec, done, { save: saveVoice });
+    }
+    auto.addEventListener("change", function () {
+      stopListening();
+      editor.hidden = auto.checked; describe();
+      if (!auto.checked) { edit(); return; }
+      if (!spec) return;
+      auto.disabled = true;
+      saveVoice(null).then(function () { spec = null; editor.textContent = ""; done(); }).catch(function (error) { auto.checked = false; editor.hidden = false; describe(); voiceError(message, error); }).then(function () { auto.disabled = false; });
+    });
+    container.appendChild(h("label", { class: "voice-auto" }, auto, h("span", null, "Auto: " + label(inherited.spec))));
+    container.appendChild(note); container.appendChild(editor); container.appendChild(message);
+    describe(); if (spec) edit();
+  }
   function voicesTab(p) {
     var g = video();
     if (!g) { p.textContent = ""; p.appendChild(h("p", { class: "empty" }, "Select or create a tutorial.")); return; }
+    var lang = S.lang;
     api("/api/voices").then(function (v) {
+      if (S.lang !== lang || !video() || video().id !== g.id) return;
       S.voices = v; p.textContent = "";
-      p.appendChild(h("h3", null, "Audio of this tutorial: " + text(g.title, S.lang)));
-      p.appendChild(h("p", null, "The default voice of the tutorial: every step uses it (Auto) unless you give that step its own voice, or its own recording, in the step's Voice tab. Now it is: " + label(tutorialVoice(g.id, S.lang).spec) + " (from " + tutorialVoice(g.id, S.lang).from + ")."));
+      p.appendChild(h("h3", null, "Audio of this tutorial · “" + lang + "”"));
+      p.appendChild(h("p", null, "Auto uses the project voice for the language selected above. Turn off Auto to choose a voice just for this tutorial in “" + lang + "”."));
       var own = v.current.guides[g.id] || {};
-      var base = v.current.default ? label(v.current.default) + " (the project file)" : "the browser's voice";
-      p.appendChild(level(v, { scope: "video", guide: g.id }, "Default voice, all languages", own.default, base, true));
-      p.appendChild(h("h3", { style: "margin-top:18px" }, "A different default for one language"));
-      g.languages.forEach(function (l) { p.appendChild(level(v, { scope: "video", guide: g.id, language: l }, "Only in “" + l + "”", (own.languages || {})[l], "the choice for all languages above")); });
-      p.appendChild(h("h3", { style: "margin-top:18px" }, "Who speaks now"));
-      var tb = h("table", null, h("tr", null, h("th", null, "Part"), h("th", null, "Lang"), h("th", null, "Voice"), h("th", null, "Set at")));
-      v.table.filter(function (r) { return r.guide === g.id || r.guide.indexOf(g.id + " · ") === 0; }).forEach(function (r) { tb.appendChild(h("tr", null, h("td", null, r.guide === g.id ? "whole tutorial" : r.guide.slice(g.id.length + 3)), h("td", null, r.language), h("td", null, label({ provider: r.provider, voice: r.voice })), h("td", null, r.from))); });
-      p.appendChild(tb);
+      p.appendChild(level(v, { scope: "video", guide: g.id, language: lang }, "Voice · “" + lang + "”", (own.languages || {})[lang] || own.default));
     }).catch(function (e) { p.textContent = e.message; });
   }
-  function level(v, target, title, spec, inherits, open) {
+  function level(v, target, title, spec) {
     var box = h("div", { class: "lvl" });
-    var cur = h("div", { class: "cur" }, spec ? "Chosen: " + label(spec) : "Not set: uses " + inherits);
-    var form = h("div", { hidden: !open });
     box.appendChild(h("h4", null, title));
-    if (open) { buildForm(form, v, target, spec, voicesChanged); if (spec) box.appendChild(cur); box.appendChild(form); return box; }
-    box.appendChild(cur);
-    box.appendChild(h("button", { class: "btn", onclick: function () { form.hidden = !form.hidden; if (!form.hidden && !form.firstChild) buildForm(form, v, target, spec, voicesChanged); } }, "Change…"));
-    box.appendChild(form);
+    if (target.scope === "global") {
+      var form = h("div");
+      buildForm(form, v, target, spec, voicesChanged);
+      box.appendChild(form);
+    } else {
+      autoVoiceForm(box, v, target, spec, function (voice) {
+        return api("/api/voice", { method: "POST", body: Object.assign({}, target, { voice: voice }) });
+      }, voicesChanged);
+    }
     return box;
   }
   function buildForm(form, v, target, spec, done, hooks) {
+    form.classList.add("voice-form");
     var name = "o" + Math.random().toString(36).slice(2);
     var choice = spec ? spec.provider : target.scope === "global" || target.scope === "step" ? "browser" : "inherit";
-    var fields = {};
+    var fields = {}, previewButton, models = [], loadingModels = false, creditStatus, creditButton, creditRevision = 0;
     var msg = h("div", { class: "msg" });
     function opt(value, title, summary, extra) {
       var input = h("input", { type: "radio", name: name, value: value, checked: choice === value });
       input.addEventListener("change", function () { choice = value; refresh(); });
-      var box = h("label", { class: "opt" }, input, h("b", null, title), h("small", null, summary));
+      var box = h("div", { class: "opt voice-option", "data-provider": value }, h("label", { class: "voice-option-heading" }, input, h("span", null, h("b", null, title), h("small", null, summary))));
       if (extra) box.appendChild(extra);
       return box;
     }
     function fld(key, ph, val, type) { var i = h("input", { type: type || "text", placeholder: ph }); i.value = val || ""; fields[key] = i; return i; }
-    function refresh() { form.querySelectorAll(".fields").forEach(function (f) { f.hidden = f.getAttribute("data-for") !== choice; }); }
+    function refresh() {
+      stopListening();
+      form.querySelectorAll(".fields").forEach(function (f) { f.hidden = f.getAttribute("data-for") !== choice; });
+      if (choice === "fantastico" && v.hasKey) {
+        if (!models.length && !loadingModels) loadModels();
+        loadCredit();
+      }
+    }
+    function selectedVoice() {
+      if (!fields.model.value || !fields.voice.value) throw new Error("Connect your Fantastico key and choose a model and voice first.");
+      return { provider: "fantastico", model: fields.model.value, voice: fields.voice.value, style: fields.style.value.trim() || undefined };
+    }
+    function fillVoices() {
+      stopListening();
+      var model = models.filter(function (m) { return m.id === fields.model.value; })[0];
+      fields.voice.textContent = "";
+      (model ? model.voices : []).forEach(function (voice) { fields.voice.appendChild(h("option", { value: voice }, voice)); });
+      if (spec && spec.model === fields.model.value && model && model.voices.indexOf(spec.voice) >= 0) fields.voice.value = spec.voice;
+    }
+    function loadModels() {
+      loadingModels = true; msg.className = "msg"; msg.textContent = "Loading Fantastico models and voices…";
+      return api("/api/speech-models").then(function (data) {
+        models = data.models; fields.model.textContent = "";
+        models.forEach(function (model) { fields.model.appendChild(h("option", { value: model.id }, model.name || model.id)); });
+        if (spec && models.some(function (m) { return m.id === spec.model; })) fields.model.value = spec.model;
+        fillVoices(); msg.textContent = models.length ? "" : "No speech models with selectable voices are currently available.";
+      }).catch(function (error) { voiceError(msg, error); }).then(function () { loadingModels = false; });
+    }
+    function loadCredit() {
+      if (!creditStatus || !v.hasKey) return;
+      var revision = ++creditRevision;
+      creditButton.disabled = true; creditStatus.className = "voice-credit-status";
+      creditStatus.textContent = "Loading credit…";
+      api("/api/credit").then(function (credit) {
+        if (revision !== creditRevision) return;
+        if (!credit.available) { creditStatus.textContent = credit.reason; return; }
+        var amount = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(credit.remainingUsd);
+        creditStatus.textContent = "Remaining credit: " + amount;
+        if (credit.remainingUsd <= 0) { creditStatus.classList.add("err"); creditStatus.textContent += " · Credit exhausted"; }
+        else if (credit.lowBalance) { creditStatus.classList.add("warn"); creditStatus.textContent += " · Low credit"; }
+        if (credit.status && credit.status !== "active") creditStatus.textContent += " · Status: " + credit.status;
+      }).catch(function () {
+        if (revision === creditRevision) { creditStatus.className = "voice-credit-status err"; creditStatus.textContent = "Credit unavailable. Refresh to try again."; }
+      }).then(function () { if (revision === creditRevision) creditButton.disabled = false; });
+    }
+    function saveKey() {
+      if (fields.key.readOnly) return Promise.resolve();
+      var key = fields.key.value.trim();
+      if (!key) return Promise.resolve();
+      return api("/api/key", { method: "POST", body: { key: key } }).then(function () {
+        v.hasKey = true; S.state.hasKey = true; lockKey(); loadCredit();
+      });
+    }
+    function lockKey() {
+      fields.key.type = "text"; fields.key.value = "********"; fields.key.readOnly = true;
+      fields.key.setAttribute("aria-label", "Fantastico API key");
+      fields.keyChange.hidden = false; fields.keyChange.textContent = "Change";
+    }
     function extra(prov, kids) { return h("div", { class: "fields", "data-for": prov, hidden: choice !== prov }, kids); }
-    var oa = v.options.filter(function (o) { return o.provider === "openai"; })[0];
-    if (target.scope !== "global" && target.scope !== "step") form.appendChild(opt("inherit", "Use the level above", "Nothing is set here: the voice comes from the level above."));
-    v.options.forEach(function (o) {
-      if (o.provider === "openai") {
-        var vsel = h("select", null, oa.voices.map(function (x) { return h("option", { value: x, selected: (spec && spec.voice || "coral") === x }, x); }));
-        fields.voice = vsel;
-        var kids = [h("label", null, "Voice ", vsel), fld("style", "How it should speak, e.g. calm and professional", spec && spec.style)];
-        if (!v.hasKey) kids.push(h("p", { class: "msg warn" }, "An OpenAI key is needed. It is saved only in this kit's .env file, never shown again, and used only for this voice."), fld("key", "sk-…", "", "password"));
-        form.appendChild(opt("openai", o.title, o.summary + " (" + o.cost + ")", extra("openai", kids)));
+
+    v.options.slice().sort(function (a, b) { return (a.provider === "fantastico" ? 0 : 1) - (b.provider === "fantastico" ? 0 : 1); }).forEach(function (o) {
+      if (o.provider === "fantastico") {
+        fields.model = h("select", { "aria-label": "Fantastico speech model", onchange: fillVoices }, h("option", { value: "" }, "Connect a key to load models"));
+        fields.voice = h("select", { "aria-label": "Fantastico voice", onchange: stopListening }, h("option", { value: "" }, "Choose a model first"));
+        var key = fld("key", "ck-fant-…", "", "password");
+        key.setAttribute("autocomplete", "new-password"); key.setAttribute("aria-label", "Fantastico API key");
+        fields.keyChange = h("button", { type: "button", class: "btn", hidden: !v.hasKey, onclick: function () {
+          if (!key.readOnly) { lockKey(); return; }
+          key.readOnly = false; key.type = "password"; key.value = "";
+          fields.keyChange.textContent = "Cancel"; key.focus();
+        } }, "Change");
+        if (v.hasKey) lockKey();
+        var connect = h("button", { type: "button", class: "btn voice-connect", onclick: function (e) {
+          e.preventDefault(); stopListening();
+          if (!fields.key.readOnly && !fields.key.value.trim() && !v.hasKey) { voiceError(msg, new Error("Enter a Fantastico key first.")); return; }
+          saveKey().then(loadModels).catch(function (error) { voiceError(msg, error); });
+        } }, "Connect and load voices");
+        creditStatus = h("span", { class: "voice-credit-status", role: "status", "aria-live": "polite" }, "Connect a key to view your credit.");
+        creditButton = h("button", { type: "button", class: "btn credit-refresh", title: "Refresh credit", "aria-label": "Refresh credit", onclick: loadCredit });
+        creditButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.5-1L20 9M4 15l2.4 3A7 7 0 0 0 17.9 17"/></svg>';
+        var kids = [
+          h("div", { class: "voice-key" }, h("label", { class: "voice-field" }, "Fantastico key", key), h("div", { class: "row voice-key-actions" }, fields.keyChange, connect), h("div", { class: "voice-key-link" }, portalLink())),
+          h("div", { class: "voice-credit" }, creditStatus, creditButton),
+          h("div", { class: "voice-selectors" }, h("label", { class: "voice-field" }, "Model", fields.model), h("label", { class: "voice-field" }, "Voice", fields.voice)),
+          h("label", { class: "voice-field" }, "Speaking style (optional)", fld("style", "How it should speak, e.g. calm and professional", spec && spec.style)),
+          h("p", { class: "voice-note" }, "Previews and new audio use your Fantastico credit. Generated audio is cached.")
+        ];
+        form.appendChild(opt("fantastico", o.title, o.summary, extra("fantastico", kids)));
       } else if (o.provider === "command") {
         form.appendChild(opt("command", o.title, o.summary, extra("command", [fld("command", "piper --model voice.onnx --output_file {out} < {text}", spec && spec.command)])));
       } else if (o.provider === "say") {
-        form.appendChild(opt("say", o.title, o.summary + (o.available ? "" : " (not available on this computer)"), null));
+        return;
       } else form.appendChild(opt(o.provider, o.provider === "none" && target.scope === "step" ? "Muted" : o.title, o.provider === "none" && target.scope === "step" ? "No voice for this step: only its captions, whatever the tutorial's voice is." : o.summary, null));
     });
     if (target.scope === "step") {
@@ -896,23 +1049,26 @@
       form.appendChild(opt("file", "An audio file", "Your own recording for this step in “" + target.language + "” (mp3, m4a, wav, ogg). Its length sets the length of the step.", extra("file", [spec && spec.provider === "file" ? h("p", { class: "msg" }, "Now: " + spec.file) : null, fi])));
     }
     refresh();
-    form.appendChild(h("div", { class: "row" },
+    var actions = h("div", { class: "row voice-actions" });
+    form.appendChild(actions);
+    actions.appendChild(h("div", { class: "row voice-primary-actions" },
       h("button", { class: "btn primary", onclick: function () {
         var voice = null, work = Promise.resolve();
         if (choice === "inherit") voice = target.scope === "global" ? { provider: "browser" } : null;
-        else if (choice === "openai") voice = { provider: "openai", voice: fields.voice.value, style: fields.style.value.trim() || undefined };
+        else if (choice === "fantastico") { try { voice = selectedVoice(); } catch (error) { voiceError(msg, error); return; } }
         else if (choice === "command") voice = { provider: "command", command: fields.command.value.trim(), format: "wav" };
         else if (choice === "file") {
           var picked = fields.file.files[0];
           if (!picked && !(spec && spec.provider === "file")) { msg.className = "msg err"; msg.textContent = "Choose an audio file first."; return; }
           if (picked) work = uploadStepAudio(picked).then(function (r) { voice = { provider: "file", file: r.file }; }); else voice = spec;
         } else voice = { provider: choice };
-        var key = fields.key && fields.key.value.trim();
-        if (choice === "openai" && key) work = work.then(function () { return api("/api/key", { method: "POST", body: { key: key } }); });
+        stopListening();
+        if (choice === "fantastico") work = work.then(saveKey);
         work.then(function () { return hooks && hooks.save ? hooks.save(voice) : api("/api/voice", { method: "POST", body: Object.assign({}, target, { voice: voice }) }); })
-          .then(function () { done(); }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+          .then(function () { done(); }).catch(function (e) { voiceError(msg, e); });
       } }, "Save"),
-      h("button", { class: "btn", onclick: function () {
+      previewButton = h("button", { type: "button", class: "btn", onclick: function () {
+        if (playing) return stopListening();
         if (choice === "none") return;
         if (choice === "file") {
           var f2 = fields.file.files[0], st2 = S.guide && S.guide.steps[S.step];
@@ -921,14 +1077,33 @@
           return;
         }
         var sample = text((S.guide && S.guide.steps[S.step] || { narration: "" }).narration, target.language || S.lang) || "Hello, this is how the tutorial will sound.";
+        var language = target.language || S.lang || (S.state.brief.languages || [])[0] || "en";
         if (choice === "browser" || choice === "inherit") return speak(sample, target.language || S.lang);
         msg.className = "msg"; msg.textContent = "Generating a sample…";
-        var vc = choice === "openai" ? { provider: "openai", voice: fields.voice.value, style: fields.style.value.trim() || undefined } : choice === "command" ? { provider: "command", command: fields.command.value.trim(), format: "wav" } : { provider: choice };
-        fetch("/api/voice-sample", { method: "POST", headers: { "x-cueflow": "studio", "content-type": "application/json" }, body: JSON.stringify({ voice: vc, text: sample.slice(0, 200), language: target.language || S.lang }) })
-          .then(function (r) { if (!r.ok) return r.json().then(function (d) { throw new Error(d.error); }); return r.blob(); })
-          .then(function (b) { msg.textContent = ""; new Audio(URL.createObjectURL(b)).play(); })
-          .catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
-      } }, "Listen")));
+        var vc;
+        try { vc = choice === "fantastico" ? selectedVoice() : choice === "command" ? { provider: "command", command: fields.command.value.trim(), format: "wav" } : { provider: choice }; }
+        catch (error) { voiceError(msg, error); return; }
+        var previewAudio = null;
+        var mine = { done: function () { previewButton.textContent = "Preview"; msg.textContent = ""; } };
+        playing = mine; previewButton.textContent = "Stop";
+        var ready = choice === "fantastico" ? saveKey() : Promise.resolve();
+        ready.then(function () {
+          if (playing !== mine) return null;
+          return fetch("/api/voice-sample", { method: "POST", headers: { "x-cueflow": "studio", "content-type": "application/json" }, body: JSON.stringify({ voice: vc, text: sample.slice(0, 200), language: language }) });
+        })
+          .then(function (r) { if (!r) return null; if (!r.ok) return r.json().then(function (d) { var error = new Error(d.error); error.status = r.status; throw error; }); return r.blob(); })
+          .then(function (b) {
+            if (!b || playing !== mine) return;
+            msg.textContent = ""; if (choice === "fantastico") loadCredit();
+            var url = URL.createObjectURL(b), audio = new Audio(url);
+            previewAudio = audio;
+            audio.done = function () { URL.revokeObjectURL(url); mine.done(); };
+            audio.onended = audio.onerror = function () { if (playing === audio) stopListening(); };
+            playing = audio;
+            return audio.play();
+          })
+          .catch(function (e) { if (playing !== mine && playing !== previewAudio) return; stopListening(); voiceError(msg, e); if (choice === "fantastico") loadCredit(); });
+      } }, "Preview")));
     form.appendChild(msg);
   }
 
@@ -1221,7 +1396,7 @@
       stage.querySelectorAll(".imgview,.filebox").forEach(function (n) { n.remove(); }); mv.hidden = false;
       var key = item.name + ":" + S.lang;
       if (mv.dataset.key !== key) { mv.dataset.key = key; mv.src = "/scene/" + item.name + "?lang=" + S.lang; mv.onload = function () { armPicker(mv, function (sel, el) { showPick(sel, el); }); }; }
-      $("#mpick").appendChild(h("span", null, "Click an element in the screen to get its selector."));
+      $("#mpick").appendChild(h("span", null, "Click an element to edit its text or delete it."));
     } else {
       mv.hidden = true; mv.dataset.key = ""; stage.querySelectorAll(".imgview,.filebox").forEach(function (n) { n.remove(); });
       if (!item) stage.appendChild(h("div", { class: "filebox" }, "Select a screen or a file."));
@@ -1269,30 +1444,43 @@
     var old = panel.querySelector(".eledit"); if (old) old.remove();
     if (!el) { var doc = $("#mview").contentDocument; try { el = doc && doc.querySelector(sel); } catch (e) { el = null; } }
     if (!el || S.sel.kind !== "scene") return;
-    var g = video();
-    var own = ownTextOf(el);
+    panel.insertBefore(elementForm(S.sel.name, sel, el, function () {
+      $("#mview").dataset.key = ""; mv2reload();
+    }), panel.firstChild);
+  }
+  function elementForm(scene, sel, el, done) {
+    var g = video(), own = ownTextOf(el);
     var f = h("div", { class: "eledit" });
-    f.appendChild(h("h3", null, "Edit this element"));
-    f.appendChild(h("p", null, h("code", null, sel), "  (" + el.tagName.toLowerCase() + ")"));
+    f.appendChild(h("h3", null, "Edit element"));
     var textIn = null, attrIn = {};
-    if (own || !el.children.length) { textIn = h("textarea", { rows: 2 }); textIn.value = own; f.appendChild(h("label", { class: "lab" }, "Text", textIn)); }
+    if (own || !el.children.length) { textIn = h("textarea", { rows: 3, "aria-label": "Element text" }); textIn.value = own; f.appendChild(h("label", { class: "lab" }, "Text", textIn)); }
+    else f.appendChild(h("p", null, "This element contains other elements. Select its text to edit it, or delete this whole element."));
     ATTRS.forEach(function (a) { if (el.hasAttribute(a)) { var i = h("input", { type: "text" }); i.value = el.getAttribute(a); attrIn[a] = i; f.appendChild(h("label", { class: "lab" }, a, i)); } });
-    var msg = h("div", { class: "msg" });
-    f.appendChild(h("p", { class: "msg" }, "Only the “" + S.lang + "” version of this screen changes; the other languages keep theirs. The assistant is told about it."));
-    f.appendChild(h("div", { class: "row" }, h("button", { class: "btn primary", onclick: function () {
-      var body = { scene: S.sel.name, lang: S.lang, selector: sel, tutorial: g && g.id, attrs: {} };
-      if (textIn && textIn.value.trim() !== own) body.text = textIn.value.trim();
-      Object.keys(attrIn).forEach(function (a) { if (attrIn[a].value !== el.getAttribute(a)) body.attrs[a] = attrIn[a].value; });
-      if (body.text === undefined && !Object.keys(body.attrs).length) { msg.className = "msg"; msg.textContent = "Nothing changed."; return; }
+    f.addEventListener("input", function () { S.elementDirty = true; });
+    var msg = h("div", { class: "msg" }), buttons = h("div", { class: "row" });
+    f.appendChild(h("p", { class: "msg" }, "Changes apply to this scene in “" + S.lang + "”. Undo restores the previous version."));
+    function submit(remove) {
+      var body = { scene: scene, lang: S.lang, selector: sel, tutorial: g && g.id, attrs: {}, remove: remove };
+      if (!remove) {
+        if (textIn && textIn.value !== own) body.text = textIn.value;
+        Object.keys(attrIn).forEach(function (a) { if (attrIn[a].value !== el.getAttribute(a)) body.attrs[a] = attrIn[a].value; });
+        if (body.text === undefined && !Object.keys(body.attrs).length) { msg.textContent = "Nothing changed."; return; }
+      }
+      buttons.querySelectorAll("button").forEach(function (button) { button.disabled = true; });
+      S.ownSave = Date.now();
       api("/api/scene-edit", { method: "POST", body: body }).then(function () {
-        var mentions = [];
-        if (own && body.text !== undefined) S.state.guides.forEach(function (gg) { gg.steps.forEach(function (st, i) { var n = text(st.narration, S.lang); if (n && n.toLowerCase().indexOf(own.toLowerCase()) >= 0) mentions.push(gg.id + " step " + (i + 1)); }); });
-        $("#mview").dataset.key = ""; mv2reload();
-        return loadState().then(function () { flash("Saved in the “" + S.lang + "” version." + (mentions.length ? " The narration of " + mentions.join(", ") + " still says “" + own + "”: check it in the Timeline." : ""), mentions.length ? "" : "ok"); });
-      }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
-    } }, "Save for " + S.lang)));
-    f.appendChild(msg);
-    panel.insertBefore(f, panel.firstChild);
+        S.elementDirty = false; S.picked = null; viewKey = ""; prevKey = "";
+        done();
+        return loadState().then(function () { flash(remove ? "Element deleted. Undo can restore it." : "Scene saved for “" + S.lang + "”.", "ok"); });
+      }).catch(function (e) {
+        msg.className = "msg err"; msg.textContent = e.message;
+        buttons.querySelectorAll("button").forEach(function (button) { button.disabled = false; });
+      });
+    }
+    buttons.appendChild(h("button", { class: "btn primary", onclick: function () { submit(false); } }, "Save element"));
+    buttons.appendChild(h("button", { class: "btn", disabled: ["HTML", "HEAD", "BODY"].indexOf(el.tagName) >= 0, onclick: function () { submit(true); } }, "Delete element"));
+    f.appendChild(buttons); f.appendChild(msg);
+    return f;
   }
   function mv2reload() { if (S.page === "media") renderMedia(); }
 
@@ -1375,6 +1563,11 @@
     dialog("Settings", function (body, close) {
       var b = S.state.brief, f = {};
       var inp = function (k, label, val, tag) { var el = h(tag || "input", tag ? { rows: 3 } : { type: "text" }); el.value = val || ""; f[k] = el; return h("label", { class: "lab" }, label, el); };
+      var audioSettings = h("section", { "aria-label": "General audio settings" }, h("h3", null, "General audio settings"));
+      body.appendChild(audioSettings);
+      api("/api/voices").then(function (voices) {
+        audioSettings.appendChild(level(voices, { scope: "global" }, "Default voice for every tutorial", voices.current.default));
+      }).catch(function (error) { voiceError(audioSettings, error); });
       body.appendChild(h("p", null, "What was agreed with the people who watch these videos. It guides the narration and the voice for every tutorial."));
       body.appendChild(h("div", { class: "fields" },
         inp("audience", "Who watches", b.audience), inp("tone", "Tone of the narration", b.tone),
@@ -1878,13 +2071,15 @@
       loadDoc().then(renderDocAll);
       return;
     }
+    if (S.elementDirty && !confirmLeave()) { e.target.value = S.lang; return; }
+    S.elementDirty = false; S.picked = null;
     S.lang = e.target.value; S.msg = null; viewKey = ""; $("#mview").dataset.key = ""; renderSide(); renderView(false); renderPanel(); renderStrip(); renderPage(); });
   var events = new EventSource("/events");
   events.onmessage = function () {
     // someone else changed the kit (an assistant, an editor); the file watcher also reports our own saves, which we skip
     if (S.ownSave && Date.now() - S.ownSave < 2500) return;
     if (S.kind === "doc") pullEditor();
-    if (S.dirty || (S.kind === "doc" && D.dirty)) { var b = $("#banner"); b.hidden = false; b.className = "banner"; b.textContent = "The kit changed on disk. Save or discard your edit, then reload this page."; return; }
+    if (S.dirty || S.elementDirty || (S.kind === "doc" && D.dirty)) { var b = $("#banner"); b.hidden = false; b.className = "banner"; b.textContent = "The kit changed on disk. Save or discard your edit, then reload this page."; return; }
     loadState().then(function () { viewKey = ""; prevKey = ""; renderView(true); flash("The kit changed: updated.", "ok"); });
   };
   events.addEventListener("agent", function () { refreshAgent(); });

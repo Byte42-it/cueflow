@@ -72,18 +72,20 @@ export const VIDEO_PRESETS = {
   small: { label: "Small", width: 854, height: 480 }
 } as const;
 
-export function videoPreset(size: unknown = "medium") {
+export function videoPreset(size: unknown = "medium", vertical = false) {
   if (typeof size !== "string" || !Object.hasOwn(VIDEO_PRESETS, size)) throw new Error("MP4 size must be large, medium or small.");
-  return { id: size as keyof typeof VIDEO_PRESETS, ...VIDEO_PRESETS[size as keyof typeof VIDEO_PRESETS] };
+  const preset = { id: size as keyof typeof VIDEO_PRESETS, ...VIDEO_PRESETS[size as keyof typeof VIDEO_PRESETS] };
+  return vertical ? { ...preset, width: preset.height, height: preset.width } : preset;
 }
 
 export type VideoProgress = { percent: number; phase: string };
 
 /** Render the actual player, then combine its frames with each step's recorded narration. */
 export async function buildVideo(kit: Kit, id: string, lang: string, onProgress: (progress: VideoProgress) => void = () => {}, opts: { size?: unknown } = {}) {
-  const preset = videoPreset(opts.size);
   onProgress({ percent: 0, phase: "Preparing tutorial and audio…" });
   const guide = await loadGuide(kit, id);
+  const preset = videoPreset(opts.size, guide.vertical);
+  const renderViewport = guide.vertical ? { width: 720, height: 1280 } : { width: 1280, height: 720 };
   if (!guide.languages.includes(lang)) throw new Error(`Unknown tutorial language: ${lang}`);
   if (!guide.steps.length) throw new Error("Add at least one step before exporting MP4.");
   const ffmpeg = await resolveFFmpeg();
@@ -93,11 +95,11 @@ export async function buildVideo(kit: Kit, id: string, lang: string, onProgress:
     const { html, bundle } = await renderGuideHtml(kit, id, undefined, { lang });
     await writeFile(path.join(temp, "player.html"), html);
     onProgress({ percent: 5, phase: "Opening tutorial…" });
-    const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: preset.height / 720, locale: lang });
+    const page = await browser.newPage({ viewport: renderViewport, deviceScaleFactor: preset.width / renderViewport.width, locale: lang });
     await page.addInitScript(() => { Object.defineProperty(window, "speechSynthesis", { value: undefined }); });
     await page.goto(pathToFileURL(path.join(temp, "player.html")).href);
     await page.waitForFunction("!!window.__cueflow && !window.__cueflow.state().loading");
-    await page.addStyleTag({ content: "html,body{margin:0!important;padding:0!important} .cf-app{width:1280px!important;max-width:none!important} .cf-bar,.cf-big,.cf-veil{display:none!important} .cf-stage{height:720px!important;aspect-ratio:auto!important;border-radius:0!important} .cf-captions-below .cf-subs{display:block!important}" });
+    await page.addStyleTag({ content: `html,body{margin:0!important;padding:0!important} .cf-app{width:${renderViewport.width}px!important;max-width:none!important} .cf-bar,.cf-big,.cf-veil{display:none!important} .cf-stage{height:${renderViewport.height}px!important;aspect-ratio:auto!important;border-radius:0!important} .cf-captions-below .cf-subs{display:block!important}` });
     await page.clock.install();
     await page.clock.pauseAt(new Date());
     onProgress({ percent: 8, phase: "Measuring tutorial duration…" });

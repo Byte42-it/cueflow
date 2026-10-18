@@ -112,6 +112,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .55); }
 .opt:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .opt input { margin-right: 8px; } .opt b { font-weight: 600; } .opt small { display: block; color: var(--muted); margin: 2px 0 0 22px; }
 .opt .fields { margin: 8px 0 2px 22px; display: grid; gap: 6px; }
+.opt .fields[hidden] { display: none; }
 table { width: 100%; border-collapse: collapse; font-size: 12.5px; } td, th { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); } th { color: var(--muted); font-weight: 500; }
 .empty { color: var(--muted); padding: 24px; text-align: center; }
 @media (max-width: 1000px) { .page.timeline .grid { grid-template-columns: 1fr; } .page { grid-template-columns: 220px 1fr; } .film { width: 150px; } .panel { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); max-height: 45vh; } }
@@ -296,3 +297,54 @@ body:not(.doc-mode) .docpage, body:not(.doc-mode) .docbar { display: none !impor
 
 .mp4-progress { display: block; width: 100%; max-width: 560px; height: 16px; margin: 8px 0 12px; accent-color: var(--accent); }
 .mp4-progress-label { font-variant-numeric: tabular-nums; }
+
+.pick[hidden] { display: none !important; }
+
+/* Voice settings share the same compact layout in Settings and the tutorial panel. */
+.voice-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.voice-form .voice-option { order: 1; margin: 0; padding: 14px; min-width: 0; cursor: default; }
+.voice-option-heading { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.voice-form .voice-option-heading input { flex: none; width: auto; margin: 3px 0 0; }
+.voice-option-heading > span { min-width: 0; }
+.voice-form .voice-option-heading small { margin: 4px 0 0; line-height: 1.5; }
+.voice-form .voice-option[data-provider="fantastico"] { order: 0; grid-column: 1 / -1; }
+.voice-form .voice-option[data-provider="file"] { grid-column: 1 / -1; }
+.voice-form .opt .fields { gap: 16px; margin: 18px 0 0 24px; padding-top: 16px; border-top: 1px solid var(--line); }
+.voice-key { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: end; }
+.voice-field { display: grid; gap: 6px; min-width: 0; font-size: 12.5px; color: var(--muted); }
+.voice-field input, .voice-field select { width: 100%; min-width: 0; margin: 0; color: var(--ink); }
+.voice-key-link { grid-column: 1 / -1; font-size: 12px; }
+.voice-connect { align-self: end; white-space: nowrap; }
+.voice-selectors { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, .6fr); gap: 12px; }
+.voice-form .voice-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.voice-form > .msg { order: 3; grid-column: 1 / -1; }
+.voice-actions { order: 2; grid-column: 1 / -1; }
+dialog .voice-form { grid-template-columns: minmax(0, 1fr); }
+.voice-actions { justify-content: flex-end; margin: 4px 0 0; padding-top: 12px; border-top: 1px solid var(--line); }
+.voice-reset { margin-right: auto; }
+.voice-primary-actions { margin: 0; flex-wrap: nowrap; }
+@media (max-width: 650px) {
+  .voice-form { grid-template-columns: minmax(0, 1fr); }
+  .voice-key, .voice-selectors { grid-template-columns: minmax(0, 1fr); }
+  .voice-form .opt .fields { margin-left: 0; }
+  .voice-connect { justify-self: start; white-space: normal; }
+}
+
+.voice-auto { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-weight: 600; cursor: pointer; }
+.voice-auto input { flex: none; width: auto; margin: 0; }
+.voice-auto-note { margin: 6px 0 12px; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.voice-custom[hidden] { display: none; }
+#panel .voice-form { grid-template-columns: minmax(0, 1fr); }
+#panel .voice-key, #panel .voice-selectors { grid-template-columns: minmax(0, 1fr); }
+#panel .voice-form .opt .fields { margin-left: 0; }
+
+.voice-key-actions { margin: 0; flex-wrap: wrap; }
+.voice-field input[readonly] { color: var(--muted); cursor: default; letter-spacing: 2px; }
+
+.voice-credit { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; }
+.voice-credit-status { flex: 1 1 180px; }
+.voice-credit-status.warn { color: var(--accent-ink); }
+.voice-credit-status.err { color: var(--err); }
+
+.credit-refresh { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 5px; flex: none; }
+.credit-refresh svg { width: 18px; height: 18px; }

@@ -5,7 +5,8 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { it } from "node:test";
-import { openKit } from "../src/kit.ts";
+import { Guide, orientedGuide } from "../src/schema.ts";
+import { loadGuide, openKit, saveGuide } from "../src/kit.ts";
 import { buildVideo, resolveFFmpeg, videoPreset, windowsFFmpegCandidates } from "../src/video.ts";
 
 it("defaults to Medium and refuses unsupported video sizes", () => {
@@ -80,7 +81,8 @@ it("exports a short animated tutorial as an MP4", { skip: !process.env.CUEFLOW_T
     await writeFile(guideFile, JSON.stringify(guide));
     const kit = openKit(dir);
     await assert.rejects(buildVideo(kit, "short", "it"), /Unknown tutorial language/);
-    for (const size of ["medium", "large", "small"]) {
+    for (const [size, vertical] of [["medium", false], ["large", false], ["small", false], ["small", true]] as const) {
+      await writeFile(guideFile, JSON.stringify({ ...guide, vertical }));
       const progress: { percent: number; phase: string }[] = [];
       const result = await buildVideo(kit, "short", "en", (value) => progress.push(value), size === "medium" ? {} : { size });
       assert.equal(progress[0]!.percent, 0);
@@ -93,7 +95,7 @@ it("exports a short animated tutorial as an MP4", { skip: !process.env.CUEFLOW_T
       assert.ok(data.length > 1000);
       const decoded = await promisify(execFile)(await resolveFFmpeg(), ["-i", result.file, "-f", "null", "-"]);
       assert.match(decoded.stderr, /Video: h264/);
-      const preset = videoPreset(size);
+      const preset = videoPreset(size, vertical);
       assert.match(decoded.stderr, new RegExp(preset.width + "x" + preset.height));
       assert.match(result.name, new RegExp("\\." + size + "\\.mp4$"));
       assert.match(decoded.stderr, /Audio: aac/);
@@ -101,4 +103,47 @@ it("exports a short animated tutorial as an MP4", { skip: !process.env.CUEFLOW_T
       assert.ok(result.warnings.some((w) => /silent/.test(w)));
     }
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+
+it("keeps old tutorials unchanged and frames vertical tutorials without mutating saved dimensions", () => {
+  const legacy = Guide.parse({ id: "old", title: "Old", scene: "screen" });
+  assert.equal(legacy.vertical, false);
+  assert.equal(orientedGuide(legacy), legacy);
+  assert.deepEqual(legacy.viewport, { width: 1280, height: 720 });
+  for (const vertical of [false, true]) {
+    const guide = Guide.parse({ ...legacy, vertical });
+    const oriented = orientedGuide(guide);
+    assert.deepEqual(oriented.viewport, vertical ? { width: 720, height: 1280 } : legacy.viewport);
+    assert.deepEqual(oriented.stage, vertical ? { width: 360, height: 640 } : legacy.stage);
+    assert.deepEqual(guide.viewport, legacy.viewport);
+    assert.deepEqual(orientedGuide(oriented), oriented);
+    for (const size of ["large", "medium", "small"]) {
+      const preset = videoPreset(size, vertical), original = videoPreset(size);
+      assert.equal(preset.width, vertical ? original.height : original.width);
+      assert.equal(preset.height, vertical ? original.width : original.height);
+    }
+  }
+  assert.equal(Guide.safeParse({ ...legacy, vertical: "true" }).success, false);
+});
+
+
+it("refuses orientation changes when saving existing tutorials, including legacy files", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "cueflow-orientation-"));
+  const kit = openKit(root);
+  try {
+    for (const vertical of [false, true]) {
+      const guide = Guide.parse({ id: vertical ? "portrait" : "landscape", title: "Test", scene: "screen", vertical });
+      await saveGuide(kit, guide);
+      await saveGuide(kit, { ...guide, title: "Updated" });
+      await assert.rejects(saveGuide(kit, { ...guide, vertical: !vertical }), /orientation is fixed at creation/);
+      assert.equal((await loadGuide(kit, guide.id)).vertical, vertical);
+    }
+    const file = path.join(root, "guides", "legacy.json");
+    await writeFile(file, JSON.stringify({ id: "legacy", title: "Old", scene: "screen" }));
+    const legacy = await loadGuide(kit, "legacy");
+    await assert.rejects(saveGuide(kit, { ...legacy, vertical: true }), /orientation is fixed at creation/);
+    await saveGuide(kit, { ...legacy, title: "Updated" });
+    assert.equal((await loadGuide(kit, "legacy")).vertical, false);
+  } finally { await rm(root, { recursive: true, force: true }); }
 });

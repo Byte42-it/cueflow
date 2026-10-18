@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { writeAtomic } from "./build.ts";
 import { listGuides, loadGuide, openKit, type Kit } from "./kit.ts";
-import { resolveVoice, Settings, settingsFile, VoiceSpec as VoiceSpecSchema, type VoiceSource, type VoiceSpec } from "./settings.ts";
+import { migrateVoiceSettings, resolveVoice, Settings, settingsFile, VoiceSpec as VoiceSpecSchema, type VoiceSource, type VoiceSpec } from "./settings.ts";
 import { audioMime, cachedNarration, defaultProvider, narrationAudio, providerFromSpec, spokenText, type TtsProvider } from "./tts.ts";
 import { loadBrief } from "./brief.ts";
 import type { Guide, Step } from "./schema.ts";
@@ -23,7 +23,7 @@ export function voiceFor(kit: Kit, guideId: string, lang: string, env: NodeJS.Pr
 
 /** The choices, in words a person can choose from. Studio shows these; the assistant reads them with get_voices. */
 export function voiceOptions(env: NodeJS.ProcessEnv = process.env) {
-  const hasKey = Boolean(env.OPENAI_API_KEY);
+  const hasKey = Boolean(env.FANTASTICO_API_KEY);
   return [
     {
       provider: "browser",
@@ -34,23 +34,15 @@ export function voiceOptions(env: NodeJS.ProcessEnv = process.env) {
       available: true
     },
     {
-      provider: "openai",
-      title: "OpenAI voice (external service)",
-      summary: "Natural, the same on every computer; the audio is generated once and stored with the video. The text of the narration is sent to OpenAI.",
-      needs: "OPENAI_API_KEY in the kit's .env file",
-      cost: "pay per use, only when a text is new or changed",
+      provider: "fantastico",
+      title: "Professional voices · Fantastico",
+      summary: "Natural, the same on every computer; the audio is generated once and stored with the video. Uses your Fantastico credit.",
+      needs: "FANTASTICO_API_KEY in the kit's .env file",
+      cost: "Fantastico credit, only when a text is new or changed",
       available: hasKey,
-      voices: ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse"],
-      models: ["gpt-4o-mini-tts", "tts-1"],
+      portal: "https://cueflow.fantastico.cc",
+      catalogue: "/api/speech-models",
       style: "free text, e.g. 'calm and professional'"
-    },
-    {
-      provider: "say",
-      title: "macOS voices",
-      summary: "Free and offline, stored with the video. Good to hear timings; only on a Mac.",
-      needs: "macOS",
-      cost: "free",
-      available: process.platform === "darwin"
     },
     {
       provider: "command",
@@ -86,7 +78,7 @@ export async function voiceTable(kit: Kit, env: NodeJS.ProcessEnv = process.env)
 /** cueflow.json as written on disk (not normalised), so a change touches only what was asked and nothing else grows in it. */
 export async function readRawSettings(kit: Kit): Promise<Record<string, any>> {
   try {
-    return JSON.parse(await readFile(settingsFile(kit.root), "utf8"));
+    return migrateVoiceSettings(JSON.parse(await readFile(settingsFile(kit.root), "utf8")));
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === "ENOENT") return {};
     throw new Error(`cueflow.json is not valid JSON: ${e instanceof Error ? e.message : e}`);
@@ -122,7 +114,18 @@ export async function setVoice(kit: Kit, target: VoiceTarget, voice: unknown | n
   else {
     const guides = (voices.guides ??= {}) as Record<string, any>;
     const own = (guides[target.guide] ??= {}) as Record<string, any>;
-    if (target.language) put((own.languages ??= {}), target.language);
+    if (target.language) {
+      // Expand a legacy tutorial-wide override before editing a single language.
+      // Auto for that language must reach the project while other languages keep their sound.
+      if (own.default) {
+        const languages = (own.languages ??= {});
+        for (const language of (await loadGuide(kit, target.guide)).languages) {
+          if (language !== target.language && !languages[language]) languages[language] = own.default;
+        }
+        delete own.default;
+      }
+      put((own.languages ??= {}), target.language);
+    }
     else put(own, "default");
     if (!own.default && Object.keys(own.languages ?? {}).length === 0) delete guides[target.guide];
   }

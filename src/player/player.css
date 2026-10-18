@@ -13,6 +13,10 @@
 /* the standalone guide page; inside a docs site the player only styles its own box */
 html:has(> .cf-page), .cf-page { margin: 0; background: var(--cf-bg); color: var(--cf-fg); font: var(--cf-font); }
 .cf-page { min-height: 100vh; display: grid; place-items: center; padding: var(--cf-page-padding); }
+/* The page grid must not shrink to its contents when Studio hides the controls
+   and the opening scene has no caption. The stage itself has no intrinsic width. */
+.cf-page > #cueflow { width: 100%; min-width: 0; }
+.cf-page > #cueflow > .cf-app { margin-inline: auto; }
 .cf-app { width: 100%; outline: none; color: var(--cf-fg); font: var(--cf-font); }
 .cf-stage { position: relative; width: 100%; overflow: hidden; background: var(--cf-stage-bg); border-radius: var(--cf-stage-radius); box-shadow: var(--cf-stage-shadow); }
 .cf-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; transition: transform 700ms cubic-bezier(.4, 0, .2, 1); }

@@ -63,7 +63,7 @@ export async function initKit(kit: Kit, site?: string, outDir?: string): Promise
     Object.assign(kit, openKit(kit.root));
   }
   if (!(await readFile(path.join(kit.root, ".gitignore")).then(() => true, () => false))) {
-    await writeAtomic(path.join(kit.root, ".gitignore"), "# secrets, the voice cache (regenerated, and may be large) and the inbox of hand edits for the assistant\n.env\naudio/\nchanges.json\ntrash/\n.studio-key\n");
+    await writeAtomic(path.join(kit.root, ".gitignore"), "# secrets, the voice cache (regenerated, and may be large) and the inbox of hand edits for the assistant\n.env\naudio/\nchanges.json\n.studio-history.json\ntrash/\n.studio-key\n");
   }
   const exists = await readFile(briefFile(kit), "utf8").then(() => true, () => false);
   if (!exists) await saveBrief(kit, Brief.parse({ site }));

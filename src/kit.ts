@@ -2,7 +2,7 @@ import { statSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Guide } from "./schema.ts";
-import { readSettingsSync, type Settings } from "./settings.ts";
+import { migrateLegacyVoices, readSettingsSync, type Settings } from "./settings.ts";
 
 /** A kit is a folder with shared/ (site assets), scenes/ (static HTML), guides/ (JSON), audio/ (TTS cache), dist/ (output). */
 export type Kit = { root: string; /** where the output goes: settings.outDir, default dist/ */ out: string; settings: Settings };
@@ -86,6 +86,14 @@ export async function readScene(kit: Kit, scene: string, lang?: string): Promise
   }
 }
 
+function readGuide(raw: string): Guide {
+  const data = JSON.parse(raw);
+  if (Array.isArray(data.steps)) {
+    data.steps = data.steps.map((step: Record<string, unknown>) => step.voice ? { ...step, voice: migrateLegacyVoices(step.voice) } : step);
+  }
+  return Guide.parse(data);
+}
+
 export async function loadGuide(kit: Kit, id: string): Promise<Guide> {
   let raw: string;
   try {
@@ -93,11 +101,18 @@ export async function loadGuide(kit: Kit, id: string): Promise<Guide> {
   } catch {
     throw new Error(`guide "${id}" not found (available: ${(await listGuides(kit)).join(", ") || "none"})`);
   }
-  return Guide.parse(JSON.parse(raw));
+  return readGuide(raw);
 }
 
 export async function saveGuide(kit: Kit, guide: Guide): Promise<void> {
   const file = guideFile(kit, guide.id);
+  const existing = await readFile(file, "utf8").then(readGuide).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  });
+  if (existing && existing.vertical !== (guide.vertical ?? false)) {
+    throw new Error("Tutorial orientation is fixed at creation. Create a new tutorial for a different orientation.");
+  }
   await mkdir(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
   await writeFile(tmp, JSON.stringify(guide, null, 2) + "\n");
