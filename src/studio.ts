@@ -417,11 +417,17 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
   // the whole tutorial system: every video, and the dashboard (catalog + pages) that gathers them
   if (p === "/api/export-all" && req.method === "POST") {
     const b = await readBody(req);
+    return progressive(res, b.progress === true, async (report) => {
+    report(0, "Preparing…");
     const sync = await syncSite(kit);
     const built = [];
-    for (const id of await listGuides(kit)) built.push({ id, ...(await buildGuide(kit, id)) });
+    const ids = await listGuides(kit);
+    // the guides take 90% of the bar (their audio is what takes time), the dashboard the rest
+    for (const [i, id] of ids.entries()) built.push({ id, ...(await buildGuide(kit, id, undefined, { onProgress: (d, t) => report(((i + (t ? d / t : 1)) / ids.length) * 90, `Video ${i + 1} of ${ids.length}: ${id}`) })) });
+    report(90, "Building the dashboard…");
     const r = await buildSite(kit, { posters: b.posters === true });
-    return json(res, { url: "/out/site/index.html", outDir: kit.out, guides: built.map((x) => ({ id: x.id, audioFiles: x.audioFiles, silent: x.silent })), pages: r.pages.length, warnings: [...new Set([...built.flatMap((x) => x.warnings), ...r.warnings])], siteCreated: sync.created, siteAdded: sync.added });
+    return ({ url: "/out/site/index.html", outDir: kit.out, guides: built.map((x) => ({ id: x.id, audioFiles: x.audioFiles, silent: x.silent })), pages: r.pages.length, warnings: [...new Set([...built.flatMap((x) => x.warnings), ...r.warnings])], siteCreated: sync.created, siteAdded: sync.added });
+    });
   }
 
   if (p === "/api/check" && req.method === "POST") {
@@ -466,8 +472,10 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
       return json(res, { target: "site", url: "/out/site/index.html", pages: r.pages.length, warnings: r.warnings });
     }
     const id = String(b.guide);
-    const r = await buildGuide(kit, id);
-    return json(res, { target: "guide", url: `/out/${id}.html`, audioFiles: r.audioFiles, silent: r.silent, warnings: r.warnings });
+    return progressive(res, b.progress === true, async (report) => {
+      const r = await buildGuide(kit, id, undefined, { onProgress: (d, t) => report(t ? (d / t) * 100 : 100, "Narration " + d + " of " + t) });
+      return { target: "guide", url: `/out/${id}.html`, audioFiles: r.audioFiles, silent: r.silent, warnings: r.warnings };
+    });
   }
 
   if (p === "/api/out-dir" && req.method === "POST") {
@@ -668,6 +676,19 @@ export async function startStudio(kit: Kit, opts: { port?: number; open?: boolea
   link = { url, token: bridge.token };
   if (opts.open !== false) openBrowser(url);
   return { url, link, bridge, close: () => { clearInterval(timer); for (const c of clients) c.end(); server.close(); } };
+}
+
+/** Runs `work`; with `stream` the answer is NDJSON lines ({progress}, then {result} or {error}), like the MP4 export, otherwise one JSON. */
+async function progressive(res: ServerResponse, stream: boolean, work: (report: (percent: number, phase: string) => void) => Promise<unknown>) {
+  if (!stream) return json(res, await work(() => {}));
+  res.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "no-store", "x-accel-buffering": "no" });
+  const event = (value: unknown) => { if (!res.destroyed) res.write(JSON.stringify(value) + "\n"); };
+  try {
+    event({ result: await work((percent, phase) => event({ progress: { percent: Math.round(Math.min(100, percent)), phase } })) });
+  } catch (e) {
+    event({ error: e instanceof Error ? e.message : String(e) });
+  }
+  res.end();
 }
 
 function openBrowser(url: string) {

@@ -790,6 +790,34 @@
     finally { state.running = false; paintMp4(id, lang, size); }
   }
 
+  // a POST whose answer is lines of {progress}, then {result} or {error}; resolves with the result
+  async function streamed(path, body, onProgress) {
+    S.ownSave = Date.now();
+    var response = await fetch(path, { method: "POST", headers: { "x-cueflow": "studio", "content-type": "application/json" }, body: JSON.stringify(Object.assign({ progress: true }, body)) });
+    if (!response.ok) { var failure = await response.json().catch(function () { return {}; }); throw new Error(failure.error || "request failed (" + response.status + ")"); }
+    var reader = response.body.getReader(), decoder = new TextDecoder(), buffer = "", result = null;
+    while (true) {
+      var chunk = await reader.read();
+      buffer += decoder.decode(chunk.value, { stream: !chunk.done });
+      var lines = buffer.split("\n"); buffer = lines.pop();
+      for (var i = 0; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        var event = JSON.parse(lines[i]);
+        if (event.error) throw new Error(event.error);
+        if (event.progress) onProgress(event.progress);
+        if (event.result) result = event.result;
+      }
+      if (chunk.done) break;
+    }
+    if (!result) throw new Error("The connection closed before the build completed.");
+    return result;
+  }
+  function progressBar(box, pr) {
+    box.textContent = "";
+    box.appendChild(h("div", { class: "mp4-progress-label", role: "status" }, pr.percent + "% · " + pr.phase));
+    box.appendChild(h("progress", { class: "mp4-progress", max: 100, value: pr.percent, "aria-label": "Build progress" }));
+  }
+
   function checkTab(p) {
     if (!S.guide) { p.appendChild(h("p", { class: "empty" }, "Select a video first.")); return; }
     var id = S.guideId;
@@ -831,6 +859,7 @@
       p.appendChild(sh);
     }
     if (busy) p.appendChild(h("p", { class: "msg" }, busy));
+    if (busy && S.buildProgress) { var bar = h("div", { id: "build-progress" }); progressBar(bar, S.buildProgress); p.appendChild(bar); }
     var c = S.check;
     if (c) {
       var box = h("div", { class: "result" });
@@ -861,10 +890,10 @@
       .then(function () { S.busy = null; renderPage(); });
   }
   function runBuild(body) {
-    S.busy = body.target === "site" ? "Building the site…" : "Building the video…"; S.check = null; renderPage();
-    api("/api/build", { method: "POST", body: body })
+    S.busy = body.target === "site" ? "Building the site…" : "Building the video…"; S.check = null; S.buildProgress = body.target === "site" ? null : { percent: 0, phase: "Preparing…" }; renderPage();
+    streamed("/api/build", body, function (pr) { S.buildProgress = pr; var bar = $("#build-progress"); if (bar) progressBar(bar, pr); else renderPage(); })
       .then(function (r) { S.check = { errors: [], warnings: [], built: r }; }).catch(function (e) { S.check = { errors: [e.message], warnings: [] }; })
-      .then(function () { S.busy = null; S.voicesTable = null; renderPage(); });
+      .then(function () { S.busy = null; S.buildProgress = null; S.voicesTable = null; renderPage(); });
   }
 
   /* ---------- voices ---------- */
@@ -1595,8 +1624,8 @@
         body.appendChild(h("label", { class: "lab" }, posters, " Make a cover picture for each tutorial (needs a browser, Playwright)"));
         var result = h("div", { class: "result" });
         var go = h("button", { class: "btn primary", onclick: function () {
-          go.disabled = true; result.textContent = "Building…";
-          api("/api/export-all", { method: "POST", body: { posters: posters.checked } }).then(function (r) {
+          go.disabled = true; progressBar(result, { percent: 0, phase: "Preparing…" });
+          streamed("/api/export-all", { posters: posters.checked }, function (pr) { progressBar(result, pr); }).then(function (r) {
             result.textContent = "";
             result.appendChild(h("div", { class: "msg ok" }, "✓ " + r.guides.length + " tutorial(s) and " + r.pages + " dashboard page(s) built" + (r.siteCreated ? " (the catalog was created)" : r.siteAdded.length ? " (added to the catalog: " + r.siteAdded.join(", ") + ")" : "") + "."));
             r.warnings.forEach(function (w) { result.appendChild(h("div", { class: "msg warn" }, "! " + w)); });

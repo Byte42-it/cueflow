@@ -30,7 +30,7 @@
   /* the catalog in the chosen language: from here on every text is a plain string */
   var src = S.catalog;
   var cat = {
-    title: P(src.title), lang: src.lang, brand: { name: P(src.brand && src.brand.name) || P(src.title), logo: src.brand && src.brand.logo },
+    title: P(src.title), lang: src.lang, brand: { name: P(src.brand && src.brand.name) || P(src.title), logo: src.brand && src.brand.logo, url: src.brand && src.brand.url },
     footer: P(src.footer), requestEndpoint: src.requestEndpoint, featured: src.featured, quickAccess: src.quickAccess,
     labels: (src.labels && src.labels[lang]) || {},
     rows: src.rows.map(function (r) { return { id: r.id, title: P(r.title), note: P(r.note), kicker: P(r.kicker), lede: P(r.lede), band: r.band, askTile: r.askTile }; }),
@@ -241,9 +241,11 @@
   var bar = el("nav", "cf-bar-left cf-no-print");
   bar.setAttribute("aria-label", cat.title);
   var logo = el("a", "cf-logo", cat.brand.logo || ICON.logo);
-  logo.href = root + "index.html"; logo.setAttribute("aria-label", cat.brand.name || cat.title);
+  // the home is the folder's address (published at the root that is "/"); opened from disk there is no server to pick index.html
+  var homeHref = location.protocol === "file:" ? root + "index.html" : root || "./";
+  logo.href = cat.brand.url || homeHref; logo.setAttribute("aria-label", cat.brand.name || cat.title);
   bar.appendChild(logo);
-  var homeBtn = railBtn("a", ICON.home, L("home"), { href: root + "index.html" });
+  var homeBtn = railBtn("a", ICON.home, L("home"), { href: homeHref });
   if (S.page === "home") homeBtn.setAttribute("aria-current", "page");
   bar.appendChild(homeBtn);
   var tutBtn = railBtn("button", ICON.play, L("tutorials"), { "aria-expanded": "false", "aria-controls": "cf-drawer" });
@@ -285,7 +287,7 @@
     '<p class="cf-drawer-title">' + L("availableTitle") + '</p><div class="cf-drawer-list"></div>' +
     (soon.length ? '<p class="cf-drawer-title">' + L("tagSoon") + '</p><ul class="cf-drawer-soon">' +
       soon.map(function (it) { return "<li><span>" + esc(it.title) + "</span><small>" + esc(it.kicker || "") + "</small></li>"; }).join("") + "</ul>" : "") +
-    '<div class="cf-drawer-links"><a href="' + root + 'index.html">' + L("allTutorials") + "</a>" + (askBtn ? '<a href="#request">' + L("requestLink") + "</a>" : "") + "</div>");
+    '<div class="cf-drawer-links"><a href="' + homeHref + '">' + L("allTutorials") + "</a>" + (askBtn ? '<a href="#request">' + L("requestLink") + "</a>" : "") + "</div>");
   drawer.id = "cf-drawer";
   drawer.setAttribute("aria-label", L("tutorials"));
   ready.forEach(function (it) { drawer.querySelector(".cf-drawer-list").appendChild(tile(it)); });

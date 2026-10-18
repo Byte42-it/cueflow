@@ -335,7 +335,7 @@ guide as its cover (needs Playwright). An item without `duration` gets one compu
 ```
 
 `favicon` and `stylesheets` (remote stylesheets such as web fonts, linked from every page) are optional; `brand.logo`
-and item icons are SVG (inlined, they take the text color) or png, jpg, gif, webp. `colorScheme` picks the site's
+(and `brand.url`, the product's own site that the logo links to; without it the logo goes to the home) and item icons are SVG (inlined, they take the text color) or png, jpg, gif, webp. `colorScheme` picks the site's
 built-in colors: `light` (default), `dark`, or `auto` to follow the visitor's system; a theme's own `:root` colors
 always win over them, so a theme that is only light needs nothing, and one that also wants a dark look sets it under
 `@media (prefers-color-scheme: dark)`. Text on the primary color is `--cf-site-on-primary`, labels and panels laid

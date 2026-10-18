@@ -216,7 +216,7 @@ export async function buildSite(kit: Kit, opts: { provider?: TtsProvider | null;
     lang: site.lang,
     languages,
     fallback,
-    brand: site.brand ? { name: site.brand.name, logo: await imageInline(kit, site.brand.logo) } : { name: site.title },
+    brand: site.brand ? { name: site.brand.name, logo: await imageInline(kit, site.brand.logo), url: site.brand.url } : { name: site.title },
     footer: site.footer,
     requestEndpoint: site.requestEndpoint,
     featured: site.featured,

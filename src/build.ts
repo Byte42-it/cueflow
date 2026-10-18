@@ -35,7 +35,7 @@ export type GuideBundle = {
   warnings: string[];
 };
 
-export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider | null, opts: { lang?: string } = {}): Promise<GuideBundle> {
+export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider | null, opts: { lang?: string; onProgress?: (done: number, total: number) => void } = {}): Promise<GuideBundle> {
   const guide = orientedGuide(await loadGuide(kit, id));
   const report = await validateGuide(kit, guide);
   if (report.errors.length) throw new Error(`the guide "${id}" is not valid:\n- ${report.errors.join("\n- ")}`);
@@ -59,7 +59,11 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
   let audioFiles = 0;
   // `provider` undefined: each language speaks with the voice cueflow.json gives it; null: silent (previews); a provider: forced
   let browserVoice = false;
-  for (const lang of opts.lang ? [opts.lang] : guide.languages) {
+  const langs = opts.lang ? [opts.lang] : guide.languages;
+  const total = langs.length * guide.steps.length;
+  let done = 0;
+  opts.onProgress?.(0, total);
+  for (const lang of langs) {
     const voice = provider === undefined ? voiceFor(kit, id, lang) : null;
     if (voice?.browser) browserVoice = true;
     // the language's voice is silent, but a step asks for the browser's: the other steps must stay silent, not be read too
@@ -70,6 +74,7 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
       if (own?.provider === "browser") browserVoice = true;
       else if (langSilent && anyBrowser && !own) step.voice = { ...step.voice, [lang]: { provider: "none" } };
       const sound = await stepAudio(kit, guide, step, lang, provider);
+      opts.onProgress?.(++done, total);
       if (!sound) continue;
       (audio[lang] ??= {})[step.id] = `data:${sound.mime};base64,${sound.data.toString("base64")}`;
       audioFiles += 1;
@@ -119,8 +124,8 @@ export async function writeAtomic(file: string, content: string | Buffer): Promi
 }
 
 /** The page of a guide, as a string. `browserVoice` makes a silent build read its narration with the browser's voice (previews). */
-export async function renderGuideHtml(kit: Kit, id: string, provider?: TtsProvider | null, opts: { browserVoice?: boolean; extras?: PageExtras; lang?: string } = {}) {
-  const bundle = await guideBundle(kit, id, provider, { lang: opts.lang });
+export async function renderGuideHtml(kit: Kit, id: string, provider?: TtsProvider | null, opts: { browserVoice?: boolean; extras?: PageExtras; lang?: string; onProgress?: (done: number, total: number) => void } = {}) {
+  const bundle = await guideBundle(kit, id, provider, { lang: opts.lang, onProgress: opts.onProgress });
   if (opts.browserVoice) bundle.guide.player = { ...bundle.guide.player, fallbackVoice: "browser" };
   const { js, css, theme } = await playerAssets(kit);
   const styles = theme.css ? `${css}\n/* kit theme */\n${theme.css}` : css;
@@ -128,8 +133,8 @@ export async function renderGuideHtml(kit: Kit, id: string, provider?: TtsProvid
 }
 
 /** Builds guides/<id>.json into <output>/<id>.html: one self-contained file with player, scenes, timeline and audio. */
-export async function buildGuide(kit: Kit, id: string, provider?: TtsProvider | null): Promise<BuildResult> {
-  const { bundle, html } = await renderGuideHtml(kit, id, provider);
+export async function buildGuide(kit: Kit, id: string, provider?: TtsProvider | null, opts: { onProgress?: (done: number, total: number) => void } = {}): Promise<BuildResult> {
+  const { bundle, html } = await renderGuideHtml(kit, id, provider, { onProgress: opts.onProgress });
   const file = distFile(kit, id);
   await writeAtomic(file, html);
   return { file, scenes: bundle.scenes, audioFiles: bundle.audioFiles, silent: bundle.audioFiles === 0, warnings: bundle.warnings };
