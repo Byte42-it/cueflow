@@ -2103,14 +2103,30 @@
     if (S.elementDirty && !confirmLeave()) { e.target.value = S.lang; return; }
     S.elementDirty = false; S.picked = null;
     S.lang = e.target.value; S.msg = null; viewKey = ""; $("#mview").dataset.key = ""; renderSide(); renderView(false); renderPanel(); renderStrip(); renderPage(); });
-  var events = new EventSource("/events");
-  events.onmessage = function () {
+  // One open stream per tab would use up the browser's six connections to this address as tabs pile up, and every
+  // request (the built site, the previews) would wait forever without an error: only the tab being looked at listens.
+  var events = null;
+  function onKitChanged() {
     // someone else changed the kit (an assistant, an editor); the file watcher also reports our own saves, which we skip
     if (S.ownSave && Date.now() - S.ownSave < 2500) return;
     if (S.kind === "doc") pullEditor();
     if (S.dirty || S.elementDirty || (S.kind === "doc" && D.dirty)) { var b = $("#banner"); b.hidden = false; b.className = "banner"; b.textContent = "The kit changed on disk. Save or discard your edit, then reload this page."; return; }
     loadState().then(function () { viewKey = ""; prevKey = ""; renderView(true); flash("The kit changed: updated.", "ok"); });
   };
-  events.addEventListener("agent", function () { refreshAgent(); });
+  function listen() {
+    if (events) return;
+    events = new EventSource("/events");
+    events.onmessage = onKitChanged;
+    events.addEventListener("agent", function () { refreshAgent(); });
+  }
+  var hiddenAt = 0;
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) { hiddenAt = Date.now(); if (events) { events.close(); events = null; } return; }
+    listen();
+    // what changed while this tab was not listening
+    if (hiddenAt && !S.dirty && !S.elementDirty && S.kind !== "doc") loadState().then(function () { viewKey = ""; prevKey = ""; renderView(true); refreshAgent(); }).catch(function () {});
+    hiddenAt = 0;
+  });
+  if (!document.hidden) listen();
   loadState().then(refreshAgent).catch(function (e) { document.body.textContent = "Studio could not load: " + e.message; });
 })();

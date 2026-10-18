@@ -312,8 +312,13 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
 
   // built files, so that a built video or site can be opened from Studio
   if (p.startsWith("/out/") && req.method === "GET") {
-    const file = path.resolve(kit.out, "." + decodeURIComponent(p.slice(4)));
+    let file = path.resolve(kit.out, "." + decodeURIComponent(p.slice(4)));
     if (file !== kit.out && !file.startsWith(kit.out + path.sep)) throw new HttpError(403, "outside the output folder");
+    // a folder is its index.html, as on a web server: the site's Home link is the folder's address
+    if ((await stat(file).catch(() => null))?.isDirectory()) {
+      if (!p.endsWith("/")) { res.writeHead(301, { location: p + "/" }); return void res.end(); }
+      file = path.join(file, "index.html");
+    }
     const type = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".svg": "image/svg+xml", ".mp3": "audio/mpeg", ".mp4": "video/mp4", ".m4a": "audio/mp4", ".json": "application/json" }[path.extname(file)] ?? "application/octet-stream";
     try {
       return send(res, 200, await read(file), type);
