@@ -39,30 +39,63 @@ Cueflow is an early open-source prototype. Feedback, example kits, bug reports a
 
 ## Getting started
 
-Cueflow is a tool you install once and point at any number of projects. It does not live inside your product.
+Cueflow is a standalone tool: it does not become part of your product. You install it once, point it at any project and it creates a `.cueflow/` kit there. The only prerequisite is **Node.js 22** or later.
 
-1. **Install it** (Node.js 22 or later): `npm install -g @byte-42/cueflow` — or nothing at all, and use `npx @byte-42/cueflow …`. The command is `cueflow`: on its own, inside your project's folder, it opens Studio in your browser (and creates `.cueflow/` there the first time); `cueflow ../my-project` or `cueflow /full/path/to/project` opens it on another folder.
-   Playwright (for capture, previews and posters) is optional: `npx playwright install chromium`.
-2. **In your project's folder, run `cueflow init`.** It creates `.cueflow/`, the kit of the project, and fixes once where
-   the result goes: `cueflow-dist/` next to it (change it with `--out-dir`; it is stored in `.cueflow/cueflow.json`
-   and stays the same). `.cueflow/` is meant to be committed with your product; its own `.gitignore` leaves out `.env`
-   and the voice cache. Every `cueflow` command run anywhere inside the project finds `.cueflow/` by itself.
-3. **Connect your AI assistant to it.** Three ways; pick what your assistant can do:
-   - **Through Studio** (nothing to install, works in the terminal, in VS Code, anywhere an assistant can run `curl`): run
-     `cueflow studio`, press the **AI** button (or copy what it prints in the terminal) and paste the prompt into your
-     assistant. See *Talking to your assistant* below.
-   - **As an MCP server**, if your assistant has the `claude` command: `claude mcp add cueflow -- cueflow mcp`.
-   - **As an MCP server without the `claude` command** (for example the VS Code extension): create `.mcp.json` at the
-     project root with `{"mcpServers":{"cueflow":{"command":"cueflow","args":["mcp"]}}}`.
-4. **Ask for tutorials.** Say you want tutorials. Cueflow gives the assistant the method (`get_method`) and the state of the
-   kit (`get_brief`): it starts by asking which site (a folder or a live address), then talks the brief through with you
-   (audience, tone, languages, rules, how names are pronounced). It captures the screens, writes the steps (each one
-   checked against the real elements), looks at frames with `preview_frame`, and builds the guides and the docs site.
-   You review the previews and the narration.
-5. **Publish** `cueflow-dist/` (one HTML per guide, plus `site/` for the catalog). No server is needed to view it.
+### Install
 
-Nothing product-specific (names, colors, texts, rules) belongs in Cueflow itself. Until the package is on npm, clone
-this repository, `npm install && npm run build`, and run `node <clone>/build/cli.js …` (or `npm link`).
+**JavaScript / TypeScript projects** — add it as a dev dependency so every contributor has it:
+
+```bash
+npm install --save-dev @byte-42/cueflow
+npx cueflow
+```
+
+**Any other project** (Python, Go, PHP, Ruby, a static site…) — install it globally:
+
+```bash
+npm install -g @byte-42/cueflow
+cueflow
+```
+
+**Without installing anything** — run it directly with `npx`:
+
+```bash
+npx @byte-42/cueflow
+```
+
+In every case the command is `cueflow`. Run it inside your project's folder and it opens Studio in your browser (creating `.cueflow/` the first time). You can also point it at another folder: `cueflow ../my-project`.
+
+Playwright is optional (needed for capture, previews and poster images):
+
+```bash
+npx playwright install chromium
+```
+
+### Set up the kit
+
+Run `cueflow` (or `cueflow init`) inside your project. It creates `.cueflow/`, the kit of the project, and fixes once where the output goes: `cueflow-dist/` next to it (change it with `--out-dir`; stored in `.cueflow/cueflow.json`). `.cueflow/` is meant to be committed with your product; its own `.gitignore` leaves out `.env` and the voice cache. Every `cueflow` command run anywhere inside the project finds `.cueflow/` by itself.
+
+### Connect your AI assistant
+
+Three ways; pick what your assistant can do:
+
+- **Through Studio** (nothing to install, works in the terminal, in VS Code, anywhere an assistant can run `curl`): run `cueflow studio`, press the **AI** button (or copy what it prints in the terminal) and paste the prompt into your assistant. See *Talking to your assistant* below.
+- **As an MCP server**, if your assistant has the `claude` command:
+  ```bash
+  claude mcp add cueflow -- cueflow mcp
+  ```
+- **As an MCP server without the `claude` command** (for example the VS Code extension): create `.mcp.json` at the project root:
+  ```json
+  { "mcpServers": { "cueflow": { "command": "cueflow", "args": ["mcp"] } } }
+  ```
+
+### Create tutorials
+
+Ask your assistant for tutorials. Cueflow gives it the method (`get_method`) and the state of the kit (`get_brief`): it starts by asking which site (a folder or a live address), then talks the brief through with you (audience, tone, languages, rules, how names are pronounced). It captures the screens, writes the steps (each one checked against the real elements), looks at frames with `preview_frame`, and builds the guides and the docs site. You review the previews and the narration.
+
+### Publish
+
+Deploy `cueflow-dist/` — one HTML per guide, plus `site/` for the catalog. No server is needed to view it.
 
 ### Cueflow Studio
 
