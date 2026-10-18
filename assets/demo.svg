@@ -1,0 +1,250 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="960" height="540">
+  <defs><clipPath id="w"><rect width="960" height="540" rx="10"/></clipPath></defs>
+  <g clip-path="url(#w)">
+
+    <!-- ═══ Static chrome ═══ -->
+    <rect width="960" height="540" fill="#1e1e1e"/>
+    <rect width="960" height="34" fill="#323233"/>
+    <circle cx="20" cy="17" r="6" fill="#ff5f57"/>
+    <circle cx="40" cy="17" r="6" fill="#febc2e"/>
+    <circle cx="60" cy="17" r="6" fill="#28c840"/>
+
+    <!-- IDE title (visible during IDE scene) -->
+    <text x="480" y="22" fill="#888" font-size="13" font-family="'Segoe UI',system-ui,sans-serif" text-anchor="middle">
+      myProject
+      <animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.577;0.615;1" dur="26s" repeatCount="indefinite"/>
+    </text>
+
+    <!-- Studio title (visible during Studio scene) -->
+    <text x="480" y="22" fill="#ccc" font-size="13" font-family="'Segoe UI',system-ui,sans-serif" text-anchor="middle" opacity="0">
+      Cueflow Studio — myProject
+      <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.615;0.654;0.865;0.904;1" dur="26s" repeatCount="indefinite"/>
+    </text>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- IDE Scene: terminal + AI chat                          -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <g>
+      <animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.577;0.615;1" dur="26s" repeatCount="indefinite"/>
+
+      <!-- Activity bar -->
+      <rect x="0" y="34" width="48" height="506" fill="#333"/>
+      <rect x="14" y="52" width="20" height="16" rx="3" fill="#888" opacity="0.4"/>
+      <rect x="14" y="80" width="20" height="16" rx="3" fill="#888" opacity="0.25"/>
+      <rect x="14" y="108" width="20" height="16" rx="3" fill="#888" opacity="0.25"/>
+
+      <!-- Chat panel -->
+      <rect x="48" y="34" width="912" height="28" fill="#252526"/>
+      <rect x="48" y="34" width="130" height="28" fill="#1e1e1e"/>
+      <circle cx="66" cy="48" r="8" fill="#007acc" opacity="0.7"/>
+      <text x="66" y="51" fill="#fff" font-size="8" font-family="'Segoe UI',system-ui,sans-serif" text-anchor="middle" font-weight="bold">AI</text>
+      <text x="82" y="52" fill="#ccc" font-size="12" font-family="'Segoe UI',system-ui,sans-serif">Assistant</text>
+      <rect x="48" y="62" width="912" height="250" fill="#1e1e1e"/>
+
+      <!-- Separator -->
+      <rect x="48" y="312" width="912" height="2" fill="#007acc"/>
+
+      <!-- Terminal panel -->
+      <rect x="48" y="314" width="912" height="28" fill="#252526"/>
+      <rect x="48" y="314" width="100" height="28" fill="#1e1e1e"/>
+      <text x="64" y="333" fill="#ccc" font-size="12" font-family="'Segoe UI',system-ui,sans-serif">Terminal</text>
+      <rect x="48" y="342" width="912" height="198" fill="#1e1e1e"/>
+
+      <!-- ─── Terminal content ─── -->
+
+      <g opacity="0">
+        <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.011;0.019;1" dur="26s" repeatCount="indefinite"/>
+        <text y="362" font-size="14" font-family="Consolas,Monaco,monospace">
+          <tspan x="68" fill="#4ec9b0">$</tspan><tspan fill="#d4d4d4"> npm i @byte-42/cueflow</tspan>
+        </text>
+      </g>
+
+      <g opacity="0">
+        <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.069;0.077;1" dur="26s" repeatCount="indefinite"/>
+        <text x="68" y="381" font-size="14" font-family="Consolas,Monaco,monospace" fill="#888">+ @byte-42/cueflow@0.1.46</text>
+      </g>
+
+      <g opacity="0">
+        <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.127;0.135;1" dur="26s" repeatCount="indefinite"/>
+        <text y="406" font-size="14" font-family="Consolas,Monaco,monospace">
+          <tspan x="68" fill="#4ec9b0">$</tspan><tspan fill="#d4d4d4"> npx cueflow</tspan>
+        </text>
+      </g>
+
+      <g opacity="0">
+        <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.185;0.192;1" dur="26s" repeatCount="indefinite"/>
+        <text x="80" y="431" font-size="14" font-family="Consolas,Monaco,monospace" fill="#4ec9b0">Cueflow Studio → http://127.0.0.1:4242</text>
+      </g>
+
+      <g opacity="0">
+        <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.223;0.231;1" dur="26s" repeatCount="indefinite"/>
+        <text x="80" y="462" font-size="14" font-family="Consolas,Monaco,monospace" fill="#d4d4d4">Paste this in your AI assistant:</text>
+      </g>
+
+      <g opacity="0">
+        <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.242;0.250;1" dur="26s" repeatCount="indefinite"/>
+        <text x="80" y="481" font-size="14" font-family="Consolas,Monaco,monospace" fill="#aaa">Read the method, study my site, propose</text>
+      </g>
+
+      <g opacity="0">
+        <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.262;0.269;1" dur="26s" repeatCount="indefinite"/>
+        <text x="80" y="500" font-size="14" font-family="Consolas,Monaco,monospace" fill="#aaa">tutorials. Talk to me in my language.</text>
+      </g>
+
+      <!-- Terminal cursor -->
+      <rect x="68" y="510" width="8" height="14" fill="#d4d4d4">
+        <animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.5;0.501;1" dur="1s" repeatCount="indefinite"/>
+      </rect>
+
+      <!-- Selection highlight (copy effect) -->
+      <g opacity="0">
+        <animate attributeName="opacity" values="0;0;0.3;0.3;0;0" keyTimes="0;0.300;0.315;0.338;0.354;1" dur="26s" repeatCount="indefinite"/>
+        <rect x="76" y="468" width="380" height="38" rx="3" fill="#264f78"/>
+      </g>
+
+      <!-- ─── Chat content ─── -->
+
+      <g opacity="0">
+        <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.338;0.346;1" dur="26s" repeatCount="indefinite"/>
+        <text x="920" y="82" font-size="11" font-family="'Segoe UI',system-ui,sans-serif" fill="#888" text-anchor="end">You</text>
+        <rect x="480" y="88" width="455" height="50" rx="10" fill="#264f78"/>
+        <text font-size="14" font-family="'Segoe UI',system-ui,sans-serif" fill="#e0e0e0">
+          <tspan x="494" y="109">Read the method, study my site, propose</tspan>
+          <tspan x="494" y="127">tutorials. Talk to me in my language.</tspan>
+        </text>
+      </g>
+
+      <g opacity="0">
+        <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.415;0.423;1" dur="26s" repeatCount="indefinite"/>
+        <text x="68" y="154" font-size="11" font-family="'Segoe UI',system-ui,sans-serif" fill="#007acc">Assistant</text>
+        <rect x="68" y="160" width="460" height="36" rx="10" fill="#2d2d2d"/>
+        <text x="82" y="183" font-size="14" font-family="'Segoe UI',system-ui,sans-serif" fill="#d4d4d4">Got it! Which site should I create tutorials for?</text>
+      </g>
+
+      <g opacity="0">
+        <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.492;0.500;1" dur="26s" repeatCount="indefinite"/>
+        <text x="920" y="212" font-size="11" font-family="'Segoe UI',system-ui,sans-serif" fill="#888" text-anchor="end">You</text>
+        <rect x="370" y="218" width="565" height="36" rx="10" fill="#264f78"/>
+        <text x="384" y="241" font-size="14" font-family="'Segoe UI',system-ui,sans-serif" fill="#e0e0e0">Create a series of tutorials on how my product works</text>
+      </g>
+
+      <g opacity="0">
+        <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.531;0.538;1" dur="26s" repeatCount="indefinite"/>
+        <text x="68" y="270" font-size="11" font-family="'Segoe UI',system-ui,sans-serif" fill="#007acc">Assistant</text>
+        <rect x="68" y="276" width="80" height="24" rx="12" fill="#2d2d2d"/>
+        <circle cx="88" cy="288" r="3" fill="#888">
+          <animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="102" cy="288" r="3" fill="#888">
+          <animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" begin="0.3s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="116" cy="288" r="3" fill="#888">
+          <animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" begin="0.6s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+    </g>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- Studio Scene: sidebar + preview + timeline             -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <g opacity="0">
+      <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.615;0.654;0.865;0.904;1" dur="26s" repeatCount="indefinite"/>
+
+      <!-- Sidebar -->
+      <rect x="0" y="34" width="200" height="506" fill="#252526"/>
+      <text x="16" y="56" fill="#888" font-size="11" font-family="'Segoe UI',system-ui,sans-serif" font-weight="bold" letter-spacing="1">TUTORIALS</text>
+
+      <rect x="8" y="68" width="184" height="50" rx="6" fill="#1e3a5f" stroke="#007acc" stroke-width="1"/>
+      <text x="18" y="89" fill="#fff" font-size="12" font-family="'Segoe UI',system-ui,sans-serif">How Cueflow works</text>
+      <text x="18" y="106" fill="#888" font-size="10" font-family="'Segoe UI',system-ui,sans-serif">4 steps · 0:50</text>
+
+      <rect x="8" y="126" width="184" height="50" rx="6" fill="#2d2d2d"/>
+      <text x="18" y="147" fill="#ccc" font-size="12" font-family="'Segoe UI',system-ui,sans-serif">Upload a document</text>
+      <text x="18" y="164" fill="#888" font-size="10" font-family="'Segoe UI',system-ui,sans-serif">3 steps · 0:35</text>
+
+      <rect x="8" y="184" width="184" height="50" rx="6" fill="#2d2d2d"/>
+      <text x="18" y="205" fill="#ccc" font-size="12" font-family="'Segoe UI',system-ui,sans-serif">Managing users</text>
+      <text x="18" y="222" fill="#888" font-size="10" font-family="'Segoe UI',system-ui,sans-serif">5 steps · 1:10</text>
+
+      <!-- Main area -->
+      <rect x="200" y="34" width="760" height="506" fill="#1e1e1e"/>
+
+      <!-- Preview: website in player frame -->
+      <rect x="214" y="48" width="732" height="280" rx="6" fill="#fff"/>
+      <rect x="214" y="48" width="732" height="26" rx="6" fill="#e8e8e8"/>
+      <rect x="214" y="62" width="732" height="12" fill="#e8e8e8"/>
+      <rect x="228" y="54" width="200" height="14" rx="7" fill="#fff"/>
+      <text x="245" y="64" fill="#999" font-size="9" font-family="'Segoe UI',system-ui,sans-serif">cueflow.dev/getting-started</text>
+
+      <!-- Website mock -->
+      <rect x="214" y="74" width="732" height="254" fill="#fafafa"/>
+      <rect x="214" y="74" width="732" height="32" fill="#f0f0f0"/>
+      <text x="234" y="95" fill="#333" font-size="14" font-family="'Segoe UI',system-ui,sans-serif" font-weight="bold">CueFlow</text>
+      <rect x="320" y="84" width="40" height="14" rx="2" fill="#ddd"/>
+      <rect x="370" y="84" width="40" height="14" rx="2" fill="#ddd"/>
+      <rect x="420" y="84" width="40" height="14" rx="2" fill="#ddd"/>
+
+      <text x="300" y="132" fill="#333" font-size="18" font-family="'Segoe UI',system-ui,sans-serif" font-weight="bold">Getting Started</text>
+      <rect x="300" y="148" width="500" height="10" rx="2" fill="#e0e0e0"/>
+      <rect x="300" y="166" width="420" height="10" rx="2" fill="#e0e0e0"/>
+
+      <!-- Code block in preview -->
+      <rect x="300" y="192" width="420" height="52" rx="6" fill="#1e1e1e"/>
+      <text x="316" y="213" fill="#4ec9b0" font-size="12" font-family="Consolas,Monaco,monospace">npm i @byte-42/cueflow</text>
+      <text x="316" y="233" fill="#4ec9b0" font-size="12" font-family="Consolas,Monaco,monospace">npx cueflow</text>
+
+      <!-- Cursor ring on code block -->
+      <circle cx="510" cy="213" r="16" fill="none" stroke="#e84040" stroke-width="2">
+        <animate attributeName="r" values="14;18;14" dur="1.5s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.9;0.4;0.9" dur="1.5s" repeatCount="indefinite"/>
+      </circle>
+
+      <!-- Caption overlay -->
+      <rect x="380" y="296" width="300" height="24" rx="12" fill="#000" fill-opacity="0.7"/>
+      <text x="530" y="312" fill="#fff" font-size="12" font-family="'Segoe UI',system-ui,sans-serif" text-anchor="middle">Install Cueflow from npm</text>
+
+      <!-- Timeline header -->
+      <rect x="200" y="336" width="760" height="28" fill="#252526"/>
+      <text x="216" y="355" fill="#fff" font-size="12" font-family="'Segoe UI',system-ui,sans-serif" font-weight="bold">Timeline</text>
+      <text x="290" y="355" fill="#888" font-size="12" font-family="'Segoe UI',system-ui,sans-serif">Voice</text>
+      <text x="340" y="355" fill="#888" font-size="12" font-family="'Segoe UI',system-ui,sans-serif">Media</text>
+      <text x="395" y="355" fill="#888" font-size="12" font-family="'Segoe UI',system-ui,sans-serif">Export</text>
+
+      <!-- Timeline steps -->
+      <rect x="214" y="374" width="170" height="48" rx="6" fill="#264f78" stroke="#007acc" stroke-width="1.5"/>
+      <text x="226" y="396" fill="#fff" font-size="12" font-family="'Segoe UI',system-ui,sans-serif">Install</text>
+      <text x="226" y="412" fill="#4ec9b0" font-size="10" font-family="'Segoe UI',system-ui,sans-serif">0:00 – 0:12</text>
+
+      <rect x="392" y="374" width="170" height="48" rx="6" fill="#2d2d2d"/>
+      <text x="404" y="396" fill="#ccc" font-size="12" font-family="'Segoe UI',system-ui,sans-serif">Capture scenes</text>
+      <text x="404" y="412" fill="#888" font-size="10" font-family="'Segoe UI',system-ui,sans-serif">0:12 – 0:25</text>
+
+      <rect x="570" y="374" width="170" height="48" rx="6" fill="#2d2d2d"/>
+      <text x="582" y="396" fill="#ccc" font-size="12" font-family="'Segoe UI',system-ui,sans-serif">Create guide</text>
+      <text x="582" y="412" fill="#888" font-size="10" font-family="'Segoe UI',system-ui,sans-serif">0:25 – 0:38</text>
+
+      <rect x="748" y="374" width="170" height="48" rx="6" fill="#2d2d2d"/>
+      <text x="760" y="396" fill="#ccc" font-size="12" font-family="'Segoe UI',system-ui,sans-serif">Share</text>
+      <text x="760" y="412" fill="#888" font-size="10" font-family="'Segoe UI',system-ui,sans-serif">0:38 – 0:50</text>
+
+      <!-- Narration -->
+      <text x="214" y="444" fill="#888" font-size="12" font-family="'Segoe UI',system-ui,sans-serif" font-style="italic">"Install Cueflow from npm to get started with your first tutorial."</text>
+
+      <!-- Progress bar -->
+      <rect x="214" y="462" width="704" height="4" rx="2" fill="#333"/>
+      <rect x="214" y="462" height="4" rx="2" fill="#007acc">
+        <animate attributeName="width" values="0;0;704;704;0" keyTimes="0;0.654;0.865;0.904;1" dur="26s" repeatCount="indefinite"/>
+      </rect>
+
+      <!-- Time labels -->
+      <text x="214" y="480" fill="#888" font-size="10" font-family="'Segoe UI',system-ui,sans-serif">0:00</text>
+      <text x="918" y="480" fill="#888" font-size="10" font-family="'Segoe UI',system-ui,sans-serif" text-anchor="end">0:50</text>
+
+      <!-- Playhead -->
+      <line y1="368" y2="428" stroke="#007acc" stroke-width="2" opacity="0.8">
+        <animate attributeName="x1" values="214;214;918;918;214" keyTimes="0;0.654;0.865;0.904;1" dur="26s" repeatCount="indefinite"/>
+        <animate attributeName="x2" values="214;214;918;918;214" keyTimes="0;0.654;0.865;0.904;1" dur="26s" repeatCount="indefinite"/>
+      </line>
+    </g>
+  </g>
+</svg>

@@ -8,6 +8,10 @@
 
 [MIT license](LICENSE) · [Contributing](CONTRIBUTING.md) · [Built by Byte42](https://byte42.it/)
 
+<p align="center">
+  <img src="assets/demo.svg" alt="Install Cueflow, paste instructions in your AI assistant, build tutorials in Studio" width="800">
+</p>
+
 Narrated, animated walkthroughs of a web interface — without recording a video.
 
 You give Cueflow a **kit**: the static HTML of your site's screens (the real CSS, fonts and layout, no backend).
