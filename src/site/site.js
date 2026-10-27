@@ -30,7 +30,7 @@
   /* the catalog in the chosen language: from here on every text is a plain string */
   var src = S.catalog;
   var cat = {
-    title: P(src.title), lang: src.lang, brand: { name: P(src.brand && src.brand.name) || P(src.title), logo: src.brand && src.brand.logo, url: src.brand && src.brand.url },
+    title: P(src.title), lang: src.lang, brand: { name: P(src.brand && src.brand.name) || P(src.title), logo: src.brand && src.brand.logo, url: src.brand && src.brand.url }, favicon: src.favicon,
     footer: P(src.footer), requestEndpoint: src.requestEndpoint, featured: src.featured, quickAccess: src.quickAccess,
     labels: (src.labels && src.labels[lang]) || {},
     rows: src.rows.map(function (r) { return { id: r.id, title: P(r.title), note: P(r.note), kicker: P(r.kicker), lede: P(r.lede), band: r.band, askTile: r.askTile }; }),
@@ -47,7 +47,9 @@
       tagVideo: "Video", tagGuide: "Guide", tagSoon: "Coming soon", ctaVideo: "Watch the video →", ctaGuide: "Read the guide →",
       subVideo: "Video and guide", subGuide: "Guide · video to come", subSoon: "In preparation",
       watch: "Watch the video", readTranscript: "Read the transcript", transcript: "Transcript", guide: "Guide", readGuide: "Read the guide",
-      chipVoice: "Voice and captions", chipRead: "Guide to read", chipPdf: "PDF", featured: "Featured", quick: "Quick access",
+      chipVoice: "Voice and captions", chipRead: "Guide to read", chipPdf: "PDF", featured: "Featured", quick: "Latest releases",
+      chapterOne: "1 chapter", chapterMany: "{n} chapters", website: "Go to {host}",
+      duration: "Duration", actions: "Actions", share: "Share", shareTitle: "Share", copy: "Copy", copied: "Link copied", startAt: "Start at chapter {n} · {title}", moreApps: "More apps", emailApp: "Email",
       soonKicker: "Coming next", soonLede: "The next videos in preparation. If the one you need is not here, you can ask for it.", soonLedePlain: "The next videos in preparation.",
       availableTitle: "Available", askTitle: "Missing something?", askSub: "Suggest a topic", back: "Back", forward: "Forward",
       askKicker: "Missing something?", askHeading: "Request a tutorial",
@@ -73,7 +75,9 @@
       tagVideo: "Video", tagGuide: "Guida", tagSoon: "In arrivo", ctaVideo: "Guarda il video →", ctaGuide: "Leggi la guida →",
       subVideo: "Video e guida", subGuide: "Guida · video in arrivo", subSoon: "In preparazione",
       watch: "Guarda il video", readTranscript: "Leggi la trascrizione", transcript: "Trascrizione", guide: "Guida", readGuide: "Leggi la guida",
-      chipVoice: "Voce e sottotitoli", chipRead: "Guida da leggere", chipPdf: "PDF", featured: "In evidenza", quick: "Accesso rapido",
+      chipVoice: "Voce e sottotitoli", chipRead: "Guida da leggere", chipPdf: "PDF", featured: "In evidenza", quick: "Ultime uscite",
+      chapterOne: "1 capitolo", chapterMany: "{n} capitoli", website: "Vai su {host}",
+      duration: "Durata", actions: "Azioni", share: "Condividi", shareTitle: "Condividi", copy: "Copia", copied: "Link copiato", startAt: "Inizia dal capitolo {n} · {title}", moreApps: "Altre app", emailApp: "Email",
       soonKicker: "Prossimamente", soonLede: "I prossimi video in preparazione. Se ne serve uno che non c'è, si può chiedere.", soonLedePlain: "I prossimi video in preparazione.",
       availableTitle: "Disponibili", askTitle: "Manca qualcosa?", askSub: "Segnala l'argomento", back: "Indietro", forward: "Avanti",
       askKicker: "Manca qualcosa?", askHeading: "Richiedi un tutorial",
@@ -107,6 +111,12 @@
     home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/></svg>',
     play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="m10 9 5 3-5 3z" fill="currentColor"/></svg>',
     list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>',
+    panel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9.5 4v16M5.8 8.5h1.4M5.8 11.5h1.4"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6" stroke-linecap="round"/></svg>',
+    share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M14 5l7 7-7 7v-4c-5.5 0-9 1.6-11 5 .6-6.2 4-10.4 11-11.2z"/></svg>',
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
+    web: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S9.4 5.6 12 3z"/></svg>',
     plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>',
     print: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7"/></svg>',
     tri: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9.33 7.4V16.6L17.33 12Z" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg>',
@@ -115,6 +125,20 @@
     logo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 5 3.5-5 3.5z" fill="currentColor"/></svg>'
   };
   var tri = function (size) { return ICON.tri.replace(/18/g, String(size)); };
+  /* the facts of an item as icons and numbers (type, length, chapters), each with its words for screen readers;
+     the length keeps its value and loses its "about": the icon says what it is, ~ that it is an estimate */
+  var srOnly = function (t) { return '<span class="cf-sr">' + esc(t) + "</span>"; };
+  var shortDuration = function (d) { return String(d).replace(/^(circa|about|environ|etwa|unos|cerca de)\s+/i, "~"); };
+  function factsHtml(it, withType) {
+    var video = it.status === "video", out = [];
+    if (withType) out.push('<span class="cf-fact" title="' + esc(L(video ? "tagVideo" : "tagGuide")) + '">' + (video ? tri(12) : ICON.doc) + srOnly(L(video ? "tagVideo" : "tagGuide")) + "</span>");
+    if (video && it.duration) out.push('<span class="cf-fact" title="' + esc(L("duration")) + '">' + ICON.clock + srOnly(L("duration") + ": ") + esc(shortDuration(it.duration)) + "</span>");
+    if (video && it.chapters.length) {
+      var ch = it.chapters.length === 1 ? L("chapterOne") : L("chapterMany", { n: it.chapters.length });
+      out.push('<span class="cf-fact" title="' + esc(ch) + '">' + ICON.list + '<span aria-hidden="true">' + it.chapters.length + "</span>" + srOnly(ch) + "</span>");
+    }
+    return out.join("");
+  }
   var ready = cat.items.filter(function (it) { return it.status !== "soon"; });
   var soon = cat.items.filter(function (it) { return it.status === "soon"; });
   var current = S.page === "item" ? cat.items.filter(function (it) { return it.id === S.item; })[0] : null;
@@ -128,7 +152,7 @@
 
   function tile(it) {
     var video = it.status === "video", isSoon = it.status === "soon";
-    var tag = video ? '<span class="cf-tag">' + tri(9) + L("tagVideo") + (it.duration ? " · " + esc(it.duration) : "") + "</span>"
+    var tag = video ? '<span class="cf-tag">' + tri(9) + srOnly(L("tagVideo")) + (it.duration ? ICON.clock + srOnly(L("duration") + ": ") + esc(shortDuration(it.duration)) : "") + "</span>"
       : isSoon ? '<span class="cf-tag cf-tag-soon">' + L("tagSoon") + "</span>" : '<span class="cf-tag cf-tag-light">' + L("tagGuide") + "</span>";
     var cta = video ? L("ctaVideo") : isSoon ? "" : L("ctaGuide");
     var t = el(it.href ? "a" : "div", "cf-tile" + (isSoon ? " cf-soon" : ""));
@@ -169,7 +193,7 @@
   function buildPreview(t) {
     var it = t._item, video = it.status === "video";
     var chips = video
-      ? '<span class="cf-chip cf-strong">' + L("tagVideo") + (it.duration ? " · " + esc(it.duration) : "") + '</span><span class="cf-chip">' + L("chipVoice") + '</span><span class="cf-chip">' + L("transcript") + "</span>"
+      ? '<span class="cf-chip cf-strong cf-facts">' + factsHtml(it, true) + '</span><span class="cf-chip">' + L("chipVoice") + '</span><span class="cf-chip">' + L("transcript") + "</span>"
       : '<span class="cf-chip">' + L("chipRead") + '</span><span class="cf-chip">' + L("chipPdf") + "</span>";
     var steps = it.chapters.length ? '<ol class="cf-pv-steps">' + it.chapters.map(function (c) { return "<li>" + esc(c) + "</li>"; }).join("") + "</ol>" : "";
     var list = it.contents.length ? '<ul class="cf-pv-list">' + it.contents.map(function (c) { return "<li>" + ICON.check + "<span>" + esc(c) + "</span></li>"; }).join("") + "</ul>" : "";
@@ -240,21 +264,30 @@
   }
   var bar = el("nav", "cf-bar-left cf-no-print");
   bar.setAttribute("aria-label", cat.title);
-  var logo = el("a", "cf-logo", cat.brand.logo || ICON.logo);
+  // the kit's logo, else the project's icon (site.json "favicon"), else Cueflow's own mark
+  var logo = el("a", "cf-logo", cat.brand.logo || (cat.favicon ? '<img src="' + esc(cat.favicon) + '" alt="">' : ICON.logo));
   // the home is the folder's address (published at the root that is "/"); opened from disk there is no server to pick index.html
   var homeHref = location.protocol === "file:" ? root + "index.html" : root || "./";
-  logo.href = cat.brand.url || homeHref; logo.setAttribute("aria-label", cat.brand.name || cat.title);
+  // the logo leads home; the product's own site has a button of its own, at the foot of the bar
+  logo.href = homeHref; logo.setAttribute("aria-label", cat.brand.name || cat.title);
   bar.appendChild(logo);
   var homeBtn = railBtn("a", ICON.home, L("home"), { href: homeHref });
   if (S.page === "home") homeBtn.setAttribute("aria-current", "page");
   bar.appendChild(homeBtn);
-  var tutBtn = railBtn("button", ICON.play, L("tutorials"), { "aria-expanded": "false", "aria-controls": "cf-drawer" });
+  var tutBtn = railBtn("button", ICON.list, L("tutorials"), { "aria-expanded": "false", "aria-controls": "cf-drawer" });
   bar.appendChild(tutBtn);
   var idxBtn = null;
-  if (current) { idxBtn = railBtn("button", ICON.list, L("index"), { "aria-expanded": "false" }); bar.appendChild(idxBtn); }
+  if (current) { idxBtn = railBtn("button", ICON.panel, L("index"), { "aria-expanded": "false" }); bar.appendChild(idxBtn); }
+  // a public page is shared more than it is printed: sharing has the place in the bar, printing stays in the index
+  var shareRailBtn = railBtn("button", ICON.share, L("share"), { "aria-haspopup": "dialog" });
+  bar.appendChild(shareRailBtn);
   var askBtn = cat.requestEndpoint ? railBtn("button", ICON.plus, L("request"), { "aria-haspopup": "dialog" }) : null;
   if (askBtn) bar.appendChild(askBtn);
   bar.appendChild(el("span", "cf-spacer"));
+  if (cat.brand.url) {
+    var host = cat.brand.url.replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "");
+    bar.appendChild(railBtn("a", ICON.web, L("website", { host: host }), { href: cat.brand.url, target: "_blank", rel: "noopener" }));
+  }
   if (offered.length > 1) {
     var native = function (l) {
       try { var n = new Intl.DisplayNames([l], { type: "language" }).of(l); return n.charAt(0).toUpperCase() + n.slice(1); } catch (e) { return l.toUpperCase(); }
@@ -278,8 +311,6 @@
     document.addEventListener("click", function (e) { if (!langBtn.contains(e.target)) { menu.hidden = true; langBtn.setAttribute("aria-expanded", "false"); } });
     bar.appendChild(langBtn);
   }
-  var pdfBtn = null;
-  if (current) { pdfBtn = railBtn("button", ICON.print, L("pdf")); bar.appendChild(pdfBtn); }
   body.insertBefore(bar, body.firstChild);
 
   var drawer = el("aside", "cf-drawer cf-no-print",
@@ -353,43 +384,144 @@
       }, function () { say("err", L("errNetwork")); }).then(function () { send.disabled = false; send.textContent = L("send"); });
     });
   }
+  /* share, from every page: a dialog with the apps and the link to copy. The home shares the site; a video page its video and,
+     once the video has moved on, the chapter to start from (#step-N, which the player already follows) */
+  var shareCtx = { title: current ? current.title : cat.title, chapter: function () { return null; } };
+  var shareDlg = el("dialog", "cf-share-dialog");
+  var APPS = [
+    { id: "whatsapp", name: "WhatsApp", bg: "#25d366", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linejoin="round"><path d="M4.5 19.5l1.2-3.6A8 8 0 1 1 8.6 18.6z"/><path d="M9.2 9.3c.2 2.4 2.6 4.9 5.2 5.4l1-1.2-1.6-.8-.7.7c-.9-.4-1.6-1.1-2-2l.7-.7-.8-1.6z" fill="#fff" stroke-width="1"/></svg>',
+      url: function (u, t) { return "https://wa.me/?text=" + encodeURIComponent(t + " " + u); } },
+    { id: "telegram", name: "Telegram", bg: "#229ed9", glyph: '<svg viewBox="0 0 24 24" fill="#fff"><path d="M20.5 4.5 3.6 11.1c-.9.4-.9 1.2 0 1.5l4.3 1.4 1.6 5c.2.6.9.8 1.4.3l2.4-2.2 4.6 3.4c.6.4 1.3.1 1.5-.6l2.6-13.4c.2-.9-.5-1.5-1.5-1z"/></svg>',
+      url: function (u, t) { return "https://t.me/share/url?url=" + encodeURIComponent(u) + "&text=" + encodeURIComponent(t); } },
+    { id: "linkedin", name: "LinkedIn", bg: "#0a66c2", glyph: '<b>in</b>',
+      url: function (u) { return "https://www.linkedin.com/sharing/share-offsite/?url=" + encodeURIComponent(u); } },
+    { id: "x", name: "X", bg: "#111", glyph: "<b>X</b>",
+      url: function (u, t) { return "https://x.com/intent/post?url=" + encodeURIComponent(u) + "&text=" + encodeURIComponent(t); } },
+    { id: "facebook", name: "Facebook", bg: "#1877f2", glyph: "<b>f</b>",
+      url: function (u) { return "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(u); } },
+    { id: "email", name: L("emailApp"), bg: "#6b7280", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="m3.5 7 8.5 6 8.5-6"/></svg>',
+      url: function (u, t) { return "mailto:?subject=" + encodeURIComponent(t) + "&body=" + encodeURIComponent(t + "\n" + u); } }
+  ];
+  var canNative = typeof navigator.share === "function";
+  shareDlg.innerHTML = '<form method="dialog" class="cf-ask-close"><button aria-label="' + L("close") + '">×</button></form>' +
+    '<h2 id="cf-share-title">' + L("shareTitle") + '</h2><p class="cf-share-what">' + esc(shareCtx.title) + "</p>" +
+    '<div class="cf-share-apps">' + APPS.map(function (a) {
+      return '<a class="cf-share-app" data-app="' + a.id + '" target="_blank" rel="noopener"><i style="background:' + a.bg + '">' + a.glyph + "</i><span>" + esc(a.name) + "</span></a>";
+    }).join("") + (canNative ? '<button type="button" class="cf-share-app" data-native><i class="cf-share-more">•••</i><span>' + L("moreApps") + "</span></button>" : "") + "</div>" +
+    '<div class="cf-share-link"><input readonly aria-label="Link"><button type="button" class="cf-share-copy">' + ICON.copy + L("copy") + "</button></div>" +
+    '<label class="cf-share-start" hidden><input type="checkbox"> <span></span></label>' +
+    '<p class="cf-share-status" role="status"></p>';
+  shareDlg.setAttribute("aria-labelledby", "cf-share-title");
+  body.appendChild(shareDlg);
+  var shareInput = shareDlg.querySelector(".cf-share-link input"), startBox = shareDlg.querySelector(".cf-share-start");
+  var shareStatus = shareDlg.querySelector(".cf-share-status");
+  // the address of this page, as a visitor would type it (a folder, not its index.html, once on a server)
+  var pageUrl = location.href.replace(/[?#].*$/, ""), startStep = 0;
+  if (location.protocol !== "file:") pageUrl = pageUrl.replace(/index\.html$/, "");
+  function shareUrl() { return pageUrl + (startStep && startBox.querySelector("input").checked ? "#step-" + startStep : ""); }
+  function refreshShare() {
+    var u = shareUrl();
+    shareInput.value = u;
+    Array.prototype.forEach.call(shareDlg.querySelectorAll("[data-app]"), function (a) {
+      a.href = APPS.filter(function (x) { return x.id === a.getAttribute("data-app"); })[0].url(u, shareCtx.title);
+    });
+  }
+  function openShare() {
+    // during a video, the chapter on screen can be where the link starts
+    var ch = shareCtx.chapter();
+    startStep = ch ? ch.n : 0;
+    startBox.hidden = !startStep;
+    if (ch) { startBox.querySelector("input").checked = false; startBox.querySelector("span").textContent = L("startAt", ch); }
+    shareStatus.textContent = "";
+    refreshShare();
+    if (typeof shareDlg.showModal === "function") shareDlg.showModal(); else shareDlg.setAttribute("open", "");
+  }
+  startBox.querySelector("input").addEventListener("change", refreshShare);
+  shareDlg.addEventListener("click", function (e) { if (e.target === shareDlg) shareDlg.close(); });
+  shareDlg.querySelector(".cf-share-copy").onclick = function () {
+    var done = function () { shareStatus.textContent = L("copied"); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(shareInput.value).then(done, function () { shareInput.select(); document.execCommand("copy"); done(); });
+    else { shareInput.select(); document.execCommand("copy"); done(); }
+  };
+  var nativeBtn = shareDlg.querySelector("[data-native]");
+  if (nativeBtn) nativeBtn.onclick = function () { navigator.share({ title: shareCtx.title, url: shareUrl() }).catch(function () { /* the visitor closed it */ }); };
+  shareRailBtn.onclick = openShare;
+
   body.classList.add("cf-shell");
 
   // ───────────── home ─────────────
   if (S.page === "home") {
     var main = document.getElementById("cf-home");
+    /* the row an item belongs to (a module, a season) and its facts in one line, as a streaming catalog shows them */
+    var rowTitle = function (it) { var r = cat.rows.filter(function (x) { return x.id === it.row; })[0]; return r ? r.title : ""; };
+    /* the top of the home (featured item, latest releases) sits on the kit's backdrop: a pattern or a picture */
+    var top = el("div", "cf-home-top");
+    var bd = src.backdrop;
+    if (bd && bd.image) {
+      var pattern = !!bd.size;
+      top.classList.add(pattern ? "cf-bd-pattern" : "cf-bd-picture");
+      top.style.setProperty("--cf-bd-image", 'url("' + bd.image + '")');
+      if (pattern) top.style.setProperty("--cf-bd-size", bd.size);
+      var layer = el("div", "cf-bd");
+      layer.setAttribute("aria-hidden", "true");
+      top.appendChild(layer);
+      /* the pattern lights up around the pointer, as on fantastico.cc */
+      if (pattern && bd.glow && window.matchMedia && matchMedia("(hover: hover) and (pointer: fine)").matches) {
+        var glow = el("div", "cf-bd-glow");
+        glow.setAttribute("aria-hidden", "true");
+        if (typeof bd.glow === "string") glow.style.setProperty("--cf-bd-glow", bd.glow);
+        top.appendChild(glow);
+        var raf = 0;
+        top.addEventListener("mousemove", function (e) {
+          if (raf) return;
+          raf = requestAnimationFrame(function () {
+            var r = top.getBoundingClientRect();
+            top.style.setProperty("--cf-mx", e.clientX - r.left + "px");
+            top.style.setProperty("--cf-my", e.clientY - r.top + "px");
+            raf = 0;
+          });
+        });
+        top.addEventListener("mouseleave", function () { top.style.setProperty("--cf-mx", "-9999px"); top.style.setProperty("--cf-my", "-9999px"); });
+      }
+    }
+    main.appendChild(top);
     var f = cat.items.filter(function (it) { return it.id === cat.featured && it.href; })[0];
     if (f) {
       var bb = el("section", "cf-billboard" + (f.poster ? "" : " cf-no-poster"));
       bb.setAttribute("aria-label", L("featured"));
-      var video = f.status === "video";
+      var video = f.status === "video", fRow = rowTitle(f);
       bb.innerHTML = (f.poster ? '<img src="' + esc(f.poster) + '" alt="">' : "") +
-        '<div class="cf-bb-text cf-pad"><p class="cf-kicker">' + L("featured") + (video ? " · " + L("tagVideo") + (f.duration ? " · " + esc(f.duration) : "") : "") + "</p>" +
-        "<h1>" + esc(f.title) + '</h1><p class="cf-bb-desc">' + esc(f.desc) + '</p><div class="cf-btns">' +
+        '<div class="cf-bb-text"><p class="cf-kicker">' + L("featured") + "</p>" + (fRow ? '<p class="cf-bb-row">' + esc(fRow) + "</p>" : "") +
+        "<h1>" + esc(f.title) + '</h1><p class="cf-bb-meta"><span class="cf-bb-badge' + (video ? "" : " cf-bb-badge-guide") + '">' + L(video ? "tagVideo" : "tagGuide") + "</span>" + factsHtml(f, false) + "</p>" +
+        '<p class="cf-bb-desc">' + esc(f.desc) + '</p><div class="cf-btns">' +
         (video ? '<a class="cf-btn cf-primary cf-big-btn" href="' + esc(href(f, "#cf-player")) + '">' + tri(14) + L("watch") + '</a><a class="cf-btn cf-ghost cf-big-btn" href="' + esc(href(f, "#transcript")) + '">' + L("readTranscript") + "</a>"
           : '<a class="cf-btn cf-primary cf-big-btn" href="' + esc(href(f)) + '">' + L("readGuide") + "</a>") + "</div></div>";
-      main.appendChild(bb);
+      top.appendChild(bb);
     }
+    /* latest releases: the catalog's last items first (the catalog grows at its end), as tall cards with the picture on top */
     if (cat.quickAccess && ready.length) {
-      var q = el("section", "cf-sec cf-pad", '<div class="cf-sec-head"><h2>' + L("quick") + '</h2></div><div class="cf-quick"></div>');
-      var box = q.querySelector(".cf-quick");
-      ready.forEach(function (it) {
-        var a = el("a", "cf-qk", "<i>" + (it.icon || '<b class="cf-qk-letter">' + esc(it.title.charAt(0)) + "</b>") + "</i><b>" + esc(it.title) + "</b>");
+      var q = el("section", "cf-sec cf-pad cf-latest", '<div class="cf-sec-head"><h2>' + L("quick") + "</h2></div>");
+      var cards = ready.slice().reverse().map(function (it) {
+        var a = el("a", "cf-lt",
+          '<span class="cf-lt-media">' + media(it) + (it.status === "video" ? '<span class="cf-lt-play" aria-hidden="true">' + ICON.tri + "</span>" : "") + "</span>" +
+          '<span class="cf-lt-body">' + (rowTitle(it) ? "<small>" + esc(rowTitle(it)) + "</small>" : "") + "<b>" + esc(it.title) + "</b><em class=\"cf-facts\">" + factsHtml(it, true) + "</em></span>");
         a.href = href(it, it.status === "video" ? "#cf-player" : "");
-        a.setAttribute("data-kicker", it.kicker || "");
-        box.appendChild(a);
+        return a;
       });
       if (cat.requestEndpoint) {
-        var ask = el("button", "cf-qk cf-ask", '<i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg></i><b>' + L("request") + "</b>");
+        var ask = el("button", "cf-lt cf-ask", '<span class="cf-lt-media"><i aria-hidden="true">+</i></span><span class="cf-lt-body"><b>' + L("request") + "</b><em>" + L("askSub") + "</em></span>");
         ask.type = "button"; ask.onclick = function () { openAsk(); };
-        box.appendChild(ask);
+        cards.push(ask);
       }
-      main.appendChild(q);
+      q.appendChild(rail(cards));
+      top.appendChild(q);
     }
+    /* the rows (modules) are told apart by alternating backgrounds, edge to edge, with no gap between them */
+    var shownRows = 0;
     cat.rows.forEach(function (row) {
       var items = cat.items.filter(function (it) { return it.row === row.id; });
       if (!items.length && !row.askTile) return;
-      var sec = el("section", "cf-sec cf-pad" + (row.band ? " cf-band" : ""));
+      var sec = el("section", "cf-sec cf-pad cf-row" + (shownRows++ % 2 === 0 ? " cf-alt" : "") + (row.band ? " cf-band" : ""));
       sec.id = row.id; sec.setAttribute("aria-label", row.title);
       sec.innerHTML = (row.kicker || row.band ? '<p class="cf-kicker">' + esc(row.kicker || L("soonKicker")) + "</p>" : "") +
         '<div class="cf-sec-head"><h2>' + esc(row.title) + "</h2>" + (row.note ? "<span>" + esc(row.note) + "</span>" : "") + "</div>" +
@@ -434,6 +566,7 @@
     player = window.Cueflow.mount(document.getElementById("cf-player"), S.guide, { fluid: true, lang: playLang, langSelect: false, duration: current.duration, next: nextUp, autoplay: arrivedToPlay });
     if (playLang !== lang) document.getElementById("cf-player").insertAdjacentHTML("beforebegin", '<p class="cf-lang-note">' + esc(L("videoIn", { lang: langName(playLang) })) + "</p>");
     window.__cueflow = player;
+    shareCtx.chapter = function () { var st = player.state(); return st.step > 0 ? { n: st.step + 1, title: player.steps()[st.step] } : null; };
     // the player's transcript becomes a printable section of the page
     var tr = player.element.querySelector(".cf-transcript");
     if (tr && transcriptSec) {
@@ -482,14 +615,17 @@
   }
 
   /* the side index: video (steps, transcript) and in-depth sections, as two accordions */
-  var printable = [];
+  var printable = [], printTitles = {};
   function treeItem(id, title, subs) {
-    printable.push(id);
-    return '<li class="cf-tree-item" data-target="' + esc(id) + '"><div class="cf-tree-row"><a class="cf-page-link" href="#' + esc(id) + '">' + esc(title) + "</a>" +
-      '<input type="checkbox" data-target="' + esc(id) + '" checked title="' + esc(L("include")) + '"></div>' +
+    printable.push(id); printTitles[id] = title;
+    return '<li class="cf-tree-item" data-target="' + esc(id) + '"><div class="cf-tree-row"><a class="cf-page-link" href="#' + esc(id) + '">' + esc(title) + "</a></div>" +
       (subs.length ? '<ul class="cf-sub-tree">' + subs.join("") + "</ul>" : "") + "</li>";
   }
   var html = '<div class="cf-search"><input type="search" placeholder="' + esc(L("search")) + '" aria-label="' + esc(L("search")) + '"></div>';
+  // what can be done with this page, above its index (a long index would push it out of sight): share it, print it
+  html += '<div class="cf-actions" role="group" aria-label="' + esc(L("actions")) + '">' +
+    '<button type="button" class="cf-action-tile" data-share aria-haspopup="dialog"><i>' + ICON.share + "</i><span>" + L("share") + "</span></button>" +
+    '<button type="button" class="cf-action-tile" data-print-open aria-haspopup="dialog"><i>' + ICON.print + "</i><span>" + L("printTitle") + "</span></button></div>";
   if (player) {
     var stepLinks = player.steps().map(function (t, i) { return '<li><a href="#step-' + (i + 1) + '">' + (i + 1) + " · " + esc(t) + "</a></li>"; });
     stepLinks.push('<li><button type="button" class="cf-link-btn" data-download>' + L("downloadTranscript") + "</button></li>");
@@ -502,11 +638,9 @@
         return treeItem(s.id, s.title, s.subs.map(function (h) { return '<li><a href="#' + esc(h.id) + '">' + esc(h.title) + "</a></li>"; }));
       }).join("") + "</ul></details>";
   }
-  html += '<div class="cf-print-panel"><p class="cf-side-label">' + L("printTitle") + '</p><div class="cf-sel-row"><button type="button" class="cf-link-btn" data-all>' + L("selectAll") +
-    '</button><button type="button" class="cf-link-btn" data-none>' + L("selectNone") + '</button></div><button type="button" class="cf-print-btn">' + ICON.print + L("pdf") +
-    '</button><details class="cf-pdf-help"><summary>' + L("howItWorks") + "</summary><p>" + L("printHint") + "</p></details></div>";
   side.innerHTML = html;
   side.classList.add("cf-no-print");
+  side.querySelector("[data-share]").onclick = openShare;
 
   var dl = side.querySelector("[data-download]");
   if (dl) dl.onclick = function () { player.downloadTranscript(); };
@@ -573,8 +707,23 @@
   idxBtn.onclick = function () { setPanel(body.classList.contains("cf-panel-closed"), true); };
   side.addEventListener("click", function (e) { if (narrow() && e.target.closest("a")) setPanel(false, false); });
 
+  /* the print dialog: the sections that go in the PDF (all of them at first), then print */
+  var printDlg = el("dialog", "cf-share-dialog cf-print-dialog cf-no-print",
+    '<form method="dialog" class="cf-ask-close"><button aria-label="' + L("close") + '">×</button></form>' +
+    '<h2 id="cf-print-title">' + L("printTitle") + '</h2><p class="cf-share-what">' + esc(current.title) + "</p>" +
+    '<div class="cf-print-head"><span>' + L("include") + '</span><span><button type="button" class="cf-text-btn" data-all>' + L("selectAll") + '</button> · <button type="button" class="cf-text-btn" data-none>' + L("selectNone") + "</button></span></div>" +
+    '<ul class="cf-print-list">' + printable.map(function (id) {
+      return '<li><label><input type="checkbox" data-target="' + esc(id) + '" checked> <span>' + esc(printTitles[id]) + "</span></label></li>";
+    }).join("") + "</ul>" +
+    '<button type="button" class="cf-share-copy cf-print-btn">' + ICON.print + L("pdf") + "</button>" +
+    '<details class="cf-pdf-help"><summary>' + L("howItWorks") + "</summary><p>" + L("printHint") + "</p></details>");
+  printDlg.setAttribute("aria-labelledby", "cf-print-title");
+  body.appendChild(printDlg);
+  printDlg.addEventListener("click", function (e) { if (e.target === printDlg) printDlg.close(); });
+  side.querySelector("[data-print-open]").onclick = function () { if (typeof printDlg.showModal === "function") printDlg.showModal(); else printDlg.setAttribute("open", ""); };
+
   /* PDF: built in beforeprint, so the browser's own Print gets the same cover and index */
-  var boxes = Array.prototype.slice.call(side.querySelectorAll("input[type=checkbox][data-target]"));
+  var boxes = Array.prototype.slice.call(printDlg.querySelectorAll("input[type=checkbox][data-target]"));
   var coverEl = document.getElementById("cf-print-cover");
   var pending = null;
   var allSections = Array.prototype.slice.call(document.querySelectorAll(".cf-section"));
@@ -602,9 +751,9 @@
     coverEl.innerHTML = "";
   });
   function print(ids) { pending = ids; window.print(); }
-  side.querySelector(".cf-print-btn").onclick = function () { print(selected()); };
-  pdfBtn.onclick = function () { print(selected()); };
-  side.querySelector("[data-all]").onclick = function () { boxes.forEach(function (c) { c.checked = true; }); };
-  side.querySelector("[data-none]").onclick = function () { boxes.forEach(function (c) { c.checked = false; }); };
+  // the dialog closes before the browser's print dialog opens, so it is not in the way (nor in the PDF)
+  printDlg.querySelector(".cf-print-btn").onclick = function () { var ids = selected(); printDlg.close(); print(ids); };
+  printDlg.querySelector("[data-all]").onclick = function () { boxes.forEach(function (c) { c.checked = true; }); };
+  printDlg.querySelector("[data-none]").onclick = function () { boxes.forEach(function (c) { c.checked = false; }); };
   document.addEventListener("click", function (e) { var b = e.target.closest && e.target.closest("[data-print]"); if (b) print([b.getAttribute("data-print")]); });
 })();

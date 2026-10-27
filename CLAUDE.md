@@ -73,6 +73,28 @@ Player model worth knowing before touching it:
   player goes back to its untouched state with the play button, never a silent run.
 - On a docs page the player fits the window by **narrowing** (`--cf-aspect`, set by `mount`, times the available
   height), never by capping the stage height: a capped stage cropped the bottom of every scene on wide screens.
+- Docs home, as a streaming catalog (0.1.53): the featured item is an inset rounded card (`--cf-site-billboard`, a
+  shade darker than the hero on light themes) whose picture fades out through a **mask on the image itself**, so no
+  edge of a poster can show; under the title, the row it belongs to and its facts (type, length, chapters) as icons.
+  "Latest releases" (label `quick`) are tall cards, the catalog's last items first, title running up the left side.
+  Rows alternate `--cf-site-row-alt` edge to edge (no borders, no gaps). Covers in lists rest at
+  `--cf-site-cover-opacity` under a veil (`--cf-site-cover-shade`) and come to full strength on hover.
+- `site.json` `backdrop` (site only, not the theme: the theme is also inlined in standalone guides): an image of the
+  kit behind the top of the home; with `size` it is a pattern whose **shape** counts (drawn in
+  `--cf-site-backdrop-ink`, optional `glow` around the pointer), without it a picture. `favicon` is also the left bar's
+  logo when `brand.logo` is absent; `brand.url` has its own button at the foot of the bar (the logo leads home).
+- Calls to action use `--cf-site-cta` (default: the primary), never the primary directly: on most themes the primary
+  is also the headings' color, so a brand color there would turn every title. Status badges are filled, one color per
+  status (`--cf-site-tag-{video,guide,soon}-bg/-fg`).
+- Item page actions (share, print) are two tiles above the index, each opening a dialog. Share: the apps' web
+  intents, the link to copy, `navigator.share` where it exists, and "start at chapter N" (`#step-N`) once the video has
+  moved on; the dialog lives in the shell, so the home shares the site. Print: the sections to include (the index has
+  links only), then `window.print()`.
+- Link cards: every page carries og:/twitter: tags written by `site.ts` in **`site.lang`** (a crawler asks for no
+  language, so the visitors' fallback does not apply); pictures need site.json `url` (warning without it). The home
+  card uses site.json `description`, else the featured item's.
+- Hidden words for screen readers (`.cf-sr`) are absolutely positioned: keep a positioned ancestor inside a scrolling
+  row (`.cf-fact`, `.cf-rail` are), or they escape its clipping and widen the page.
 
 ## Commands
 
