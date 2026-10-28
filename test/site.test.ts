@@ -111,6 +111,38 @@ describe("site", () => {
     }
   });
 
+  it("loads the scripts first, then the tag manager, on every page; without either the page has neither", async () => {
+    const original = await readFile(siteFile(kit), "utf8");
+    try {
+      const plain = await buildSite(kit, { provider: null });
+      for (const p of plain.pages) {
+        const html = await readFile(path.join(plain.dir, p), "utf8");
+        assert.ok(!/googletagmanager/.test(html), `${p} has no tag manager when site.json names none`);
+      }
+      await writeFile(siteFile(kit), JSON.stringify(await withSite((s) => {
+        s.tagManager = "GTM-ABC1234";
+        s.scripts = ["https://consent.example.com/banner.js"];
+      })));
+      const r = await buildSite(kit, { provider: null });
+      for (const p of r.pages) {
+        const html = await readFile(path.join(r.dir, p), "utf8");
+        const consent = html.indexOf('<script src="https://consent.example.com/banner.js"></script>');
+        const gtm = html.indexOf("googletagmanager.com/gtm.js?id='+i;");
+        assert.ok(consent > 0 && gtm > consent && gtm < html.indexOf("</head>"), `${p}: the consent script comes before the tag manager, both in the head`);
+        assert.match(html, /'dataLayer','GTM-ABC1234'/);
+        assert.match(html, /<body class="cf-site">\n<noscript><iframe src="https:\/\/www\.googletagmanager\.com\/ns\.html\?id=GTM-ABC1234"/);
+        assert.match(html, /location\.protocol==="file:"\|\|h==="localhost"/, "never on this machine");
+      }
+    } finally {
+      await writeFile(siteFile(kit), original);
+    }
+  });
+
+  it("refuses a tag manager id that is not one", async () => {
+    const site = await withSite((s) => { s.tagManager = "G-ABC1234"; });
+    assert.equal(Site.safeParse(site).success, false);
+  });
+
   it("proposes what follows in the catalog, row by row: videos and written guides alike, never an announced item", async () => {
     const original = await readFile(siteFile(kit), "utf8");
     try {

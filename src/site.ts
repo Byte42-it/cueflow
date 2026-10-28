@@ -250,7 +250,19 @@ export async function buildSite(kit: Kit, opts: { provider?: TtsProvider | null;
     )
   };
 
+  /* A tag manager on a published site only: a preview opened from disk, Studio or a local server would count the
+     author's own visits. The guard runs in the page because the same build is often looked at locally first. */
+  const tagManager = site.tagManager
+    ? `<script>(function(w,d,s,l,i){var h=location.hostname;if(location.protocol==="file:"||h==="localhost"||/^127\\./.test(h)||h==="[::1]")return;` +
+      `w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);` +
+      `j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${site.tagManager}');</script>\n`
+    : "";
+  const tagManagerNoscript = site.tagManager
+    ? `<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${site.tagManager}" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>\n`
+    : "";
   const head =
+    site.scripts.map((src) => `<script src="${escapeHtml(src)}"></script>\n`).join("") +
+    tagManager +
     (favicon ? `<link rel="icon" href="${favicon}">\n` : "") +
     site.stylesheets.map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}">\n`).join("");
   /* The card a chat or a social network draws for a shared link (title, line, picture). Read from the HTML as written,
@@ -290,7 +302,7 @@ ${card}
 ${head}<link rel="stylesheet" href="${root}assets/cueflow.css">
 </head>
 <body class="cf-site">
-${body}
+${tagManagerNoscript}${body}
 <noscript><p style="padding:24px;font:16px sans-serif">This page needs JavaScript.</p></noscript>
 <script>${DIAGNOSTIC}</script>
 <script>window.CUEFLOW_SITE = ${embed(data)};</script>

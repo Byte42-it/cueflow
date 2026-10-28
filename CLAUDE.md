@@ -93,6 +93,14 @@ Player model worth knowing before touching it:
 - Link cards: every page carries og:/twitter: tags written by `site.ts` in **`site.lang`** (a crawler asks for no
   language, so the visitors' fallback does not apply); pictures need site.json `url` (warning without it). The home
   card uses site.json `description`, else the featured item's.
+- Analytics (0.1.54): site.json `tagManager` (GTM id) and `scripts` (remote scripts before it, e.g. a consent banner)
+  are written into every page's head by `site.ts`; the GTM snippet itself returns early on `file:`, localhost,
+  127.* and [::1], so previews never count. `site.js` `track()` pushes to `window.dataLayer` only if it exists: a
+  `cueflow_page` first (the Google tag waits for it, so `page_lang` is known), clicks on `[data-cf-cta]` as
+  `cueflow_cta` with `cta_id = "cta-" + value` (prefixed `drawer-` inside the drawer, where the same tiles repeat;
+  ids would collide, hence the attribute), the player's DOM events (`cueflow:play`/`progress`/`ended`, emitted only
+  while playing) as `cueflow_video_*`. Never push what a visitor typed. A new link worth counting gets a
+  `data-cf-cta`; event names are a contract with the containers already published, do not rename them.
 - Hidden words for screen readers (`.cf-sr`) are absolutely positioned: keep a positioned ancestor inside a scrolling
   row (`.cf-fact`, `.cf-rail` are), or they escape its clipping and widen the page.
 
@@ -116,7 +124,7 @@ Env: `OPENAI_API_KEY` (enables TTS), `CUEFLOW_TTS=none|openai|say|command`, `CUE
 `CUEFLOW_TTS_MODEL`, `CUEFLOW_TTS_VOICE`, `CUEFLOW_KIT`, `CUEFLOW_CHROMIUM` (browser executable when Playwright's own
 Chromium build is not installed).
 
-## Pending (2026-10-27): 0.1.53 is on `main` but NOT on npm yet
+## Pending (2026-10-27): 0.1.53 is on `main` but NOT on npm yet (0.1.54, analytics, follows it)
 
 > **Whoever picks this up next — Luca first — publish it.** `3787555` (docs site layout: streaming-style home,
 > share/print dialogs, link cards, `backdrop`, `--cf-site-cta`) was merged and pushed, and the Academy
@@ -127,7 +135,7 @@ Chromium build is not installed).
 > machine's `~/.npmrc` is for the GitLab registry, `@byte42`, and is not valid on npmjs):
 > ```bash
 > git pull && npm ci && npm publish   # on main; prepack builds, access public is in package.json
-> npm view @byte-42/cueflow version   # must say 0.1.53
+> npm view @byte-42/cueflow version   # must say the version in package.json
 > ```
 > Then delete this section.
 >

@@ -216,6 +216,15 @@ export const Site = z.object({
     .default("light")
     .describe("the site's built-in colors: light, dark, or auto to follow the visitor's system; a theme's own :root colors always win"),
   stylesheets: z.array(z.string().url()).default([]).describe("remote stylesheets linked from every page, e.g. web fonts used by the theme"),
+  scripts: z
+    .array(z.string().url())
+    .default([])
+    .describe("remote scripts loaded first in every page, in this order and before the tag manager, e.g. a cookie consent banner"),
+  tagManager: z
+    .string()
+    .regex(/^GTM-[A-Z0-9]+$/, "a Google Tag Manager container id looks like GTM-ABC1234")
+    .optional()
+    .describe("Google Tag Manager container id (GTM-…): loaded on every page except on this machine, and fed the site's events (see the README)"),
   url: z.string().url().optional().describe("where the site is published, e.g. https://help.example.com: lets the build tell whether the request endpoint must allow it (CORS)"),
   requestEndpoint: z
     .string()

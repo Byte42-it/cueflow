@@ -25,6 +25,24 @@
   }
   var lang = chooseLang();
   document.documentElement.lang = lang;
+
+  /* events for a tag manager (site.json "tagManager"), pushed only when its dataLayer exists: a site without one, or a
+     preview on this machine (where the tag manager does not load), pushes nothing. Ids and keys only, never what a
+     visitor typed. */
+  function track(event, params) {
+    var dl = window.dataLayer;
+    if (!dl || typeof dl.push !== "function") return;
+    var e = { event: event, page_lang: lang };
+    Object.keys(params || {}).forEach(function (k) { e[k] = params[k]; });
+    dl.push(e);
+  }
+  function cta(name) { return ' data-cf-cta="' + esc(name) + '"'; }
+  // a link or button worth counting carries data-cf-cta; the same tile in the tutorials drawer counts apart
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest && e.target.closest("[data-cf-cta]");
+    if (!t) return;
+    track("cueflow_cta", { cta_id: "cta-" + (t.closest(".cf-drawer") ? "drawer-" : "") + t.getAttribute("data-cf-cta") });
+  }, true);
   function P(v) { return v == null || typeof v !== "object" || Array.isArray(v) ? v : v[lang] != null ? v[lang] : v[fallback] != null ? v[fallback] : v[Object.keys(v)[0]]; }
 
   /* the catalog in the chosen language: from here on every text is a plain string */
@@ -142,6 +160,8 @@
   var ready = cat.items.filter(function (it) { return it.status !== "soon"; });
   var soon = cat.items.filter(function (it) { return it.status === "soon"; });
   var current = S.page === "item" ? cat.items.filter(function (it) { return it.id === S.item; })[0] : null;
+  // first event of every page: the tag manager can wait for it, so the language is known before anything is counted
+  track("cueflow_page", { page_type: S.page, item_id: current ? current.id : undefined });
   var href = function (it, hash) { return root + it.href + (hash || ""); };
 
   // ───────────── tiles ─────────────
@@ -156,7 +176,7 @@
       : isSoon ? '<span class="cf-tag cf-tag-soon">' + L("tagSoon") + "</span>" : '<span class="cf-tag cf-tag-light">' + L("tagGuide") + "</span>";
     var cta = video ? L("ctaVideo") : isSoon ? "" : L("ctaGuide");
     var t = el(it.href ? "a" : "div", "cf-tile" + (isSoon ? " cf-soon" : ""));
-    if (it.href) t.href = href(it, video ? "#cf-player" : ""); else t.tabIndex = 0;
+    if (it.href) { t.href = href(it, video ? "#cf-player" : ""); t.setAttribute("data-cf-cta", "tile-" + it.id); } else t.tabIndex = 0;
     t._item = it;
     t.innerHTML = '<div class="cf-tile-media">' + media(it) + tag + (video ? '<span class="cf-tile-play" aria-hidden="true">' + ICON.tri + "</span>" : "") +
       '<div class="cf-tile-info">' + esc(it.desc) + (cta ? "<em>" + cta + "</em>" : "") + "</div></div>" +
@@ -167,6 +187,7 @@
     var a = el("a", "cf-tile cf-ask", '<div class="cf-tile-media"><span><i aria-hidden="true">+</i>' + L("request") + "</span></div>" +
       '<p class="cf-tile-title">' + L("askTitle") + '</p><p class="cf-tile-sub">' + L("askSub") + "</p>");
     a.href = "#request";
+    a.setAttribute("data-cf-cta", "request-tile");
     return a;
   }
   function rail(nodes) {
@@ -198,10 +219,10 @@
     var steps = it.chapters.length ? '<ol class="cf-pv-steps">' + it.chapters.map(function (c) { return "<li>" + esc(c) + "</li>"; }).join("") + "</ol>" : "";
     var list = it.contents.length ? '<ul class="cf-pv-list">' + it.contents.map(function (c) { return "<li>" + ICON.check + "<span>" + esc(c) + "</span></li>"; }).join("") + "</ul>" : "";
     var btns = video
-      ? '<a class="cf-btn cf-primary" href="' + esc(href(it, "#cf-player")) + '">' + tri(12) + L("watch") + '</a><a class="cf-btn" href="' + esc(href(it, "#transcript")) + '">' + L("transcript") + '</a><a class="cf-btn" href="' + esc(href(it)) + '">' + L("guide") + "</a>"
-      : '<a class="cf-btn cf-primary" href="' + esc(href(it)) + '">' + L("readGuide") + "</a>";
+      ? '<a class="cf-btn cf-primary" href="' + esc(href(it, "#cf-player")) + '"' + cta("preview-watch-" + it.id) + ">" + tri(12) + L("watch") + '</a><a class="cf-btn" href="' + esc(href(it, "#transcript")) + '"' + cta("preview-transcript-" + it.id) + ">" + L("transcript") + '</a><a class="cf-btn" href="' + esc(href(it)) + '"' + cta("preview-guide-" + it.id) + ">" + L("guide") + "</a>"
+      : '<a class="cf-btn cf-primary" href="' + esc(href(it)) + '"' + cta("preview-read-" + it.id) + ">" + L("readGuide") + "</a>";
     var p = el("div", "cf-pv",
-      '<a class="cf-pv-media" href="' + esc(href(it, video ? "#cf-player" : "")) + '" tabindex="-1">' + (it.poster ? '<img src="' + esc(root + it.poster) + '" alt="">' : cover(it)) +
+      '<a class="cf-pv-media" href="' + esc(href(it, video ? "#cf-player" : "")) + '" tabindex="-1"' + cta("preview-media-" + it.id) + ">" + (it.poster ? '<img src="' + esc(root + it.poster) + '" alt="">' : cover(it)) +
       (video ? '<span class="cf-pv-play">' + ICON.tri + "</span>" : "") + "</a>" +
       '<div class="cf-pv-body"><p class="cf-pv-kicker">' + esc(it.kicker || "") + '</p><p class="cf-pv-title">' + esc(it.title) + "</p>" +
       '<div class="cf-chips">' + chips + '</div><p class="cf-pv-desc">' + esc(it.desc) + "</p>" + steps + list + '<div class="cf-btns">' + btns + "</div></div>");
@@ -269,24 +290,24 @@
   // the home is the folder's address (published at the root that is "/"); opened from disk there is no server to pick index.html
   var homeHref = location.protocol === "file:" ? root + "index.html" : root || "./";
   // the logo leads home; the product's own site has a button of its own, at the foot of the bar
-  logo.href = homeHref; logo.setAttribute("aria-label", cat.brand.name || cat.title);
+  logo.href = homeHref; logo.setAttribute("aria-label", cat.brand.name || cat.title); logo.setAttribute("data-cf-cta", "rail-logo");
   bar.appendChild(logo);
-  var homeBtn = railBtn("a", ICON.home, L("home"), { href: homeHref });
+  var homeBtn = railBtn("a", ICON.home, L("home"), { href: homeHref, "data-cf-cta": "rail-home" });
   if (S.page === "home") homeBtn.setAttribute("aria-current", "page");
   bar.appendChild(homeBtn);
-  var tutBtn = railBtn("button", ICON.list, L("tutorials"), { "aria-expanded": "false", "aria-controls": "cf-drawer" });
+  var tutBtn = railBtn("button", ICON.list, L("tutorials"), { "aria-expanded": "false", "aria-controls": "cf-drawer", "data-cf-cta": "rail-tutorials" });
   bar.appendChild(tutBtn);
   var idxBtn = null;
-  if (current) { idxBtn = railBtn("button", ICON.panel, L("index"), { "aria-expanded": "false" }); bar.appendChild(idxBtn); }
+  if (current) { idxBtn = railBtn("button", ICON.panel, L("index"), { "aria-expanded": "false", "data-cf-cta": "rail-index" }); bar.appendChild(idxBtn); }
   // a public page is shared more than it is printed: sharing has the place in the bar, printing stays in the index
-  var shareRailBtn = railBtn("button", ICON.share, L("share"), { "aria-haspopup": "dialog" });
+  var shareRailBtn = railBtn("button", ICON.share, L("share"), { "aria-haspopup": "dialog", "data-cf-cta": "rail-share" });
   bar.appendChild(shareRailBtn);
-  var askBtn = cat.requestEndpoint ? railBtn("button", ICON.plus, L("request"), { "aria-haspopup": "dialog" }) : null;
+  var askBtn = cat.requestEndpoint ? railBtn("button", ICON.plus, L("request"), { "aria-haspopup": "dialog", "data-cf-cta": "rail-request" }) : null;
   if (askBtn) bar.appendChild(askBtn);
   bar.appendChild(el("span", "cf-spacer"));
   if (cat.brand.url) {
     var host = cat.brand.url.replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "");
-    bar.appendChild(railBtn("a", ICON.web, L("website", { host: host }), { href: cat.brand.url, target: "_blank", rel: "noopener" }));
+    bar.appendChild(railBtn("a", ICON.web, L("website", { host: host }), { href: cat.brand.url, target: "_blank", rel: "noopener", "data-cf-cta": "rail-website" }));
   }
   if (offered.length > 1) {
     var native = function (l) {
@@ -302,7 +323,7 @@
       var pickBtn = e.target.closest && e.target.closest("[data-lang]");
       if (pickBtn) {
         try { localStorage.setItem(LANG_KEY, pickBtn.getAttribute("data-lang")); } catch (err) { /* this visit only */ }
-        if (pickBtn.getAttribute("data-lang") !== lang) location.reload();
+        if (pickBtn.getAttribute("data-lang") !== lang) { track("cueflow_language_change", { page_lang: pickBtn.getAttribute("data-lang"), previous_lang: lang }); location.reload(); }
         return;
       }
       menu.hidden = !menu.hidden;
@@ -318,7 +339,7 @@
     '<p class="cf-drawer-title">' + L("availableTitle") + '</p><div class="cf-drawer-list"></div>' +
     (soon.length ? '<p class="cf-drawer-title">' + L("tagSoon") + '</p><ul class="cf-drawer-soon">' +
       soon.map(function (it) { return "<li><span>" + esc(it.title) + "</span><small>" + esc(it.kicker || "") + "</small></li>"; }).join("") + "</ul>" : "") +
-    '<div class="cf-drawer-links"><a href="' + homeHref + '">' + L("allTutorials") + "</a>" + (askBtn ? '<a href="#request">' + L("requestLink") + "</a>" : "") + "</div>");
+    '<div class="cf-drawer-links"><a href="' + homeHref + '"' + cta("all") + ">" + L("allTutorials") + "</a>" + (askBtn ? '<a href="#request"' + cta("request") + ">" + L("requestLink") + "</a>" : "") + "</div>");
   drawer.id = "cf-drawer";
   drawer.setAttribute("aria-label", L("tutorials"));
   ready.forEach(function (it) { drawer.querySelector(".cf-drawer-list").appendChild(tile(it)); });
@@ -379,7 +400,7 @@
         body: JSON.stringify({ topic: topic, message: f.message.value.trim() || undefined, name: f.name.value.trim() || undefined,
           email: email || undefined, company: f.company.value || undefined, page: location.pathname })
       }).then(function (res) {
-        if (res.ok) { form.reset(); say("ok", L("ok")); }
+        if (res.ok) { form.reset(); say("ok", L("ok")); track("cueflow_request_sent"); }
         else say("err", res.status === 429 ? L("err429") : res.status === 422 ? L("err422") : L("errGeneric"));
       }, function () { say("err", L("errNetwork")); }).then(function () { send.disabled = false; send.textContent = L("send"); });
     });
@@ -406,9 +427,9 @@
   shareDlg.innerHTML = '<form method="dialog" class="cf-ask-close"><button aria-label="' + L("close") + '">×</button></form>' +
     '<h2 id="cf-share-title">' + L("shareTitle") + '</h2><p class="cf-share-what">' + esc(shareCtx.title) + "</p>" +
     '<div class="cf-share-apps">' + APPS.map(function (a) {
-      return '<a class="cf-share-app" data-app="' + a.id + '" target="_blank" rel="noopener"><i style="background:' + a.bg + '">' + a.glyph + "</i><span>" + esc(a.name) + "</span></a>";
-    }).join("") + (canNative ? '<button type="button" class="cf-share-app" data-native><i class="cf-share-more">•••</i><span>' + L("moreApps") + "</span></button>" : "") + "</div>" +
-    '<div class="cf-share-link"><input readonly aria-label="Link"><button type="button" class="cf-share-copy">' + ICON.copy + L("copy") + "</button></div>" +
+      return '<a class="cf-share-app" data-app="' + a.id + '"' + cta("share-" + a.id) + ' target="_blank" rel="noopener"><i style="background:' + a.bg + '">' + a.glyph + "</i><span>" + esc(a.name) + "</span></a>";
+    }).join("") + (canNative ? '<button type="button" class="cf-share-app" data-native' + cta("share-native") + '><i class="cf-share-more">•••</i><span>' + L("moreApps") + "</span></button>" : "") + "</div>" +
+    '<div class="cf-share-link"><input readonly aria-label="Link"><button type="button" class="cf-share-copy"' + cta("share-copy") + '>' + ICON.copy + L("copy") + "</button></div>" +
     '<label class="cf-share-start" hidden><input type="checkbox"> <span></span></label>' +
     '<p class="cf-share-status" role="status"></p>';
   shareDlg.setAttribute("aria-labelledby", "cf-share-title");
@@ -494,8 +515,8 @@
         '<div class="cf-bb-text"><p class="cf-kicker">' + L("featured") + "</p>" + (fRow ? '<p class="cf-bb-row">' + esc(fRow) + "</p>" : "") +
         "<h1>" + esc(f.title) + '</h1><p class="cf-bb-meta"><span class="cf-bb-badge' + (video ? "" : " cf-bb-badge-guide") + '">' + L(video ? "tagVideo" : "tagGuide") + "</span>" + factsHtml(f, false) + "</p>" +
         '<p class="cf-bb-desc">' + esc(f.desc) + '</p><div class="cf-btns">' +
-        (video ? '<a class="cf-btn cf-primary cf-big-btn" href="' + esc(href(f, "#cf-player")) + '">' + tri(14) + L("watch") + '</a><a class="cf-btn cf-ghost cf-big-btn" href="' + esc(href(f, "#transcript")) + '">' + L("readTranscript") + "</a>"
-          : '<a class="cf-btn cf-primary cf-big-btn" href="' + esc(href(f)) + '">' + L("readGuide") + "</a>") + "</div></div>";
+        (video ? '<a class="cf-btn cf-primary cf-big-btn" href="' + esc(href(f, "#cf-player")) + '"' + cta("featured-watch-" + f.id) + ">" + tri(14) + L("watch") + '</a><a class="cf-btn cf-ghost cf-big-btn" href="' + esc(href(f, "#transcript")) + '"' + cta("featured-transcript-" + f.id) + ">" + L("readTranscript") + "</a>"
+          : '<a class="cf-btn cf-primary cf-big-btn" href="' + esc(href(f)) + '"' + cta("featured-read-" + f.id) + ">" + L("readGuide") + "</a>") + "</div></div>";
       top.appendChild(bb);
     }
     /* latest releases: the catalog's last items first (the catalog grows at its end), as tall cards with the picture on top */
@@ -506,11 +527,12 @@
           '<span class="cf-lt-media">' + media(it) + (it.status === "video" ? '<span class="cf-lt-play" aria-hidden="true">' + ICON.tri + "</span>" : "") + "</span>" +
           '<span class="cf-lt-body">' + (rowTitle(it) ? "<small>" + esc(rowTitle(it)) + "</small>" : "") + "<b>" + esc(it.title) + "</b><em class=\"cf-facts\">" + factsHtml(it, true) + "</em></span>");
         a.href = href(it, it.status === "video" ? "#cf-player" : "");
+        a.setAttribute("data-cf-cta", "latest-" + it.id);
         return a;
       });
       if (cat.requestEndpoint) {
         var ask = el("button", "cf-lt cf-ask", '<span class="cf-lt-media"><i aria-hidden="true">+</i></span><span class="cf-lt-body"><b>' + L("request") + "</b><em>" + L("askSub") + "</em></span>");
-        ask.type = "button"; ask.onclick = function () { openAsk(); };
+        ask.type = "button"; ask.setAttribute("data-cf-cta", "latest-request"); ask.onclick = function () { openAsk(); };
         cards.push(ask);
       }
       q.appendChild(rail(cards));
@@ -566,6 +588,10 @@
     player = window.Cueflow.mount(document.getElementById("cf-player"), S.guide, { fluid: true, lang: playLang, langSelect: false, duration: current.duration, next: nextUp, autoplay: arrivedToPlay });
     if (playLang !== lang) document.getElementById("cf-player").insertAdjacentHTML("beforebegin", '<p class="cf-lang-note">' + esc(L("videoIn", { lang: langName(playLang) })) + "</p>");
     window.__cueflow = player;
+    var playerBox = document.getElementById("cf-player"), videoKey = { video_id: current.id };
+    playerBox.addEventListener("cueflow:play", function (e) { if (e.detail.first) track("cueflow_video_start", videoKey); });
+    playerBox.addEventListener("cueflow:progress", function (e) { track("cueflow_video_progress", { video_id: current.id, video_percent: e.detail.percent }); });
+    playerBox.addEventListener("cueflow:ended", function () { track("cueflow_video_complete", videoKey); });
     shareCtx.chapter = function () { var st = player.state(); return st.step > 0 ? { n: st.step + 1, title: player.steps()[st.step] } : null; };
     // the player's transcript becomes a printable section of the page
     var tr = player.element.querySelector(".cf-transcript");
@@ -609,6 +635,7 @@
     var goLink = el("a", "cf-up-next-card cf-no-print",
       "<span>" + esc(goParts[0]) + "<b>" + esc(P(S.next.title)) + "</b>" + esc(goParts.slice(1).join("")) + '</span><i aria-hidden="true">→</i>');
     goLink.href = S.next.href + PLAY_ON_ARRIVAL;
+    goLink.setAttribute("data-cf-cta", "next-guide");
     // inside the article, so it takes the text's width; a page with no text at all puts it before the footer
     if (artBox) artBox.appendChild(goLink);
     else { var mainBox = document.querySelector(".cf-main"); mainBox.insertBefore(goLink, mainBox.querySelector(".cf-foot")); }
@@ -624,8 +651,8 @@
   var html = '<div class="cf-search"><input type="search" placeholder="' + esc(L("search")) + '" aria-label="' + esc(L("search")) + '"></div>';
   // what can be done with this page, above its index (a long index would push it out of sight): share it, print it
   html += '<div class="cf-actions" role="group" aria-label="' + esc(L("actions")) + '">' +
-    '<button type="button" class="cf-action-tile" data-share aria-haspopup="dialog"><i>' + ICON.share + "</i><span>" + L("share") + "</span></button>" +
-    '<button type="button" class="cf-action-tile" data-print-open aria-haspopup="dialog"><i>' + ICON.print + "</i><span>" + L("printTitle") + "</span></button></div>";
+    '<button type="button" class="cf-action-tile" data-share' + cta("action-share") + ' aria-haspopup="dialog"><i>' + ICON.share + "</i><span>" + L("share") + "</span></button>" +
+    '<button type="button" class="cf-action-tile" data-print-open' + cta("action-print") + ' aria-haspopup="dialog"><i>' + ICON.print + "</i><span>" + L("printTitle") + "</span></button></div>";
   if (player) {
     var stepLinks = player.steps().map(function (t, i) { return '<li><a href="#step-' + (i + 1) + '">' + (i + 1) + " · " + esc(t) + "</a></li>"; });
     stepLinks.push('<li><button type="button" class="cf-link-btn" data-download>' + L("downloadTranscript") + "</button></li>");

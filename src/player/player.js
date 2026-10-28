@@ -94,7 +94,7 @@
     var veilTitle = $(".cf-veil-text strong"), veilNote = $(".cf-veil-text span");
     // the next video, proposed over the picture when this one ends (a docs site passes it; a lone guide has none)
     var nextLink = $(".cf-up-next");
-    if (options.next && options.next.href) nextLink.href = options.next.href;
+    if (options.next && options.next.href) { nextLink.href = options.next.href; nextLink.setAttribute("data-cf-cta", "next-video"); }
     else nextLink.remove();
     // the Cueflow mark: over the picture by default; in the control bar it never covers the scene
     var brand = $(".cf-brand");
@@ -125,6 +125,13 @@
     var cam = null; // last camera spec
     var cur = null; // { i, t, total, narrDur, actions[], audio, speaking }
     var playing = false;
+    /* what a page around the player may want to count (a docs site turns these into analytics events): DOM events on
+       the mount root, cueflow:play (first: the first one of this mount), cueflow:progress at 25/50/75% of the bar
+       (once each), cueflow:ended. Only while playing: seeks and the instant replay of earlier steps send nothing. */
+    var played = false, reached = {};
+    function emit(name, detail) {
+      try { root.dispatchEvent(new CustomEvent("cueflow:" + name, { bubbles: true, detail: detail || {} })); } catch (e) { /* an old browser: nothing to count */ }
+    }
     var loading = false;
     var last = 0;
     var raf = 0;
@@ -477,6 +484,7 @@
     function setPlaying(v) {
       playing = v;
       if (v) app.classList.add("cf-started"); // themes can style the untouched player (veil, poster) apart from a paused one
+      if (v) { emit("play", { first: !played }); played = true; }
       app.classList.toggle("cf-playing", v);
       playBtn.innerHTML = v ? ICON_PAUSE : ICON_PLAY;
       playBtn.setAttribute("aria-label", v ? L("pause") : L("play"));
@@ -496,7 +504,9 @@
       var done = 0, total = 0;
       steps.forEach(function (_, i) { total += 1; if (cur && i < cur.i) done += 1; });
       var within = cur && cur.total ? Math.min(1, cur.t / cur.total) : 0;
-      fill.style.width = ((done + within) / Math.max(total, 1)) * 100 + "%";
+      var percent = ((done + within) / Math.max(total, 1)) * 100;
+      fill.style.width = percent + "%";
+      if (playing) [25, 50, 75].forEach(function (m) { if (percent >= m && !reached[m]) { reached[m] = true; emit("progress", { percent: m }); } });
       var seg = chapters.children[cur ? cur.i : 0];
       if (seg) seg.firstChild.firstChild.style.width = within * 100 + "%";
     }
@@ -514,7 +524,7 @@
       if (cur.t >= cur.total && !waitVoice) {
         if (cur.audio) cur.audio.pause();
         var next = cur.i + 1;
-        if (next >= steps.length) { setPlaying(false); app.classList.add("cf-ended"); showCaption(""); paintChapters(); paintVeil(); return; }
+        if (next >= steps.length) { setPlaying(false); app.classList.add("cf-ended"); showCaption(""); paintChapters(); paintVeil(); emit("ended"); return; }
         loading = true;
         enterStep(next, false).then(function () { loading = false; last = performance.now(); });
       }
