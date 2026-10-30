@@ -186,7 +186,7 @@ export function createServer(kit: Kit): McpServer {
     "generate_portrait",
     {
       description:
-        "Draw the narrator from words (an OpenRouter image model, paid with the Fantastico key): a picture saved in the kit (shared/avatar/portrait-<hash>.png) to use as `image` of set_avatar, for the provider image (a swaying picture) or fantastico (a video of the person saying every step, made at build by HeyGen Avatar IV on OpenRouter, with its own voice). Describe who they are, how they look and the framing: head and shoulders, facing the camera, plain background. Only when the user asks for a narrator they do not have a picture of.",
+        "Draw the narrator from words (an image model through Fantastico, paid with its key): a picture saved in the kit (shared/avatar/portrait-<hash>.png) to use as `image` of set_avatar, for the provider image (a swaying picture) or fantastico (a video of the person saying every step, made at build by HeyGen Avatar IV through Fantastico, with its own voice). Describe who they are, how they look and the framing: head and shoulders, facing the camera, plain background. Only when the user asks for a narrator they do not have a picture of.",
       inputSchema: { prompt: z.string().min(3), style: z.string().optional().describe("photo, illustration, flat cartoon…") }
     },
     safe(async ({ prompt, style }) => {
