@@ -245,7 +245,7 @@ export function createServer(kit: Kit): McpServer {
     "add_step",
     {
       description:
-        "Add a step to a guide (at the end, or at `index`). A step has a camera (what is framed), actions on the scene's elements (cursor, clicks, typing, highlights, progress animations) and a narration per language. Selectors are checked right away against the scene.",
+        "Add a step to a guide (at the end, or at `index`). A step has a camera (what is framed), actions on the scene's elements (cursor, clicks, typing, highlights, reveals with an entrance and a stagger, animated state changes, counters, progress animations) and a narration per language. Selectors are checked right away against the scene; see the Motion section of get_method for when to use which.",
       inputSchema: { guide: guideId, step: Step, index: z.number().int().min(0).optional() }
     },
     safe(async ({ guide, step, index }) => {

@@ -98,7 +98,8 @@ export function estimateStepDuration(step: Guide["steps"][number], lang: string)
   let end = 0;
   for (const a of step.actions) {
     const at = typeof a.at === "string" ? (parseFloat(a.at) / 100) * narr : a.at;
-    end = Math.max(end, at + ("duration" in a ? a.duration : a.do === "click" ? 350 : 0));
+    // a stagger adds time per matched element, unknown without the scene: the player measures it, this estimate does not
+    end = Math.max(end, at + (a.do === "click" ? 350 : "animate" in a && a.animate != null ? a.animate : "duration" in a ? a.duration : 0));
   }
   return { narration: narr, total: Math.max(narr, end) + step.hold };
 }

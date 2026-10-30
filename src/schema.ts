@@ -11,6 +11,26 @@ const at = z
   .describe('start time: ms from the start of the step, or "40%" of the narration length');
 const duration = (def: number) => z.number().min(0).default(def).describe("duration in ms");
 
+/** How a motion accelerates. Every action has its own default; a name is enough, cubic-bezier for the rare special case. */
+export const EASINGS = ["linear", "ease", "ease-in", "ease-out", "ease-in-out", "spring"] as const;
+const easing = z
+  .union([z.enum(EASINGS), z.string().regex(/^cubic-bezier\(\s*[-\d.]+\s*,\s*[-\d.]+\s*,\s*[-\d.]+\s*,\s*[-\d.]+\s*\)$/)])
+  .optional()
+  .describe("how the motion accelerates: ease-out for what appears, ease-in-out for what moves, spring for controls; omit for the action's default");
+/** How an element appears or goes away. */
+export const EFFECTS = ["none", "fade", "slide-up", "slide-down", "slide-left", "slide-right", "scale"] as const;
+const effect = z.enum(EFFECTS);
+const stagger = z
+  .number()
+  .min(0)
+  .optional()
+  .describe("ms between elements when the selector matches several: they go one after another, in document order (a list, cards, menu items)");
+const animate = z
+  .number()
+  .min(0)
+  .optional()
+  .describe("ms: the change is animated (colours, size, position, opacity) instead of instant, e.g. 250 for a control");
+
 /** Text that changes with the language: one string for every language, or one per language code. */
 export const Localized = z.union([z.string(), z.record(z.string())]);
 export type Localized = z.infer<typeof Localized>;
@@ -21,8 +41,8 @@ export function pick(value: Localized | undefined, lang: string, fallback?: stri
 }
 
 export const Action = z.discriminatedUnion("do", [
-  z.object({ do: z.literal("move"), to: selector, at, duration: duration(800) }).describe("move the cursor to the center of an element"),
-  z.object({ do: z.literal("click"), to: selector, at }).describe("click an element (also dispatches a real click event in the scene)"),
+  z.object({ do: z.literal("move"), to: selector, at, duration: duration(800), easing }).describe("move the cursor to the center of an element"),
+  z.object({ do: z.literal("click"), to: selector, at }).describe("click an element (also dispatches a real click event in the scene); move the cursor there first"),
   z.object({ do: z.literal("type"), to: selector, text: Localized, at, duration: duration(1200) }).describe("type text into an input or element (text: a string, or one per language)"),
   z.object({ do: z.literal("highlight"), to: selector, at, duration: duration(1800) }).describe("draw an attention ring around an element"),
   z
@@ -34,20 +54,25 @@ export const Action = z.discriminatedUnion("do", [
       html: Localized.optional(),
       add: z.array(z.string()).optional().describe("classes to add"),
       remove: z.array(z.string()).optional().describe("classes to remove"),
-      attr: z.record(z.string()).optional().describe("attributes to set")
+      attr: z.record(z.string()).optional().describe("attributes to set"),
+      animate
     })
     .describe("change an element: text, html, classes, attributes"),
   z
-    .object({ do: z.literal("select"), to: selector, option: Localized.describe("the option's visible text, or its value"), at })
+    .object({ do: z.literal("select"), to: selector, option: Localized.describe("the option's visible text, or its value"), at, animate })
     .describe("choose an option of a <select> by its text (or value), as a person would; fires input and change"),
   z
-    .object({ do: z.literal("value"), to: selector, value: Localized.describe('the new value; "" empties the field'), at })
+    .object({ do: z.literal("value"), to: selector, value: Localized.describe('the new value; "" empties the field'), at, animate })
     .describe("set (or empty) the value of a field at once, without typing; fires input and change"),
   z
-    .object({ do: z.literal("check"), to: selector, checked: z.boolean().default(true), at })
+    .object({ do: z.literal("check"), to: selector, checked: z.boolean().default(true), at, animate })
     .describe("tick (or untick, checked: false) a checkbox or radio; fires input and change"),
-  z.object({ do: z.literal("show"), to: selector, at }).describe("make a hidden element visible"),
-  z.object({ do: z.literal("hide"), to: selector, at }).describe("hide an element"),
+  z
+    .object({ do: z.literal("show"), to: selector, at, effect: effect.default("fade"), duration: duration(300), easing, stagger })
+    .describe("make a hidden element visible, with an entrance (fade by default; slide-up for a panel, scale for a dialog); several elements with stagger build a screen piece by piece"),
+  z
+    .object({ do: z.literal("hide"), to: selector, at, effect: effect.default("none"), duration: duration(200), easing, stagger })
+    .describe("hide an element, at once by default (a camera action often follows), or with fade when the eye should follow it"),
   z
     .object({
       do: z.literal("tween"),
@@ -56,9 +81,29 @@ export const Action = z.discriminatedUnion("do", [
       prop: z.string().describe('CSS property, e.g. "width"'),
       from: z.string().describe('start value with unit, e.g. "0%"'),
       end: z.string().describe('end value with the same unit, e.g. "100%"'),
-      duration: duration(1500)
+      duration: duration(1500),
+      easing
     })
-    .describe("animate a numeric CSS property (progress bars, counters)"),
+    .describe("animate a numeric CSS property (a progress bar, a width, an opacity); for a number in a text use count"),
+  z
+    .object({
+      do: z.literal("count"),
+      to: selector,
+      at,
+      from: z.number().optional().describe("start value; omitted = the number already written in the element"),
+      end: z.number().describe("final value"),
+      duration: duration(1200),
+      easing,
+      format: z
+        .object({
+          locale: z.string().optional().describe("e.g. it-IT; omitted = the language of the guide"),
+          decimals: z.number().int().min(0).optional().describe("decimals shown; omitted = as many as the values have"),
+          prefix: Localized.optional().describe('text before the number, e.g. "€ "'),
+          suffix: Localized.optional().describe('text after the number, e.g. " %"')
+        })
+        .optional()
+    })
+    .describe("count a number up or down in an element (a total, a KPI, a badge): it counts, it does not jump"),
   z
     .object({
       do: z.literal("scroll"),
@@ -66,7 +111,8 @@ export const Action = z.discriminatedUnion("do", [
       in: selector.describe("the scrolling container"),
       at,
       margin: z.number().min(0).default(24).describe("space kept below (or above) the element"),
-      duration: duration(450)
+      duration: duration(450),
+      easing
     })
     .describe("scroll a container just enough to show an element, like a chat following its last message"),
   z
@@ -75,7 +121,8 @@ export const Action = z.discriminatedUnion("do", [
       at,
       target: z.union([selector, z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })]),
       padding: z.number().min(0).optional(),
-      duration: duration(700)
+      duration: duration(700),
+      easing
     })
     .describe("move/zoom the camera to frame an element or a rectangle")
 ]);

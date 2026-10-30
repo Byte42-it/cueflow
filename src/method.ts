@@ -59,12 +59,26 @@ hand, full screen when presented (space bar, arrows, a presenter's remote), with
 - The narration of a step is optional: in slides it is the speaker's notes (key N), never shown on the slide.
 - Write the slide's own words in the scene: a slide must read on its own, without anyone talking over it.
 
-## 6. Check
+## 6. Motion: what moves, and how
+A tutorial is its narration; motion shows what the words say and never decorates. Every action has a tuned default
+(duration, easing): give your own only when the default looks wrong in preview_frame.
+- A screen or a panel that appears is built, not switched on: show its main blocks with a short stagger (80–120 ms),
+  top to bottom (the selector matches them all, e.g. ".card"), then a camera action if the layout changed. One block:
+  show with slide-up (a panel), scale (a dialog) or the default fade; no stagger.
+- Something that goes away: hide, at once by default (a camera action often follows), with fade when the eye should
+  follow it.
+- A control that changes state (check, select, value, set with classes) changes with animate: 250, never at once.
+- A number that changes counts (count: a total, a KPI, a badge); it does not jump. A bar or a width: tween.
+- The cursor moves (move) before it clicks, with the default easing; spring only for a playful product.
+- One effect per idea. A step with more than three animated things is two steps.
+- Put motion where the narration names it (at: "40%" when the word comes) and keep it shorter than the sentence.
+
+## 7. Check
 validate_guide (with layout) must pass without errors; read the warnings. Then preview_frame at the key moments of
 every step and look at the image: is the right thing framed, is the cursor where it should be? Fix, repeat.
 Listen to the voice before publishing: it may misread names, acronyms and numbers; add them to the pronunciation.
 
-## 7. Build
+## 8. Build
 build_guide per tutorial, then the catalog: write site.json (items, rows, featured), a short written guide per item in
 pages/<id>.html if wanted, then build_site. The user opens the output folder (cueflow.json outDir, cueflow-dist by default) in a browser: no server needed.
 

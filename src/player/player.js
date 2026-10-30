@@ -193,6 +193,30 @@
     function $el(sel) { try { return doc().querySelector(sel); } catch (e) { return null; } }
     function ms(v) { return reduce ? 0 : v / speed; } // CSS transition time at the current speed
 
+    // ---- easing: the CSS curves, solved here so that every motion runs on the step clock (pausable, seekable) ----
+    var CURVES = { linear: [0, 0, 1, 1], ease: [.25, .1, .25, 1], "ease-in": [.42, 0, 1, 1], "ease-out": [0, .58, 1, 1], "ease-in-out": [.42, 0, .58, 1], standard: [.4, 0, .2, 1] };
+    var easeCache = {};
+    function bezier(x1, y1, x2, y2) {
+      function sample(a, b, t) { return ((1 - 3 * b + 3 * a) * t + (3 * b - 6 * a)) * t * t + 3 * a * t; }
+      return function (x) {
+        if (x <= 0) return 0; if (x >= 1) return 1;
+        var t = x;
+        for (var i = 0; i < 6; i++) { var d = sample(x1, x2, t) - x; if (Math.abs(d) < 1e-4) break; var sl = (3 * (1 - 3 * x2 + 3 * x1) * t + 2 * (3 * x2 - 6 * x1)) * t + 3 * x1; if (Math.abs(sl) < 1e-6) break; t -= d / sl; }
+        return sample(y1, y2, Math.max(0, Math.min(1, t)));
+      };
+    }
+    function easeFn(name) {
+      if (name === "spring") return function (p) { var c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); };
+      if (!easeCache[name]) {
+        var pts = CURVES[name] || (/^cubic-bezier\(/.test(name) ? name.slice(13, -1).split(",").map(parseFloat) : CURVES["ease-out"]);
+        easeCache[name] = bezier(pts[0], pts[1], pts[2], pts[3]);
+      }
+      return easeCache[name];
+    }
+    var DEFAULT_EASING = { move: "standard", camera: "standard", scroll: "ease-in-out", tween: "ease-out", show: "ease-out", hide: "ease-in", count: "ease-out" };
+    function eased(a, p) { return easeFn(a.easing || DEFAULT_EASING[a.do] || "ease-out")(p); }
+    function $all(sel) { try { return Array.prototype.slice.call(doc().querySelectorAll(sel)); } catch (e) { return []; } }
+
     /* stylesheets and images shared by the scenes travel once in DATA.shared; the scenes keep placeholders */
     function withShared(html) {
       var shared = DATA.shared || {};
@@ -210,9 +234,11 @@
         curScene = lang + "/" + name;
         cursor.style.opacity = "0";
         ring.style.opacity = "0";
-        cursor.style.transitionDuration = "0ms";
+        cursorPos = null;
       });
     }
+    var cursorPos = null; // where the cursor is, in scene pixels; null = not shown yet
+    function putCursor(x, y) { cursorPos = { x: x, y: y }; cursor.style.transform = "translate(" + x + "px," + y + "px)"; }
 
     // ---- camera ----
     function rectOf(target) {
@@ -224,8 +250,8 @@
       }
       return target;
     }
-    function applyCamera(spec, dur) {
-      cam = spec || null;
+    /** Where the camera goes for a spec: scale and translation of the world, clamped to the scene. */
+    function cameraFor(spec) {
       var SW = stage.clientWidth, SH = stage.clientHeight;
       var rect = spec ? rectOf(spec.target) : null;
       var pad = spec && spec.padding != null ? spec.padding : 24;
@@ -237,8 +263,23 @@
       // never show the empty space outside the scene: keep the scene covering the stage (or centered when smaller)
       tx = vw * s <= SW ? (SW - vw * s) / 2 : Math.min(0, Math.max(SW - vw * s, tx));
       ty = vh * s <= SH ? (SH - vh * s) / 2 : Math.min(0, Math.max(SH - vh * s, ty));
-      world.style.transitionDuration = ms(dur) + "ms";
-      world.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + s + ")";
+      return { s: s, tx: tx, ty: ty };
+    }
+    var camNow = { s: 1, tx: 0, ty: 0 }, camAnim = null; // the step's own framing in flight (enterStep), driven by tick
+    function setCam(c) { camNow = c; world.style.transform = "translate(" + c.tx + "px," + c.ty + "px) scale(" + c.s + ")"; }
+    function lerpCam(a, b, p) { return { s: a.s + (b.s - a.s) * p, tx: a.tx + (b.tx - a.tx) * p, ty: a.ty + (b.ty - a.ty) * p }; }
+    /** Frames `spec` now (dur 0) or over `dur` ms of step time. */
+    function applyCamera(spec, dur) {
+      cam = spec || null;
+      var to = cameraFor(spec);
+      if (!dur || reduce) { camAnim = null; setCam(to); return; }
+      camAnim = { from: camNow, to: to, start: cur ? cur.t : 0, dur: dur, ease: easeFn("standard") };
+    }
+    function tickCamera(t) {
+      if (!camAnim) return;
+      var p = Math.min(1, (t - camAnim.start) / camAnim.dur);
+      setCam(lerpCam(camAnim.from, camAnim.to, camAnim.ease(p)));
+      if (p >= 1) camAnim = null;
     }
     // re-frame whenever the stage changes size (window, side panels, a docs page settling its layout)
     if ("ResizeObserver" in window) new ResizeObserver(function () { applyCamera(cam, 0); }).observe(stage);
@@ -259,13 +300,17 @@
     }
     var handlers = {
       move: {
-        start: function (a, ctx) {
+        start: function (a) {
           var el = $el(a.to);
-          if (!el) return;
-          var c = center(el);
+          a._to = el ? center(el) : null;
+          if (!a._to) return;
           cursor.style.opacity = "1";
-          cursor.style.transitionDuration = ctx.instant ? "0ms" : ms(a.duration) + "ms";
-          cursor.style.transform = "translate(" + c.x + "px," + c.y + "px)";
+          a._from = cursorPos || a._to; // a cursor not shown yet appears where it is going
+        },
+        update: function (a, p) {
+          if (!a._to) return;
+          var e = eased(a, p);
+          putCursor(a._from.x + (a._to.x - a._from.x) * e, a._from.y + (a._to.y - a._from.y) * e);
         }
       },
       click: {
@@ -274,8 +319,7 @@
           if (!el) return;
           var c = center(el);
           cursor.style.opacity = "1";
-          cursor.style.transitionDuration = "0ms";
-          cursor.style.transform = "translate(" + c.x + "px," + c.y + "px)";
+          putCursor(c.x, c.y);
           if (!ctx.instant) cursor.classList.add("cf-click");
           el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: frame.contentWindow }));
         },
@@ -303,20 +347,23 @@
         finish: function () { ring.style.opacity = "0"; }
       },
       set: {
-        start: function (a) {
+        start: function (a, ctx) {
           var el = $el(a.to);
           if (!el) return;
+          animated(a, el, ctx);
           if (a.text != null) el.textContent = tx(a.text);
           if (a.html != null) el.innerHTML = tx(a.html);
           (a.add || []).forEach(function (c) { el.classList.add(c); });
           (a.remove || []).forEach(function (c) { el.classList.remove(c); });
           Object.keys(a.attr || {}).forEach(function (k) { el.setAttribute(k, a.attr[k]); });
-        }
+        },
+        finish: unanimate
       },
       select: {
-        start: function (a) {
+        start: function (a, ctx) {
           var el = $el(a.to);
           if (!el || !el.options) return;
+          animated(a, el, ctx);
           var want = tx(a.option), opts = Array.prototype.slice.call(el.options);
           var o = opts.filter(function (x) { return x.text.trim() === want; })[0] || opts.filter(function (x) { return x.value === want; })[0];
           if (!o) return;
@@ -324,35 +371,84 @@
           o.setAttribute("selected", ""); // the attribute too: a later reload of the scene state must not undo it
           el.value = o.value;
           fire(el);
-        }
+        },
+        finish: unanimate
       },
       value: {
-        start: function (a) {
+        start: function (a, ctx) {
           var el = $el(a.to);
           if (!el) return;
+          animated(a, el, ctx);
           var v = tx(a.value);
           if ("value" in el) { el.value = v; if (el.tagName === "INPUT") el.setAttribute("value", v); else if (el.tagName === "TEXTAREA") el.textContent = v; }
           else el.textContent = v;
           fire(el);
-        }
+        },
+        finish: unanimate
       },
       check: {
-        start: function (a) {
+        start: function (a, ctx) {
           var el = $el(a.to);
           if (!el) return;
+          animated(a, el, ctx);
           el.checked = a.checked !== false;
           if (el.checked) el.setAttribute("checked", ""); else el.removeAttribute("checked");
           fire(el);
-        }
+        },
+        finish: unanimate
       },
-      show: { start: function (a) { var el = $el(a.to); if (el) { el.removeAttribute("hidden"); el.style.display = ""; } } },
-      hide: { start: function (a) { var el = $el(a.to); if (el) el.style.display = "none"; } },
+      show: {
+        start: function (a) {
+          a._els = targets(a);
+          if (effective(a)) a._els.forEach(function (el) { el._cfStyle = { opacity: el.style.opacity, transform: el.style.transform }; reveal(el); entrance(el, a.effect, 0); });
+        },
+        update: function (a, p) {
+          (a._els || []).forEach(function (el, k) {
+            var q = local(a, p, k);
+            if (effective(a)) entrance(el, a.effect, eased(a, q));
+            else if (q > 0 || !a.stagger) reveal(el); // no entrance: each one appears at its own moment
+          });
+        },
+        finish: function (a) { (a._els || []).forEach(restoreStyle); }
+      },
+      hide: {
+        start: function (a) {
+          a._els = targets(a);
+          if (effective(a)) a._els.forEach(function (el) { el._cfStyle = { opacity: el.style.opacity, transform: el.style.transform }; });
+        },
+        update: function (a, p) {
+          (a._els || []).forEach(function (el, k) {
+            var q = local(a, p, k);
+            if (effective(a)) entrance(el, a.effect, 1 - eased(a, q));
+            else if (q > 0 || !a.stagger) el.style.display = "none";
+          });
+        },
+        finish: function (a) { (a._els || []).forEach(function (el) { restoreStyle(el); el.style.display = "none"; }); }
+      },
       tween: {
         update: function (a, p) {
           var el = $el(a.to);
           if (!el) return;
-          var f = parseNum(a.from), e = parseNum(a.end);
-          el.style[a.prop] = f.n + (e.n - f.n) * p + (e.unit || f.unit);
+          var f = parseNum(a.from), e = parseNum(a.end), q = eased(a, p);
+          el.style[a.prop] = f.n + (e.n - f.n) * q + (e.unit || f.unit);
+        }
+      },
+      count: {
+        start: function (a) {
+          var el = $el(a.to);
+          if (!el) return;
+          var f = a.format || {}, loc = f.locale || lang;
+          var from = a.from != null ? a.from : numberIn(el.textContent, loc);
+          a._from = isFinite(from) ? from : 0;
+          var dec = f.decimals != null ? f.decimals : Math.max(decimalsOf(a._from), decimalsOf(a.end));
+          a._fmt = new Intl.NumberFormat(loc, { minimumFractionDigits: dec, maximumFractionDigits: dec });
+          a._pre = f.prefix != null ? tx(f.prefix) : ""; a._suf = f.suffix != null ? tx(f.suffix) : "";
+        },
+        update: function (a, p) {
+          var el = $el(a.to);
+          if (!el || !a._fmt) return;
+          var v = p >= 1 ? a.end : a._from + (a.end - a._from) * eased(a, p);
+          el.textContent = a._pre + a._fmt.format(v) + a._suf;
         }
       },
       scroll: {
@@ -370,21 +466,67 @@
         },
         update: function (a, p) {
           if (!a._box || a._to == null) return;
-          var e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; // ease in-out
-          a._box.scrollTop = a._from + (a._to - a._from) * e;
+          a._box.scrollTop = a._from + (a._to - a._from) * eased(a, p);
         }
       },
       camera: {
-        start: function (a, ctx) { applyCamera({ target: a.target, padding: a.padding }, ctx.instant ? 0 : a.duration); }
+        start: function (a) {
+          camAnim = null; // the step's own framing yields to the action
+          cam = { target: a.target, padding: a.padding };
+          a._from = camNow; a._to = cameraFor(cam);
+        },
+        update: function (a, p) { if (a._to) setCam(p >= 1 ? a._to : lerpCam(a._from, a._to, eased(a, p))); }
       }
     };
+    /* show/hide helpers: which elements (all of them with a stagger), each one's own progress, the entrance itself */
+    function targets(a) { return a.stagger != null ? $all(a.to) : [$el(a.to)].filter(Boolean); }
+    function reveal(el) { el.removeAttribute("hidden"); el.style.display = ""; }
+    function effective(a) { return a.effect && a.effect !== "none" && !reduce; }
+    function local(a, p, k) {
+      var n = a._els.length, total = a.duration + (n - 1) * (a.stagger || 0), t = p * total;
+      return a.duration > 0 ? Math.max(0, Math.min(1, (t - k * (a.stagger || 0)) / a.duration)) : 1;
+    }
+    var OFFSETS = { "slide-up": [0, 12], "slide-down": [0, -12], "slide-left": [12, 0], "slide-right": [-12, 0] };
+    function entrance(el, effect, q) {
+      el.style.opacity = String(q);
+      var o = OFFSETS[effect];
+      if (o) el.style.transform = "translate(" + o[0] * (1 - q) + "px," + o[1] * (1 - q) + "px)";
+      else if (effect === "scale") el.style.transform = "scale(" + (0.96 + 0.04 * q) + ")";
+    }
+    function restoreStyle(el) {
+      if (!el._cfStyle) return;
+      el.style.opacity = el._cfStyle.opacity; el.style.transform = el._cfStyle.transform;
+      delete el._cfStyle;
+    }
+    /* `animate`: the site's CSS gets a transition for the time of the change, whatever it animates by itself */
+    function animated(a, el, ctx) {
+      if (!a.animate || ctx.instant || reduce) return;
+      a._el = el; el._cfTransition = el.style.transition;
+      el.style.transition = "all " + a.animate + "ms";
+      void el.offsetWidth; // the transition must be in place before the change
+    }
+    function unanimate(a) { var el = a._el; if (el && el._cfTransition != null) { el.style.transition = el._cfTransition; delete el._cfTransition; } a._el = null; }
+    /* the number written in an element, read the way the locale writes it ("1.234,5" in Italian) */
+    function numberIn(text, loc) {
+      var dec = (new Intl.NumberFormat(loc).formatToParts(1.1).filter(function (x) { return x.type === "decimal"; })[0] || {}).value || ".";
+      var m = /-?[\d.,\s\u00a0\u202f']+/.exec(text || "");
+      if (!m) return NaN;
+      var raw = m[0].replace(/[\s\u00a0\u202f']/g, "");
+      raw = dec === "," ? raw.replace(/\./g, "").replace(",", ".") : raw.replace(/,/g, "");
+      return parseFloat(raw);
+    }
+    function decimalsOf(n) { var s = String(n); return s.indexOf(".") >= 0 ? s.length - s.indexOf(".") - 1 : 0; }
+    function staggerSpan(a) { return a.stagger ? Math.max(0, (a.stagger != null ? $all(a.to).length : 1) - 1) * a.stagger : 0; }
+    /** How long an action takes on the step clock (step time already runs at the chosen speed). */
     function durationOf(a) {
       if (a.do === "click") return CLICK_MS;
-      if (a.do === "scroll") return reduce ? 0 : a.duration != null ? a.duration : 450; // step time already runs at the chosen speed
-      if (a.do === "move" || a.do === "camera") return 0; // CSS transitions run on their own
+      if (reduce && a.do !== "type" && a.do !== "count") return 0;
+      if (a.do === "show" || a.do === "hide") return a.duration + staggerSpan(a);
+      if (a.do === "set" || a.do === "check" || a.do === "select" || a.do === "value") return a.animate || 0;
+      if (a.do === "scroll") return a.duration != null ? a.duration : 450;
       return a.duration || 0;
     }
-    function endOf(a, narrDur) { return atMs(a, narrDur) + (a.duration != null ? a.duration : a.do === "click" ? CLICK_MS : 0); }
+    function endOf(a, narrDur) { return atMs(a, narrDur) + (a.do === "click" ? CLICK_MS : a.animate != null ? a.animate : (a.duration != null ? a.duration : 0) + staggerSpan(a)); }
     function atMs(a, narrDur) {
       var v = a.at == null ? 0 : a.at;
       return typeof v === "string" ? (parseFloat(v) / 100) * narrDur : v;
@@ -525,6 +667,7 @@
       var dt = ts - last;
       last = ts;
       cur.t += dt * speed;
+      tickCamera(cur.t);
       runDue(cur, cur.t, { instant: false });
       progressBar();
       // the browser voice has no known length: wait for it to finish, within a generous bound

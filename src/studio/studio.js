@@ -509,6 +509,8 @@
     } else if (pend && pend.kind === "add") {
       el.appendChild(h("button", { class: "btn primary", onclick: function () {
         var a = { do: pend.type }; a[pend.type === "camera" ? "target" : "to"] = S.picked; a.at = defaultAt();
+        if (pend.type === "count") a.end = 0; // the only field without a default: the card asks for it
+        if (pend.type === "tween") { a.prop = "width"; a.from = "0%"; a.end = "100%"; }
         S.draft.push(a); S.dirty = true; finishPick();
       } }, "Add “" + pend.type + "” on it"));
     }
@@ -661,8 +663,34 @@
   }
 
   /* ---------- actions ---------- */
-  var ACTION_TYPES = ["move", "click", "type", "highlight", "show", "hide", "value", "select", "check", "camera", "set", "scroll", "tween"];
-  var WITH_DURATION = { move: 1, type: 1, highlight: 1, tween: 1, scroll: 1, camera: 1 };
+  var ACTION_TYPES = ["move", "click", "type", "highlight", "show", "hide", "value", "select", "check", "count", "camera", "set", "scroll", "tween"];
+  var WITH_DURATION = { move: 1, type: 1, highlight: 1, tween: 1, scroll: 1, camera: 1, show: 1, hide: 1, count: 1 };
+  var WITH_EASING = { move: 1, tween: 1, scroll: 1, camera: 1, show: 1, hide: 1, count: 1 };
+  var WITH_ANIMATE = { set: 1, check: 1, select: 1, value: 1 };
+  var EASINGS = ["", "linear", "ease", "ease-in", "ease-out", "ease-in-out", "spring"];
+  var EFFECTS = ["none", "fade", "slide-up", "slide-down", "slide-left", "slide-right", "scale"];
+  var DEFAULT_MS = { move: 800, type: 1200, highlight: 1800, tween: 1500, scroll: 450, camera: 700, show: 300, hide: 200, count: 1200 };
+  /* how long an action takes on the timeline, the player's rule without the stagger count (that needs the scene) */
+  function actionMs(a) { return a.do === "click" ? 350 : a.animate != null ? a.animate : a.duration != null ? a.duration : WITH_DURATION[a.do] ? DEFAULT_MS[a.do] : 0; }
+  function actionTip(a) {
+    var parts = [a.do + " at " + (typeof a.at === "string" ? a.at : Math.round(a.at) + " ms")];
+    if (a.do !== "click" && actionMs(a)) parts.push(actionMs(a) + " ms");
+    if (a.effect) parts.push(a.effect);
+    if (a.stagger != null) parts.push("stagger " + a.stagger + " ms");
+    if (a.easing) parts.push(a.easing);
+    return parts.join(" · ") + " — click to edit";
+  }
+  function selectField(label, value, options, set) {
+    var sel = h("select", null, options.map(function (o) { return h("option", { value: o }, o === "" ? "default" : o); }));
+    sel.value = value == null ? "" : value;
+    sel.addEventListener("change", function () { S.dirty = true; set(sel.value); renderSaveState(); });
+    return h("label", { class: "lab" }, label, sel);
+  }
+  function msField(label, value, set, width) {
+    var inp = h("input", { type: "number", min: "0", style: "width:" + (width || 90) + "px" }); inp.value = value == null ? "" : value;
+    inp.addEventListener("input", function () { S.dirty = true; set(inp.value === "" ? undefined : +inp.value); renderSaveState(); });
+    return h("label", { class: "lab" }, label, inp);
+  }
   function actionsTab(p) {
     if (!S.guide || !S.guide.steps.length) { p.appendChild(h("p", { class: "empty" }, "Select a step first.")); return; }
     if (!S.draft) S.draft = JSON.parse(JSON.stringify(S.guide.steps[S.step].actions));
@@ -716,11 +744,39 @@
     at.addEventListener("input", function () { var v = at.value.trim(); a.at = /%$/.test(v) ? v : (v === "" || isNaN(+v) ? 0 : +v); touch(); });
     var row = h("div", { class: "pickrow" }, h("label", { class: "lab" }, "At (ms or 40%)", at));
     if (WITH_DURATION[a.do]) {
-      var du = h("input", { type: "number", min: "0", style: "width:90px" }); du.value = a.duration == null ? "" : a.duration;
+      var du = h("input", { type: "number", min: "0", placeholder: String(DEFAULT_MS[a.do]), style: "width:90px" }); du.value = a.duration == null ? "" : a.duration;
       du.addEventListener("input", function () { if (du.value === "") delete a.duration; else a.duration = +du.value; touch(); });
       row.appendChild(h("label", { class: "lab" }, "Duration (ms)", du));
     }
+    if (WITH_EASING[a.do]) row.appendChild(selectField("Easing", a.easing, EASINGS, function (v) { if (v) a.easing = v; else delete a.easing; }));
+    if (WITH_ANIMATE[a.do]) row.appendChild(msField("Animate (ms)", a.animate, function (v) { if (v == null) delete a.animate; else a.animate = v; }));
     card.appendChild(row);
+    if (a.do === "show" || a.do === "hide") {
+      card.appendChild(h("div", { class: "pickrow" },
+        selectField("Effect", a.effect || (a.do === "show" ? "fade" : "none"), EFFECTS, function (v) { a.effect = v; }),
+        msField("Stagger (ms, all the matches)", a.stagger, function (v) { if (v == null) delete a.stagger; else a.stagger = v; }, 110)));
+    }
+    if (a.do === "count") {
+      var fmt = function () { return a.format || (a.format = {}); };
+      var from = h("input", { type: "number", step: "any", placeholder: "as shown", style: "width:110px" }); from.value = a.from == null ? "" : a.from;
+      from.addEventListener("input", function () { if (from.value === "") delete a.from; else a.from = +from.value; touch(); });
+      var end = h("input", { type: "number", step: "any", style: "width:110px" }); end.value = a.end == null ? "" : a.end;
+      end.addEventListener("input", function () { a.end = end.value === "" ? 0 : +end.value; touch(); });
+      card.appendChild(h("div", { class: "pickrow" }, h("label", { class: "lab" }, "From", from), h("label", { class: "lab" }, "To", end),
+        msField("Decimals", a.format && a.format.decimals, function (v) { if (v == null) delete fmt().decimals; else fmt().decimals = v; }, 70)));
+      card.appendChild(h("div", { class: "pickrow" },
+        localizedField("Before (“" + S.lang + "”)", a.format && a.format.prefix, function (v) { fmt().prefix = setLocalized(fmt().prefix, v); }),
+        localizedField("After (“" + S.lang + "”)", a.format && a.format.suffix, function (v) { fmt().suffix = setLocalized(fmt().suffix, v); })));
+    }
+    if (a.do === "set") {
+      card.appendChild(localizedField("Text (“" + S.lang + "”)", a.text, function (v) { if (v === "" && typeof a.text !== "object") delete a.text; else a.text = setLocalized(a.text, v); }));
+      var classes = function (label, key) {
+        var inp = h("input", { type: "text", placeholder: "classes, space separated" }); inp.value = (a[key] || []).join(" ");
+        inp.addEventListener("input", function () { var v = inp.value.trim(); if (v) a[key] = v.split(/\s+/); else delete a[key]; touch(); });
+        return h("label", { class: "lab" }, label, inp);
+      };
+      card.appendChild(h("div", { class: "pickrow" }, classes("Add classes", "add"), classes("Remove classes", "remove")));
+    }
     if (a.do === "type") card.appendChild(localizedField("Text typed (“" + S.lang + "”)", a.text, function (v) { a.text = setLocalized(a.text, v); }));
     if (a.do === "value") card.appendChild(localizedField("Value (“" + S.lang + "”)", a.value, function (v) { a.value = setLocalized(a.value, v); }));
     if (a.do === "select") card.appendChild(localizedField("Option (“" + S.lang + "”)", a.option, function (v) { a.option = setLocalized(a.option, v); }));
@@ -729,7 +785,7 @@
       cb.addEventListener("change", function () { a.checked = cb.checked; touch(); });
       card.appendChild(h("label", { class: "lab" }, cb, " ticked"));
     }
-    if (["set", "scroll", "tween"].indexOf(a.do) >= 0 || typeof (a.target) === "object") {
+    if (["scroll", "tween"].indexOf(a.do) >= 0 || (a.do === "set" && (a.html != null || a.attr != null)) || typeof (a.target) === "object") {
       var js = h("textarea", { class: "json" }); js.value = JSON.stringify(a, null, 1);
       js.addEventListener("input", function () { try { var o = JSON.parse(js.value); d[i] = o; S.dirty = true; renderSaveState(); js.style.borderColor = ""; } catch (e) { js.style.borderColor = "#a3231b"; } });
       card.appendChild(h("label", { class: "lab" }, "Details (JSON)", js));
@@ -1295,7 +1351,7 @@
   /* the same rule as the player: a step lasts its narration or its last action, whichever is later, plus its hold */
   function stepTiming(st, lang, narr) {
     var end = 0;
-    st.actions.forEach(function (a) { var at = typeof a.at === "string" ? parseFloat(a.at) / 100 * narr : a.at; end = Math.max(end, at + (a.duration != null ? a.duration : a.do === "click" ? 350 : 0)); });
+    st.actions.forEach(function (a) { var at = typeof a.at === "string" ? parseFloat(a.at) / 100 * narr : a.at; end = Math.max(end, at + actionMs(a)); });
     return { narration: narr, total: Math.max(narr, end) + (st.hold != null ? st.hold : 600) };
   }
   function renderStrip() {
@@ -1359,7 +1415,9 @@
       lTr.appendChild(vbar);
       st.actions.forEach(function (a, ai) {
         var at = typeof a.at === "string" ? parseFloat(a.at) / 100 * tm.narration : a.at;
-        lAct.appendChild(h("div", { class: "mk " + a.do + (on ? " on" : ""), "data-i": i, style: "left:" + (x + at) * px + "px", title: a.do + " at " + (typeof a.at === "string" ? a.at : Math.round(a.at) + " ms") + " — click to edit",
+        var wpx = a.do === "click" ? 0 : actionMs(a) * px; // a bar as long as the action; a point when it is short
+        lAct.appendChild(h("div", { class: "mk " + a.do + (on ? " on" : "") + (wpx > 24 ? " bar" : "") + (a.stagger ? " stag" : ""), "data-i": i,
+          style: "left:" + (x + at) * px + "px" + (wpx > 24 ? ";width:" + wpx + "px" : ""), title: actionTip(a),
           onclick: function (e) { e.stopPropagation(); S.focusAction = ai; if (!focusStep(i, "actions")) { S.focusAction = null; return; } seekGlobal(x0 + at); } }, a.do.charAt(0).toUpperCase()));
       });
       x += tm.total;

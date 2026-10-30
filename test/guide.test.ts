@@ -178,3 +178,36 @@ describe("build", () => {
     assert.ok(!html.includes("</script><b>boom"));
   });
 });
+
+describe("motion", () => {
+  it("gives every effect a default and refuses an unknown easing", () => {
+    const step = (actions: unknown[]) => Guide.parse({ id: "g", title: "G", scene: "upload", steps: [{ id: "a", actions }] }).steps[0]!.actions;
+    const [show, hide, count] = step([{ do: "show", to: "#x" }, { do: "hide", to: "#x" }, { do: "count", to: "#x", end: 42 }]);
+    assert.deepEqual(show, { do: "show", to: "#x", at: 0, effect: "fade", duration: 300 });
+    assert.deepEqual(hide, { do: "hide", to: "#x", at: 0, effect: "none", duration: 200 });
+    assert.deepEqual(count, { do: "count", to: "#x", at: 0, end: 42, duration: 1200 });
+    assert.ok(step([{ do: "move", to: "#x", easing: "cubic-bezier(.2, 0, 0, 1)" }]));
+    assert.throws(() => step([{ do: "move", to: "#x", easing: "bouncy" }]), /easing/);
+    assert.throws(() => step([{ do: "show", to: "#x", effect: "explode" }]), /effect/);
+  });
+
+  it("accepts several elements for a stagger, and says when a stagger has nothing to stagger", async () => {
+    const guide = await loadGuide(kit, "upload");
+    guide.steps[0]!.actions.push({ do: "show", to: ".btn", at: 0, effect: "fade", duration: 300, stagger: 100 }, { do: "show", to: "#file-row", at: 0, effect: "fade", duration: 300, stagger: 100 });
+    const report = await validateGuide(kit, guide);
+    assert.deepEqual(report.errors, []);
+    assert.ok(!report.warnings.some((w) => /\.btn.*the first one is used/.test(w)), "a stagger means all of them");
+    assert.ok(report.warnings.some((w) => /stagger has no effect, "#file-row" matches one element/.test(w)));
+  });
+
+  it("refuses to count from an element that shows no number, unless from is given", async () => {
+    const guide = await loadGuide(kit, "upload");
+    guide.steps[0]!.actions.push({ do: "count", to: "#toast", at: 0, end: 10, duration: 1200 }, { do: "count", to: "#file-name", at: 0, end: 10, duration: 1200 });
+    let report = await validateGuide(kit, guide);
+    assert.ok(report.errors.some((e) => /#toast.*shows no number to count from.*give from/.test(e)));
+    assert.ok(!report.errors.some((e) => /#file-name/.test(e)), "contract-2024.pdf holds a number");
+    guide.steps[0]!.actions[guide.steps[0]!.actions.length - 2] = { do: "count", to: "#toast", at: 0, from: 0, end: 10, duration: 1200 };
+    report = await validateGuide(kit, guide);
+    assert.deepEqual(report.errors, []);
+  });
+});

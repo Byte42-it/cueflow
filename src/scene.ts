@@ -170,6 +170,16 @@ export function describeScene(html: string): SceneElement[] {
   return out;
 }
 
+/** The text of the first element a selector matches, or undefined. */
+export function firstText(html: string, selector: string): string | undefined {
+  const { document } = parseHTML(html);
+  try {
+    return (document.querySelector(selector)?.textContent ?? undefined)?.replace(/\s+/g, " ").trim();
+  } catch {
+    return undefined;
+  }
+}
+
 export function countMatches(html: string, selectors: string[]): Map<string, number | "invalid"> {
   const { document } = parseHTML(html);
   const result = new Map<string, number | "invalid">();

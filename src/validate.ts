@@ -3,7 +3,7 @@ import path from "node:path";
 import type { Guide } from "./schema.ts";
 import type { Kit } from "./kit.ts";
 import { listScenes, readScene, sceneFile, sceneFileFor } from "./kit.ts";
-import { countMatches } from "./scene.ts";
+import { countMatches, firstText } from "./scene.ts";
 import { estimateDuration } from "./build.ts";
 import { loadBrief } from "./brief.ts";
 
@@ -58,11 +58,13 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
     }
     if (!available.has(scene)) continue;
 
-    const refs: { label: string; selector: string }[] = [];
+    // `many`: the action means every element the selector matches (a stagger), so several matches are not a doubt
+    const refs: { label: string; selector: string; many?: boolean; number?: boolean }[] = [];
     if (typeof step.camera?.target === "string") refs.push({ label: "camera", selector: step.camera.target });
     for (const [j, a] of step.actions.entries()) {
       const label = `action ${j + 1} (${a.do})`;
-      if ("to" in a) refs.push({ label, selector: a.to });
+      const many = (a.do === "show" || a.do === "hide") && a.stagger != null;
+      if ("to" in a) refs.push({ label, selector: a.to, many, number: a.do === "count" && a.from == null });
       if (a.do === "scroll") refs.push({ label, selector: a.in });
       if (a.do === "camera" && typeof a.target === "string") refs.push({ label, selector: a.target });
       const texts = [
@@ -89,7 +91,12 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
         const n = counts.get(r.selector);
         if (n === "invalid") errors.push(`${where}, ${r.label}: "${r.selector}" is not a valid CSS selector`);
         else if (n === 0) errors.push(`${where}, ${r.label}: "${r.selector}" matches nothing in ${variant}`);
-        else if (n !== undefined && n > 1) warnings.push(`${where}, ${r.label}: "${r.selector}" matches ${n} elements in ${variant}, the first one is used`);
+        else if (n !== undefined && n > 1 && !r.many) warnings.push(`${where}, ${r.label}: "${r.selector}" matches ${n} elements in ${variant}, the first one is used`);
+        else if (n === 1 && r.many) warnings.push(`${where}, ${r.label}: stagger has no effect, "${r.selector}" matches one element in ${variant}`);
+        if (r.number && n !== 0 && n !== "invalid") {
+          const text = firstText(await readScene(kit, scene, lang), r.selector) ?? "";
+          if (!/\d/.test(text)) errors.push(`${where}, ${r.label}: "${r.selector}" shows no number to count from ("${text.slice(0, 40)}"): give from`);
+        }
       }
     }
   }

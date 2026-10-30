@@ -25,7 +25,7 @@ Decisions taken by the maintainers — do not re-litigate:
 
 | File | Role |
 |---|---|
-| `schema.ts` | zod schemas: `Guide`, `Step`, `Action` (move, click, type, highlight, set, show, hide, tween, camera), `Camera` |
+| `schema.ts` | zod schemas: `Guide`, `Step`, `Action` (move, click, type, highlight, set, select, value, check, show, hide, tween, count, scroll, camera), `Camera`; motion fields shared by the actions: `easing` (named curve or cubic-bezier), `effect` + `stagger` on show/hide, `animate` on state changes |
 | `kit.ts` | kit folder layout, load/save guides (atomic write), list scenes/guides |
 | `scene.ts` | `inlineScene` (inlines local CSS/JS/images/fonts → one standalone HTML; with a `Shared` map, stylesheets and images go there once by hash and the scene keeps placeholders), `bestFontSources` (one format per @font-face), `describeScene` (targetable elements + best selector), `countMatches` |
 | `capture.ts` | `capture.json` (zod) → Playwright: login, steps, cues, remove/hide, replace, script; `freezePage` runs in the page and works on a **copy** of the document (the live page stays usable for the next scene); assets mirrored in `shared/` (best font format only, image type sniffed) |
@@ -62,7 +62,19 @@ Player model worth knowing before touching it:
 - `click` dispatches a real `click` event in the scene iframe (same-origin `srcdoc`), so scenes can have small scripts.
 - `DATA.shared` holds stylesheets/images once; `loadScene` expands the placeholders (`withShared`) before `srcdoc`.
 - `window.__cueflow` also exposes `probe(selector)` (used by `checkLayout`); `seek` accepts a percentage like `at`.
-- Cursor/camera movement uses CSS transitions (they keep running while paused: known, minor).
+- **Motion runs on the step clock, never on CSS transitions** (2026-10-30): cursor (`putCursor`), camera (`cameraFor` →
+  `setCam`; the step's own framing is `camAnim`, driven by `tickCamera`; a `camera` action interpolates in `update`),
+  `show`/`hide` entrances, `tween`, `count`, `scroll` all interpolate in `update(p)` with `eased(a, p)`: pausing stops
+  everything, `seek` to a time inside an action gives that exact frame, twice. `easeFn` solves the CSS curves
+  (`CURVES`) and `cubic-bezier()`; `spring` is a fixed overshoot (easeOutBack). Defaults per action in `DEFAULT_EASING`
+  (`standard` = material (.4,0,.2,1) for cursor and camera). `durationOf` is the single source of an action's length:
+  show/hide = `duration + (n−1)·stagger` with n counted in the scene (`staggerSpan`), state changes = `animate`,
+  `prefers-reduced-motion` makes everything 0 except typing and counting. `build.ts estimateStepDuration` mirrors it
+  without the stagger (no DOM). A `show`/`hide` with `stagger` means *all* the matches (document order); `effect: none`
+  + stagger still reveals one at a time. Entrances set inline opacity/transform and restore the element's own inline
+  values at `finish` (`_cfStyle`); `animate` sets `transition: all <ms>` for the time of the change (`animated`/`unanimate`).
+  `count` reads the start number from the element in the locale's own notation (`numberIn`) and writes with
+  `Intl.NumberFormat`.
 - "What comes next": `site.ts` gives every item page a `next` (the following item of the catalog, row by row, videos
   and written guides alike, never a `soon` one). A video page passes it to `mount(..., { next: { title, href } })` and the
   player shows a "Go to {title}" banner (`.cf-up-next`, label `next`) over the picture once the video has ended; a

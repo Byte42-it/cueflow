@@ -19,10 +19,12 @@ html:has(> .cf-page), .cf-page { margin: 0; background: var(--cf-bg); color: var
 .cf-page > #cueflow > .cf-app { margin-inline: auto; }
 .cf-app { width: 100%; outline: none; color: var(--cf-fg); font: var(--cf-font); }
 .cf-stage { position: relative; width: 100%; overflow: hidden; background: var(--cf-stage-bg); border-radius: var(--cf-stage-radius); box-shadow: var(--cf-stage-shadow); }
-.cf-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; transition: transform 700ms cubic-bezier(.4, 0, .2, 1); }
+.cf-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; } /* moved by the player on the step clock, no CSS transition: it pauses and seeks with the step */
 .cf-frame { display: block; border: 0; background: var(--cf-stage-bg); pointer-events: none; }
-.cf-ring { position: absolute; border: 3px solid var(--cf-ring); border-radius: 8px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--cf-ring) 25%, transparent); opacity: 0; pointer-events: none; transition: opacity 200ms; animation: cf-pulse 1s ease-in-out infinite; }
-.cf-cursor { position: absolute; left: 0; top: 0; width: 22px; height: 22px; margin: -3px 0 0 -3px; opacity: 0; pointer-events: none; transition: transform 800ms cubic-bezier(.4, 0, .2, 1), opacity 200ms;
+.cf-ring { position: absolute; border: 3px solid var(--cf-ring); border-radius: 8px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--cf-ring) 25%, transparent); opacity: 0; pointer-events: none; animation: cf-pulse 1s ease-in-out infinite; }
+/* the fades of the cursor and the ring only while playing: a seek must land on a finished picture (previews, checks) */
+.cf-playing .cf-ring, .cf-playing .cf-cursor { transition: opacity 200ms; }
+.cf-cursor { position: absolute; left: 0; top: 0; width: 22px; height: 22px; margin: -3px 0 0 -3px; opacity: 0; pointer-events: none;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 2l15 9-6.5 1.6L9 19z' fill='%23111' stroke='%23fff' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat; }
 .cf-cursor::after { content: ""; position: absolute; left: -9px; top: -9px; width: 24px; height: 24px; border-radius: 50%; background: color-mix(in srgb, var(--cf-ring) 55%, transparent); opacity: 0; transform: scale(.3); }
 .cf-cursor.cf-click::after { animation: cf-click 350ms ease-out; }
@@ -133,7 +135,7 @@ html:has(> .cf-page), .cf-page { margin: 0; background: var(--cf-bg); color: var
 @keyframes cf-pulse { 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--cf-ring) 12%, transparent); } }
 @keyframes cf-click { 0% { opacity: .9; transform: scale(.3); } 100% { opacity: 0; transform: scale(1.4); } }
 @media (prefers-reduced-motion: reduce) {
-  .cf-world, .cf-cursor, .cf-chap small { transition: none !important; }
+  .cf-cursor, .cf-chap small { transition: none !important; }
   .cf-up-next { animation: none; }
   .cf-ring { animation: none; }
 }
