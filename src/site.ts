@@ -206,7 +206,16 @@ async function externalize(data: GuideBundle["data"], out: string, guideId: stri
       (audio[lang] ??= {})[stepId] = `../assets/${rel}`;
     }
   }
-  return { ...data, shared: shared as GuideBundle["data"]["shared"], audio };
+  // the narrator's pictures too
+  const avatarImages: Record<string, string> = {};
+  for (const [kitPath, uri] of Object.entries(data.avatarImages ?? {})) {
+    const file = fromDataUri(uri);
+    if (!file) { avatarImages[kitPath] = uri; continue; }
+    const name = `avatar/${kitPath.replace(/[^\w.-]+/g, "_")}`;
+    if (!written.has(name)) { await writeAtomic(path.join(out, "assets", name), file.bytes); written.add(name); }
+    avatarImages[kitPath] = `../assets/${name}`;
+  }
+  return { ...data, shared: shared as GuideBundle["data"]["shared"], audio, avatarImages };
 }
 
 export async function buildSite(kit: Kit, opts: { provider?: TtsProvider | null; posters?: boolean }): Promise<SiteResult> {

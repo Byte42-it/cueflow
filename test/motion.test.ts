@@ -10,6 +10,8 @@ import { launchChromium } from "../src/preview.ts";
 import { Guide } from "../src/schema.ts";
 import { validateGuide } from "../src/validate.ts";
 import { loadTheme } from "../src/theme.ts";
+import { setAvatar, stepAvatar } from "../src/avatars.ts";
+import { resolveAvatar } from "../src/avatar.ts";
 import { mkdir, writeFile } from "node:fs/promises";
 
 /* The motion engine: every effect runs on the step clock, so a seek is exact and repeatable, and a pause stops everything. */
@@ -60,8 +62,31 @@ before(async () => {
 after(() => rm(dir, { recursive: true, force: true }));
 
 describe("narrator", () => {
-  it("is off unless asked, and a kit's own face must have the groups the player moves", async () => {
-    assert.equal(Guide.parse({ id: "g", title: "G", scene: "s" }).player.avatar.provider, "none");
+  it("is chosen at three levels, step over video over project over the defaults, and is off unless asked", async () => {
+    assert.deepEqual(Guide.parse({ id: "g", title: "G", scene: "s" }).player.avatar, {});
+    assert.equal(resolveAvatar().provider, "none");
+    const r = resolveAvatar({ provider: "svg", background: "#000" }, { size: 0.4 }, { mode: "full", background: undefined });
+    assert.deepEqual([r.provider, r.size, r.mode, r.background, r.position], ["svg", 0.4, "full", "#000", "bottom-right"]);
+    // set at every level, through the same door the assistant and Studio use
+    const lv = await mkdtemp(path.join(tmpdir(), "cueflow-avatar-levels-"));
+    await cp(path.join(import.meta.dirname, "..", "examples", "demo-kit"), lv, { recursive: true, filter: (s) => !/[\\/](dist|audio)([\\/]|$)/.test(s) });
+    const k = openKit(lv);
+    await setAvatar(k, { scope: "global" }, { provider: "svg", background: "#123456" });
+    await setAvatar(k, { scope: "video", guide: "upload" }, { size: 0.35 });
+    await setAvatar(k, { scope: "step", guide: "upload", step: "intro" }, { mode: "off" });
+    const kk = openKit(lv);
+    assert.deepEqual(kk.settings.avatar, { provider: "svg", background: "#123456" });
+    const g = await loadGuide(kk, "upload");
+    assert.deepEqual(g.player.avatar, { size: 0.35 });
+    assert.deepEqual(stepAvatar(kk, g, g.steps[0]!), { ...resolveAvatar(), provider: "svg", background: "#123456", size: 0.35, mode: "off" });
+    assert.equal(stepAvatar(kk, g, g.steps[1]!).mode, "pip");
+    await setAvatar(kk, { scope: "step", guide: "upload", step: "intro" }, null);
+    assert.equal((await loadGuide(kk, "upload")).steps[0]!.avatar, undefined);
+    // a picture must exist in the kit
+    await setAvatar(kk, { scope: "video", guide: "upload" }, { provider: "image", image: "shared/avatar/nobody.png" });
+    const report = await validateGuide(openKit(lv), await loadGuide(openKit(lv), "upload"));
+    assert.match(report.errors.join("\n"), /player.avatar: the picture "shared\/avatar\/nobody.png" does not exist in the kit/);
+    await rm(lv, { recursive: true, force: true });
     const own = await mkdtemp(path.join(tmpdir(), "cueflow-avatar-"));
     await mkdir(path.join(own, "theme"));
     await writeFile(path.join(own, "theme", "avatar.svg"), '<svg viewBox="0 0 10 10"><g id="head"><g id="eye-l"/><g id="eye-r"/><path id="mouth-closed"/></g></svg>');
@@ -75,6 +100,8 @@ describe("narrator", () => {
     const own = await mkdtemp(path.join(tmpdir(), "cueflow-showcase-"));
     await cp(path.join(import.meta.dirname, "..", "examples", "motion-kit"), own, { recursive: true, filter: (s) => !/[\\/]dist([\\/]|$)/.test(s) });
     const showcase = openKit(own);
+    await setAvatar(showcase, { scope: "step", guide: "dashboard", step: "figures" }, { mode: "side", position: "left", size: 0.35 });
+    await setAvatar(showcase, { scope: "step", guide: "dashboard", step: "trend" }, { mode: "off" });
     // silent build read by the browser's voice (Studio's preview): without any voice the narrator would stay silent too
     const { html } = await renderGuideHtml(showcase, "dashboard", null, { browserVoice: true });
     const file = path.join(own, "dist", "dashboard.html");
@@ -86,6 +113,15 @@ describe("narrator", () => {
       await page.waitForFunction(() => (window as unknown as { __cueflow?: unknown }).__cueflow);
       const seek = (t: number) => page.evaluate((t) => (window as unknown as { __cueflow: { seek(i: number, t: number): Promise<unknown> } }).__cueflow.seek(1, t), t);
       assert.equal(await page.locator(".cf-avatar").isVisible(), true);
+      assert.ok(await page.locator(".cf-avatar").evaluate((el) => el.classList.contains("cf-av-pip") && el.classList.contains("cf-av-bottom-right")));
+      // step 2 keeps the project's face but moves it: a half-bust panel on the left (set below, before the build)
+      await seek(100);
+      const cls = await page.locator(".cf-avatar").evaluate((el) => [el.className, (el as HTMLElement).style.width]);
+      assert.ok(cls[0].includes("cf-av-side") && cls[0].includes("cf-av-left"), cls[0]);
+      assert.equal(cls[1], "35%");
+      await page.evaluate(() => (window as unknown as { __cueflow: { seek(i: number, t: number): Promise<unknown> } }).__cueflow.seek(2, 100));
+      assert.equal(await page.locator(".cf-avatar").isVisible(), false, "step 3 hides it");
+      await page.evaluate(() => (window as unknown as { __cueflow: { seek(i: number, t: number): Promise<unknown> } }).__cueflow.seek(1, 100));
       // the first blink of a step is at 400 + noise(0) * 2800 ms: the same noise as the player's
       const noise = (n: number) => { const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); };
       const blink = Math.round(400 + noise(0) * 2800);
@@ -138,11 +174,12 @@ describe("motion", () => {
       const stage = page.locator(".cf-stage");
       const scene = page.frameLocator(".cf-frame");
 
+      const settled = async () => { await page.waitForTimeout(200); return stage.screenshot(); }; // past any fade of the controls, under load too
       await seek(650); // the file row starting up, four menu entries in, the fifth not yet
-      const first = await stage.screenshot();
+      const first = await settled();
       await seek(4200);
       await seek(650);
-      assert.ok(Buffer.compare(first, await stage.screenshot()) === 0, "the same time gives the same picture, whatever was shown before");
+      assert.ok(Buffer.compare(first, await settled()) === 0, "the same time gives the same picture, whatever was shown before");
       assert.equal(await scene.locator("#sidebar a").nth(0).isVisible(), true);
       assert.equal(await scene.locator("#sidebar a").nth(4).evaluate((el) => getComputedStyle(el).opacity), "0", "the last entry of the stagger has not started");
 

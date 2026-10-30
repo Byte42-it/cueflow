@@ -32,6 +32,7 @@ Decisions taken by the maintainers — do not re-litigate:
 | `validate.ts` | checks selectors against the scene current at each step, duplicate ids, unknown scenes, missing narration per language |
 | `tts.ts` | `TtsProvider` interface (+ `format`: mp3/m4a/wav/ogg) with OpenAI, `command` (any local program, e.g. Piper) and `say` (macOS) providers; on-disk cache keyed by hash(provider, voice, lang, text); ported from the sister chess project |
 | `theme.ts` | optional kit `theme/`: `theme.css` appended after the player CSS (urls inlined), `labels.json` (player words per language, validated), `avatar.svg` (the kit's own narrator face; must have the groups of `AVATAR_IDS`, checked at load) |
+| `avatar.ts`, `avatars.ts` | the narrator: schema `Avatar` (all fields optional), `AVATAR_DEFAULTS`, `resolveAvatar` (step < video < project < defaults); `setAvatar` at one level, `avatarImages` (the pictures a guide may show, inlined), `stepAvatar` (what a step shows), `isKitImage` |
 | `build.ts` | guide → `dist/<id>.html` (player + css + scenes + `shared` + base64 audio, JSON embedded script-safe); `estimateDuration` (same rule as the silent player) |
 | `player/player.js`, `player.css` | browser runtime, plain JS inlined at build time (not bundled/compiled) |
 | `site.ts` | `site.json` catalog → `dist/site/` (home + one page per item: player, transcript, `pages/<id>.html` article); validation, posters via `preview.ts` |
@@ -114,17 +115,26 @@ Player model worth knowing before touching it:
   calls `play()` (Studio's timeline) the parked groups get their time back and the slides run like a video. Controls
   are `cf-sl-*` (the site already uses `.cf-prev`). The site labels such items "Presentation · N slides", drops the
   transcript section and the print panel when nothing is printable.
-- **Narrator** (`player.avatar`, 2026-10-30; MCP `set_avatar`, Studio Voice page › "Narrator on the picture"): provider
-  `none` (default) or `svg` — a cartoon face in a corner of the stage (`.cf-avatar`, size as a fraction of the
-  height, round or rounded, a background colour), the kit's `theme/avatar.svg` or the built-in `AVATAR_SVG`. The
-  player moves its groups: `#eye-l`/`#eye-r` blink (`scaleY`, deterministic from the step time via `noise(slot)`, so
-  a seek gives the same face twice), the `<svg>` sways, `#mouth-closed`/`#mouth-mid`/`#mouth-open` follow
-  `mouthLevel()`: the loudness of the step's audio (an `AnalyserNode` on the `keepAlive` AudioContext, self-calibrated
-  on the recent peak), else the word boundaries of the browser voice (`u.onboundary` → `avatarPulse`), else a syllable
-  guess from the clock; closed when paused, at a seek, or without any voice. Never on slides. `prefers-reduced-motion`
-  stops blink and sway. `.cf-av-br` moves the Cueflow mark out of the narrator's corner. The next provider (an
-  audio-driven service such as HeyGen, one clip per step and language) would replace the SVG in the same `.cf-avatar`
-  layer; the site already keeps media as files (`externalize`).
+- **Narrator** (2026-10-30; `avatar.ts` schema + `resolveAvatar`, `avatars.ts` kit operations): chosen like a voice at
+  three levels inherited downwards — the project (`cueflow.json avatar`), a video (`guide.player.avatar`), a step
+  (`step.avatar`); every field optional, gaps filled by the level above, then `AVATAR_DEFAULTS`. **Never per language.**
+  Fields: `provider` none | svg (a cartoon face drawn by the player, lips moving with the voice: `theme/avatar.svg`
+  with the groups of `AVATAR_IDS`, else the built-in `AVATAR_SVG`) | image (a picture of the kit, `image` path, swaying
+  and nodding); `mode` off | pip (corner, or `custom` with `x`/`y`) | side (left/right half-bust panel, `size` =
+  width) | band (bottom/top, `size` = height) | full; `shape` (pip); `background` colour or kit picture. Pictures travel
+  as `DATA.avatarImages` (data URIs; files under `assets/avatar/` in the docs site), the project's choice as
+  `DATA.avatarGlobal`. The player's `applyAvatar(step)` at every step entry (and seek) sets classes `cf-av-<mode>
+  cf-av-<position>` and inline sizes on `.cf-avatar` (`.cf-av-face` inside holds the svg or img); the move between
+  two steps is a CSS transition only while playing. Blink and sway are deterministic from the step time
+  (`noise(slot)`); lips from `mouthLevel()`: the audio's loudness (AnalyserNode on `keepAlive`, self-calibrated), else
+  the browser voice's word boundaries, else a syllable guess; closed when paused, at a seek, or silent. Never on
+  slides; `prefers-reduced-motion` stops blink and sway. `.cf-av-br` moves the Cueflow mark out of a bottom-right pip.
+  Doors: MCP `set_avatar` (scope global | video | step, `avatar` null = inherit), Studio `POST /api/avatar` (same),
+  `validate` checks the pictures exist. Studio: Settings › "Narrator for every tutorial", the **Avatar** page of the
+  bottom bar (this video: Auto or its own), the **Avatar lane first on the timeline** (one block per step, what is
+  shown and whether it is the step's own) → the step's Avatar tab; `avatarForm` is the one form for the three levels
+  (`root` = the project, no Auto). The next provider (an audio-driven service such as HeyGen, one clip per step and
+  language) would replace the face in the same layer.
 - On a docs page the player fits the window by **narrowing** (`--cf-aspect`, set by `mount`, times the available
   height), never by capping the stage height: a capped stage cropped the bottom of every scene on wide screens.
 

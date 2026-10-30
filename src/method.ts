@@ -101,10 +101,12 @@ set is inherited from the level above (set_voice). Fantastico needs FANTASTICO_A
 narration through the SDK using the key's Fantastico credit. Get a key or recharge credit at https://cueflow.fantastico.cc. Choose a model and one of its supported voices from get_voices.
 
 ## Narrator
-A video can carry a narrator: a cartoon face in a corner of the picture, blinking while idle and moving its lips with
-the voice (set_avatar; the kit's theme/avatar.svg when there is one, else the built-in face). Free, drawn by the
-player. Offer it only when the person asks for a presenter or a "talking head"; keep it small (a quarter of the
-height) and in the corner that covers nothing the tutorial points at. Never on slides.
+A video can carry a narrator over the picture: a cartoon face drawn by the player (lips moving with the voice) or a
+picture of the kit, free. It is chosen like a voice, at three levels inherited downwards (set_avatar): the project
+(the face, the background, the usual place), a video, a step. The same in every language. Places: pip (a corner, or
+x/y), side (a half-bust panel at the left or right), band (bottom or top), full (the narrator alone: an intro, a
+conclusion), off. Offer it only when the person asks for a presenter; keep it where it covers nothing the step points
+at (a step can go off or move it), and never on slides.
 
 ## What the person edits by hand
 The person can change texts in Studio themselves (a button, a description, a narration, a file). get_brief says how

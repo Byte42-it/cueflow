@@ -161,6 +161,7 @@
   function renderPage() {
     if (S.page === "media") renderMedia();
     else if (S.page === "voice") voicesTab($("#voice-body"));
+    else if (S.page === "avatar") avatarPage($("#avatar-body"));
     else if (S.page === "preview") renderPreview();
     else if (S.page === "export") renderExport();
   }
@@ -538,9 +539,10 @@
       }));
       return;
     }
-    if (S.tab !== "narration" && S.tab !== "actions" && S.tab !== "voice") S.tab = "narration";
+    if (S.tab !== "narration" && S.tab !== "actions" && S.tab !== "voice" && S.tab !== "avatar") S.tab = "narration";
     if (S.tab === "narration") narrationTab(p);
     else if (S.tab === "actions") actionsTab(p);
+    else if (S.tab === "avatar") avatarStepTab(p);
     else voiceTab(p);
   }
 
@@ -1094,33 +1096,138 @@
       p.appendChild(h("p", null, "Auto uses the project voice for the language selected above. Turn off Auto to choose a voice just for this tutorial in “" + lang + "”."));
       var own = v.current.guides[g.id] || {};
       p.appendChild(level(v, { scope: "video", guide: g.id, language: lang }, "Voice · “" + lang + "”", (own.languages || {})[lang] || own.default));
-      if (g.format !== "slides") narratorForm(p, g);
     }).catch(function (e) { p.textContent = e.message; });
   }
-  /* the narrator on the picture: a cartoon face whose lips follow the voice; off, or drawn by the player (free) */
-  function narratorForm(p, g) {
-    var a = (g.player && g.player.avatar) || {};
-    var box = h("section", { class: "nar", "aria-label": "Narrator" }); // not .lvl: the voice tests count those
-    box.appendChild(h("h3", null, "Narrator on the picture"));
-    box.appendChild(h("p", null, "A face in a corner of the video that speaks the narration: it blinks, sways a little and moves its lips with the voice. Drawn by the player, no service, no cost. Give the kit a theme/avatar.svg to use your own face."));
-    var on = h("select", null, [["none", "None"], ["svg", "Cartoon face, drawn by the player"]].map(function (k) { return h("option", { value: k[0] }, k[1]); })); on.value = a.provider === "svg" ? "svg" : "none";
-    var pos = h("select", null, ["bottom-right", "bottom-left", "top-right", "top-left"].map(function (k) { return h("option", { value: k }, k.replace("-", " ")); })); pos.value = a.position || "bottom-right";
-    var size = h("input", { type: "range", min: "10", max: "60", step: "2" }); size.value = Math.round((a.size || 0.28) * 100);
-    var shape = h("select", null, [["round", "round"], ["rounded", "rounded square"]].map(function (k) { return h("option", { value: k[0] }, k[1]); })); shape.value = a.shape || "round";
-    var bg = h("input", { type: "color" }); bg.value = /^#[0-9a-f]{6}$/i.test(a.background || "") ? a.background : "#1f2a44";
+  /* ---------- the narrator: chosen like a voice, at three levels (project, video, step), the same in every language ---------- */
+  var AV_DEFAULTS = { provider: "none", mode: "pip", position: "bottom-right", x: 0.7, y: 0.6, size: 0.28, shape: "round", background: "#1f2a44" };
+  function avatarMerge() { var out = {}; Array.prototype.forEach.call(arguments, function (l) { Object.keys(l || {}).forEach(function (k) { if (l[k] !== undefined && l[k] !== null) out[k] = l[k]; }); }); return out; }
+  function avatarWords(a) {
+    if (!a || a.provider === "none" || !a.provider) return "No narrator";
+    if (a.mode === "off") return "Hidden";
+    var where = a.mode === "pip" ? "Corner " + ({ "bottom-right": "↘", "bottom-left": "↙", "top-right": "↗", "top-left": "↖", custom: "at " + Math.round(a.x * 100) + "%, " + Math.round(a.y * 100) + "%" }[a.position] || "↘")
+      : a.mode === "side" ? "Side " + (a.position === "left" ? "left" : "right") : a.mode === "band" ? "Band " + (a.position === "top" ? "top" : "bottom") : "Full screen";
+    return a.mode === "full" ? where : where + " · " + Math.round(a.size * 100) + "%";
+  }
+  function isImagePath(v) { return typeof v === "string" && /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(v); }
+  /* uploads a picture to shared/avatar/ and gives back its kit path */
+  function avatarUpload(cb) {
+    var inp = h("input", { type: "file", accept: "image/*" });
+    inp.addEventListener("change", function () {
+      var f = inp.files[0]; if (!f) return;
+      S.ownSave = Date.now();
+      fetch("/api/media-file?area=shared&name=" + encodeURIComponent("avatar/" + f.name), { method: "POST", headers: { "x-cueflow": "studio" }, body: f })
+        .then(function (r) { return r.json(); }).then(function (r) { if (r.error) throw new Error(r.error); cb("shared/" + r.saved); }).catch(function (e) { flash(e.message, "err"); });
+    });
+    inp.click();
+  }
+  /**
+   * The form of one level. `own` is what this level says (fields may be missing = inherited), `above` what the levels
+   * above resolve to (shown as the Auto value). Every control has Auto unless `root` (the project, which has no above).
+   */
+  function avatarForm(own, above, root, save) {
+    var box = h("section", { class: "nar", "aria-label": "Narrator" });
+    var v = Object.assign({}, own);
+    var resolved = function () { return avatarMerge(AV_DEFAULTS, above, v); };
+    var store = function () { save(v); };
+    var sel = function (label, key, options) {
+      var el = h("select", null, (root ? [] : [h("option", { value: "" }, "Auto (" + (above[key] != null ? above[key] : AV_DEFAULTS[key]) + ")")]).concat(options.map(function (o) { return h("option", { value: o[0] }, o[1]); })));
+      el.value = v[key] != null ? v[key] : ""; if (el.value !== (v[key] != null ? String(v[key]) : "")) el.value = root ? AV_DEFAULTS[key] : "";
+      el.addEventListener("change", function () { if (el.value === "") delete v[key]; else v[key] = el.value; store(); render(); });
+      return h("label", { class: "lab" }, label, el);
+    };
+    var num = function (label, key, min, max, step) {
+      var el = h("input", { type: "range", min: String(min), max: String(max), step: String(step) }), out = h("span", { class: "cur" });
+      var cur = v[key] != null ? v[key] : (above[key] != null ? above[key] : AV_DEFAULTS[key]);
+      el.value = Math.round(cur * 100); out.textContent = Math.round(cur * 100) + "%" + (v[key] == null && !root ? " (Auto)" : "");
+      el.addEventListener("input", function () { v[key] = +el.value / 100; out.textContent = el.value + "%"; });
+      el.addEventListener("change", store);
+      var wrap = h("label", { class: "lab" }, label, el, out);
+      if (!root) wrap.appendChild(h("button", { class: "btn small", title: "Follow the level above", onclick: function () { delete v[key]; store(); render(); } }, "Auto"));
+      return wrap;
+    };
+    var body = h("div");
+    function render() {
+      body.textContent = "";
+      var r = resolved();
+      body.appendChild(h("p", { class: "cur" }, "Now: " + avatarWords(r)));
+      body.appendChild(h("div", { class: "pickrow" },
+        sel("Narrator", "provider", [["none", "None"], ["svg", "Cartoon face, drawn by the player"], ["image", "A picture of the kit"]]),
+        sel("Where", "mode", [["off", "Hidden"], ["pip", "Small, in a corner"], ["side", "Half bust, on a side"], ["band", "A band"], ["full", "Full screen"]])));
+      if (r.provider === "image") {
+        var img = h("input", { type: "text", placeholder: "shared/avatar/me.png" }); img.value = v.image || "";
+        img.addEventListener("change", function () { if (img.value.trim()) v.image = img.value.trim(); else delete v.image; store(); });
+        body.appendChild(h("div", { class: "pickrow" }, h("label", { class: "lab", style: "flex:1" }, "Picture" + (v.image == null && above.image ? " (Auto: " + above.image + ")" : ""), h("div", { class: "pickrow" }, img,
+          h("button", { class: "btn", onclick: function () { avatarUpload(function (p) { v.image = p; img.value = p; store(); }); } }, "Upload…")))));
+      }
+      if (r.mode === "pip") {
+        body.appendChild(h("div", { class: "pickrow" },
+          sel("Corner", "position", [["bottom-right", "bottom right"], ["bottom-left", "bottom left"], ["top-right", "top right"], ["top-left", "top left"], ["custom", "where I say (x, y)"]]),
+          sel("Shape", "shape", [["round", "round"], ["rounded", "rounded square"]])));
+        if (r.position === "custom") body.appendChild(h("div", { class: "pickrow" }, num("Left", "x", 0, 100, 1), num("Top", "y", 0, 100, 1)));
+        body.appendChild(num("Size (height of the picture)", "size", 5, 100, 1));
+      } else if (r.mode === "side") {
+        body.appendChild(sel("Side", "position", [["right", "right"], ["left", "left"]]));
+        body.appendChild(num("Width of the panel", "size", 10, 100, 1));
+      } else if (r.mode === "band") {
+        body.appendChild(sel("Edge", "position", [["bottom", "bottom"], ["top", "top"]]));
+        body.appendChild(num("Height of the band", "size", 10, 100, 1));
+      }
+      if (r.mode !== "off" && r.provider !== "none") {
+        var isImg = isImagePath(r.background);
+        var color = h("input", { type: "color" }); color.value = /^#[0-9a-f]{6}$/i.test(r.background) ? r.background : "#1f2a44";
+        color.addEventListener("change", function () { v.background = color.value; store(); render(); });
+        var row = h("div", { class: "pickrow" }, h("label", { class: "lab" }, "Background" + (v.background == null && !root ? " (Auto)" : ""), color),
+          h("button", { class: "btn", onclick: function () { avatarUpload(function (p) { v.background = p; store(); render(); }); } }, isImg ? "Picture: " + r.background.split("/").pop() + " — change…" : "A picture instead…"));
+        if (isImg) row.appendChild(h("button", { class: "btn", onclick: function () { v.background = color.value; store(); render(); } }, "Colour instead"));
+        if (!root && v.background != null) row.appendChild(h("button", { class: "btn small", onclick: function () { delete v.background; store(); render(); } }, "Auto"));
+        body.appendChild(row);
+      }
+    }
+    render();
+    box.appendChild(body);
+    return box;
+  }
+  /* the Avatar page of the bottom bar: this video's narrator, Auto = the project's */
+  function avatarPage(p) {
+    var g = video();
+    p.textContent = "";
+    if (!g) { p.appendChild(h("p", { class: "empty" }, "Select or create a tutorial.")); return; }
+    if (g.format === "slides") { p.appendChild(h("p", { class: "empty" }, "A presentation has no voice, so no narrator.")); return; }
+    var own = g.avatar || {}, project = S.state.avatar || {};
+    p.appendChild(h("h3", null, "Narrator of this tutorial"));
+    p.appendChild(h("p", null, "A face over the picture that speaks the narration: a cartoon drawn by the player, or a picture of yours. The same in every language. Auto follows the project (Settings); a step can still differ on its own Avatar tab."));
+    var auto = h("input", { type: "checkbox", checked: !Object.keys(own).length });
     var msg = h("div", { class: "msg" });
-    var store = function () {
-      save(function (gg) {
-        gg.player = gg.player || {};
-        gg.player.avatar = { provider: on.value, position: pos.value, size: +size.value / 100, shape: shape.value, background: bg.value };
-      }).then(function () { S.audioRev = (S.audioRev || 0) + 1; msg.className = "msg ok"; msg.textContent = on.value !== "none" ? "Saved: the narrator is on. See it in Preview." : "Saved: no narrator."; })
+    var save = function (v) {
+      api("/api/avatar", { method: "POST", body: { scope: "video", guide: g.id, avatar: Object.keys(v).length ? v : null } })
+        .then(function () { S.ownSave = Date.now(); return loadState(); }).then(function () { return loadGuide(S.guideId); }).then(function () { msg.className = "msg ok"; msg.textContent = Object.keys(v).length ? "Saved: this tutorial has its own narrator." : "Saved: this tutorial follows the project."; viewKey = ""; prevKey = ""; renderStrip(); })
         .catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
     };
-    [on, pos, size, shape, bg].forEach(function (el) { el.addEventListener("change", store); });
-    box.appendChild(h("label", { class: "lab" }, "Narrator", on));
-    box.appendChild(h("div", { class: "pickrow" }, h("label", { class: "lab" }, "Corner", pos), h("label", { class: "lab" }, "Size", size), h("label", { class: "lab" }, "Shape", shape), h("label", { class: "lab" }, "Background", bg)));
-    box.appendChild(msg);
-    p.appendChild(box);
+    auto.addEventListener("change", function () { if (auto.checked) { save({}); form.hidden = true; } else form.hidden = false; });
+    p.appendChild(h("label", { class: "lab" }, auto, " Auto: the project's narrator (" + avatarWords(avatarMerge(AV_DEFAULTS, project)) + ")"));
+    var form = avatarForm(own, avatarMerge(AV_DEFAULTS, project), false, save); form.hidden = auto.checked;
+    p.appendChild(form);
+    p.appendChild(msg);
+  }
+  /* the Avatar tab of one step */
+  function avatarStepTab(p) {
+    if (!S.guide || !S.guide.steps.length) { p.appendChild(h("p", { class: "empty" }, "Select a step first.")); return; }
+    var g = video(), st = S.guide.steps[S.step], own = st.avatar || {};
+    var above = avatarMerge(AV_DEFAULTS, S.state.avatar, g && g.avatar);
+    p.appendChild(h("h3", null, "Narrator · step " + (S.step + 1)));
+    p.appendChild(h("p", null, "Where the narrator is in this step: hidden where it would cover what the step shows, full screen for an intro, a corner elsewhere. Auto follows the tutorial (Avatar page)."));
+    var auto = h("input", { type: "checkbox", checked: !Object.keys(own).length });
+    var msg = h("div", { class: "msg" });
+    var save = function (v) {
+      api("/api/avatar", { method: "POST", body: { scope: "step", guide: S.guideId, step: st.id, avatar: Object.keys(v).length ? v : null } })
+        .then(function () { S.ownSave = Date.now(); return loadState(); }).then(function () { return loadGuide(S.guideId); }).then(function () { msg.className = "msg ok"; msg.textContent = "Saved."; viewKey = ""; prevKey = ""; renderView(true); renderStrip(); })
+        .catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+    };
+    auto.addEventListener("change", function () { if (auto.checked) { save({}); form.hidden = true; } else form.hidden = false; });
+    p.appendChild(h("label", { class: "lab" }, auto, " Auto: as the tutorial (" + avatarWords(above) + ")"));
+    var form = avatarForm(own, above, false, save); form.hidden = auto.checked;
+    p.appendChild(form);
+    p.appendChild(msg);
   }
   function level(v, target, title, spec) {
     var box = h("div", { class: "lvl" });
@@ -1466,6 +1573,9 @@
     var stepSec = S.zoom >= 120 ? 1 : S.zoom >= 50 ? 5 : 10;
     for (var t = 0; t * 1000 <= total; t += stepSec) ruler.appendChild(h("i", { style: "left:" + t * S.zoom + "px" }, fmt(t * 1000)));
     lanes.appendChild(ruler);
+    // the narrator first: it is drawn over the picture, so it sits over the other lanes too
+    var lAv = h("div", { class: "lane" }, h("span", { class: "lbl" }, "Avatar"));
+    if (g.format !== "slides") lanes.appendChild(lAv);
     var lSteps = h("div", { class: "lane" }, h("span", { class: "lbl" }, "Steps"));
     var lNarr = h("div", { class: "lane" }, h("span", { class: "lbl" }, "Text"));
     var lTr = h("div", { class: "lane" }, h("span", { class: "lbl" }, "Voice"));
@@ -1489,6 +1599,12 @@
         return el;
       };
       lSteps.appendChild(drag("step", "left:" + x * px + "px;width:" + Math.max(8, tm.total * px - 2) + "px", (i + 1) + " · " + (text(st.title, S.lang) || st.id), (text(st.title, S.lang) || st.id) + " — drag to move"));
+      if (g.format !== "slides") {
+        var shown = (g.steps[i] && g.steps[i].shown) || avatarMerge(AV_DEFAULTS, S.state.avatar, g.avatar), ownAv = g.steps[i] && g.steps[i].avatar && Object.keys(g.steps[i].avatar).length;
+        var hidden = shown.provider === "none" || shown.mode === "off";
+        lAv.appendChild(h("div", { class: "blk av" + (on ? " on" : "") + (hidden ? " av-off" : " av-" + shown.mode), "data-i": i, style: "left:" + x * px + "px;width:" + Math.max(8, tm.total * px - 2) + "px",
+          title: avatarWords(shown) + (ownAv ? " (this step's own)" : " (Auto)") + " — click to change", onclick: function (e) { clickAt(e, i, "avatar"); } }, (ownAv ? "" : "Auto · ") + avatarWords(shown)));
+      }
       lNarr.appendChild(drag("narr", "left:" + x * px + "px;width:" + Math.max(4, tm.narration * px - 2) + "px", text(st.narration, S.lang), text(st.narration, S.lang), "narration"));
       var own = full && full.steps[i].voice && full.steps[i].voice[S.lang], vs = own || (S.voices ? tutorialVoice(g.id, S.lang).spec : null), wv = waveOf(i);
       var vtxt = !vs ? "Auto" : vs.provider === "none" ? "Muted" : vs.provider === "file" ? "Audio file" : (own ? "" : "Auto · ") + label(vs) + (full && full.steps[i].speech && full.steps[i].speech[S.lang] ? " · own text" : "");
@@ -1780,6 +1896,16 @@
       api("/api/voices").then(function (voices) {
         audioSettings.appendChild(level(voices, { scope: "global" }, "Default voice for every tutorial", voices.current.default));
       }).catch(function (error) { voiceError(audioSettings, error); });
+      // the project's narrator: its face, its background, its usual place; a video or a step can differ
+      var avSection = h("section", { "aria-label": "Narrator settings" }, h("h3", null, "Narrator for every tutorial"),
+        h("p", null, "A face over the picture that speaks the narration. Upload your own picture, or use the cartoon face drawn by the player; the background is used wherever the narrator has a panel. Each tutorial and each step can still differ."));
+      var avMsg = h("div", { class: "msg" });
+      avSection.appendChild(avatarForm(S.state.avatar || {}, {}, true, function (v) {
+        api("/api/avatar", { method: "POST", body: { scope: "global", avatar: v } }).then(function (r) { S.state.avatar = r.avatar; avMsg.className = "msg ok"; avMsg.textContent = "Narrator saved: " + avatarWords(avatarMerge(AV_DEFAULTS, r.avatar)) + "."; prevKey = ""; renderStrip(); })
+          .catch(function (e) { avMsg.className = "msg err"; avMsg.textContent = e.message; });
+      }));
+      avSection.appendChild(avMsg);
+      body.appendChild(avSection);
       body.appendChild(h("p", null, "What was agreed with the people who watch these videos. It guides the narration and the voice for every tutorial."));
       body.appendChild(h("div", { class: "fields" },
         inp("audience", "Who watches", b.audience), inp("tone", "Tone of the narration", b.tone),

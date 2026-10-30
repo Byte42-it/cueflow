@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
+import { Avatar } from "./avatar.ts";
 
 /**
  * cueflow.json in the kit: how the tool behaves for this project (where the output goes, which voice reads the
@@ -50,7 +51,8 @@ export const Settings = z.object({
       languages: z.record(VoiceSpec).default({}).describe("a voice for every video in a language"),
       guides: z.record(VoiceScope).default({}).describe("a voice for one video only (all its languages, or one by language)")
     })
-    .default({})
+    .default({}),
+  avatar: Avatar.describe("the project's narrator: its picture, background and usual place; a video or a step can differ")
 });
 export type Settings = z.infer<typeof Settings>;
 

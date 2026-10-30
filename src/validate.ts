@@ -4,6 +4,7 @@ import type { Guide } from "./schema.ts";
 import type { Kit } from "./kit.ts";
 import { listScenes, readScene, sceneFile, sceneFileFor } from "./kit.ts";
 import { countMatches, firstText } from "./scene.ts";
+import { isKitImage } from "./avatars.ts";
 import { estimateDuration } from "./build.ts";
 import { loadBrief } from "./brief.ts";
 
@@ -22,6 +23,17 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
 
   if (!available.has(scene)) errors.push(`guide scene "${scene}" does not exist`);
   if (guide.steps.length === 0) warnings.push("the guide has no steps");
+  // the narrator's pictures must be files of the kit (project, video and steps alike)
+  const pictures: { where: string; file: string }[] = [];
+  for (const [where, a] of [["cueflow.json avatar", kit.settings.avatar], ["player.avatar", guide.player.avatar], ...guide.steps.map((s, i) => [`step ${i + 1} (${s.id}) avatar`, s.avatar] as const)] as const) {
+    if (isKitImage(a?.image)) pictures.push({ where, file: a.image });
+    if (isKitImage(a?.background)) pictures.push({ where, file: a.background });
+    if (a?.provider === "image" && !a.image && !guide.player.avatar?.image && !kit.settings.avatar?.image) errors.push(`${where}: provider "image" needs \`image\`, the path of a picture inside the kit`);
+  }
+  for (const p of pictures) {
+    if (p.file.split(/[\\/]/).includes("..")) errors.push(`${p.where}: "${p.file}" must be inside the kit`);
+    else if (!(await stat(path.join(kit.root, p.file)).then((s) => s.isFile(), () => false))) errors.push(`${p.where}: the picture "${p.file}" does not exist in the kit`);
+  }
 
   // slides are advanced by hand and say nothing: no length to keep, and the narration is optional speaker's notes
   const slides = guide.format === "slides";

@@ -61,7 +61,7 @@ describe("schema", () => {
 
   it("gives old guides the default player and no pronunciation", () => {
     const g = Guide.parse({ id: "g", title: "G", scene: "upload" });
-    assert.deepEqual(g.player, { captions: "below", chapters: true, speeds: [1, 1.5], transcript: true, brand: "stage", fallbackVoice: "none", avatar: { provider: "none", position: "bottom-right", size: 0.28, shape: "round", background: "#1f2a44" } });
+    assert.deepEqual(g.player, { captions: "below", chapters: true, speeds: [1, 1.5], transcript: true, brand: "stage", fallbackVoice: "none", avatar: {} });
     assert.deepEqual(g.pronunciation, {});
     assert.throws(() => Guide.parse({ id: "g", title: "G", scene: "s", player: { captions: "sideways" } }));
     assert.throws(() => Guide.parse({ id: "g", title: "G", scene: "s", player: { speeds: [] } }));

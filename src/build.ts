@@ -1,3 +1,5 @@
+import { avatarImages } from "./avatars.ts";
+import type { Avatar } from "./avatar.ts";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,6 +31,10 @@ export type GuideBundle = {
     /** stylesheets and images shared by the scenes, once each (see Shared in scene.ts) */
     shared: Shared;
     audio: Record<string, Record<string, string>>;
+    /** the project's narrator (cueflow.json), under the guide's and the steps' own choices */
+    avatarGlobal: Avatar;
+    /** pictures the narrator shows, by kit path: data URIs, or addresses in a docs site */
+    avatarImages: Record<string, string>;
   };
   scenes: string[];
   audioFiles: number;
@@ -83,7 +89,7 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
   }
   // a language without a recorded voice is read by the viewer's browser when that is what was chosen for it
   if (browserVoice) guide.player = { ...guide.player, fallbackVoice: "browser" };
-  return { guide, data: { guide, scenes, sceneLang, shared, audio }, scenes: names, audioFiles, warnings: report.warnings };
+  return { guide, data: { guide, scenes, sceneLang, shared, audio, avatarGlobal: kit.settings.avatar, avatarImages: await avatarImages(kit, guide) }, scenes: names, audioFiles, warnings: report.warnings };
 }
 
 const MS_PER_CHAR = 65; // as in the player: narration length estimate when there is no audio

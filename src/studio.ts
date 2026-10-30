@@ -31,6 +31,7 @@ import { VoiceSpec } from "./settings.ts";
 import { validateGuide } from "./validate.ts";
 import { readFile as read } from "node:fs/promises";
 import { readRawSettings, setVoice, stepAudio, voiceFor, voiceOptions, voiceTable, writeRawSettings } from "./voices.ts";
+import { setAvatar, stepAvatar } from "./avatars.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS: Record<string, [string, string]> = {
@@ -115,9 +116,9 @@ async function state(kit: Kit) {
     // estimated lengths (ms) per language, as the player computes them for a silent build: the timeline is drawn from these
     const timing: Record<string, { narration: number; total: number }[]> = {};
     for (const lang of g.languages) timing[lang] = g.steps.map((s) => estimateStepDuration(s, lang));
-    guides.push({ id, title: g.title, languages: g.languages, scene: g.scene, vertical: g.vertical, format: g.format, viewport: orientedGuide(g).viewport, timing, steps: g.steps.map((s) => ({ id: s.id, title: s.title ?? null, narration: s.narration, actions: s.actions.map((a) => ({ do: a.do, at: "at" in a ? a.at : 0, duration: "duration" in a ? a.duration : undefined })) })) });
+    guides.push({ id, title: g.title, languages: g.languages, scene: g.scene, vertical: g.vertical, format: g.format, viewport: orientedGuide(g).viewport, timing, avatar: g.player.avatar, steps: g.steps.map((s) => ({ id: s.id, title: s.title ?? null, narration: s.narration, avatar: s.avatar, shown: stepAvatar(kit, g, s), actions: s.actions.map((a) => ({ do: a.do, at: "at" in a ? a.at : 0, duration: "duration" in a ? a.duration : undefined })) })) });
   }
-  return { videoPresets: VIDEO_PRESETS, kitRoot: kit.root, projectRoot: projectRoot(kit), outDir: kit.out, outDirShown: path.relative(projectRoot(kit), kit.out).split(path.sep).join("/") || ".", defaultOutDirShown: path.relative(projectRoot(kit), path.resolve(kit.root, defaultOutDir(kit))).split(path.sep).join("/"), brief: await loadBrief(kit), pending: (await pendingChanges(kit)).length, guides, scenes: await listScenes(kit), hasKey: Boolean(process.env.FANTASTICO_API_KEY), catalog: await catalogOverview(kit).catch((e) => ({ exists: false as const, error: e instanceof Error ? e.message : String(e) })) };
+  return { videoPresets: VIDEO_PRESETS, avatar: kit.settings.avatar, kitRoot: kit.root, projectRoot: projectRoot(kit), outDir: kit.out, outDirShown: path.relative(projectRoot(kit), kit.out).split(path.sep).join("/") || ".", defaultOutDirShown: path.relative(projectRoot(kit), path.resolve(kit.root, defaultOutDir(kit))).split(path.sep).join("/"), brief: await loadBrief(kit), pending: (await pendingChanges(kit)).length, guides, scenes: await listScenes(kit), hasKey: Boolean(process.env.FANTASTICO_API_KEY), catalog: await catalogOverview(kit).catch((e) => ({ exists: false as const, error: e instanceof Error ? e.message : String(e) })) };
 }
 
 /**
@@ -548,6 +549,13 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     const target = b.scope === "global" ? { scope: "global" as const } : b.scope === "language" ? { scope: "language" as const, language: String(b.language) } : { scope: "video" as const, guide: String(b.guide), language: b.language ? String(b.language) : undefined };
     await setVoice(kit, target, b.voice ?? null);
     return json(res, { current: kit.settings.voices, table: await voiceTable(kit) });
+  }
+  // the narrator at one level: the project (cueflow.json), a video, a step; `avatar` null = inherit from above
+  if (p === "/api/avatar" && req.method === "POST") {
+    const b = await readBody(req);
+    const target = b.scope === "global" ? { scope: "global" as const } : b.scope === "step" ? { scope: "step" as const, guide: String(b.guide), step: String(b.step) } : { scope: "video" as const, guide: String(b.guide) };
+    await setAvatar(kit, target, b.avatar ?? null).catch((e) => { throw new HttpError(400, e.message); });
+    return json(res, { avatar: kit.settings.avatar });
   }
   if (p === "/api/key" && req.method === "POST") {
     // the key is written to the kit's .env (git-ignored) and never sent back to the page

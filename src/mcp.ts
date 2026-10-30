@@ -17,6 +17,7 @@ import { describeScene } from "./scene.ts";
 import { buildSite, checkEndpoint, loadSite, syncSite, validateSite } from "./site.ts";
 import { createArticle, readArticle, writeArticle } from "./articles.ts";
 import { Avatar, Guide, orientedGuide, Step } from "./schema.ts";
+import { setAvatar } from "./avatars.ts";
 import { validateGuide } from "./validate.ts";
 
 const text = (value: unknown) => ({ content: [{ type: "text" as const, text: typeof value === "string" ? value : JSON.stringify(value, null, 2) }] });
@@ -165,15 +166,16 @@ export function createServer(kit: Kit): McpServer {
     "set_avatar",
     {
       description:
-        "Put a narrator on a video's picture, or remove it: a cartoon face in a corner that blinks and moves its lips with the voice, drawn by the player (free, no service; the kit's theme/avatar.svg when it has one). Only when the user asks for a narrator or a presenter; never on slides.",
-      inputSchema: { guide: guideId, avatar: Avatar }
+        "The narrator over the picture, chosen like a voice at three levels inherited downwards: the project (scope global, cueflow.json), one video (scope video), one step (scope step). Give only the fields that change at that level (provider svg = a cartoon face drawn by the player, lips moving with the voice; image = a picture of the kit; mode pip/side/band/full/off; position; size; background colour or picture); `avatar` null clears the level. The same in every language. Only when the user asks for a narrator or a presenter; never on slides. Typical: the project chooses the face and the usual corner, a step goes `full` for an intro or `off` where the face would cover what is shown.",
+      inputSchema: { scope: z.enum(["global", "video", "step"]).default("video"), guide: guideId.optional(), step_id: z.string().optional(), avatar: Avatar.nullable() }
     },
-    safe(async ({ guide, avatar }) => {
-      const g = await loadGuide(kit, guide);
-      if (g.format === "slides") throw new Error(`"${guide}" is a presentation: slides have no voice, so no narrator`);
-      g.player = { ...g.player, avatar };
-      await saveGuide(kit, g);
-      return text({ guide, avatar: g.player.avatar });
+    safe(async ({ scope, guide, step_id, avatar }) => {
+      if (scope !== "global" && !guide) throw new Error("give the guide id");
+      if (scope === "step" && !step_id) throw new Error("give step_id");
+      if (guide && (await loadGuide(kit, guide)).format === "slides") throw new Error(`"${guide}" is a presentation: slides have no voice, so no narrator`);
+      const target = scope === "global" ? { scope } : scope === "video" ? { scope, guide: guide! } : { scope, guide: guide!, step: step_id! };
+      await setAvatar(kit, target, avatar);
+      return text({ scope, guide, step_id, avatar, project: kit.settings.avatar });
     })
   );
 

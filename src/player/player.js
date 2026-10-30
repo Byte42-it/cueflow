@@ -81,7 +81,7 @@
       '<iframe class="cf-frame" scrolling="no" tabindex="-1"></iframe>' +
       '<div class="cf-spot"></div><div class="cf-ring"></div><div class="cf-cursor"></div>' +
       "</div>" +
-      '<div class="cf-avatar" hidden aria-hidden="true"></div>' +
+      '<div class="cf-avatar" hidden aria-hidden="true"><div class="cf-av-face"></div></div>' +
       '<p class="cf-subs" aria-live="polite" hidden><span></span></p>' +
       '<button class="cf-big" aria-label="Play">' + ICON_PLAY + "</button>" +
       '<p class="cf-veil-text" aria-hidden="true"><strong></strong><span></span></p>' +
@@ -737,7 +737,8 @@
     }
     function stopVoice() { if (synth) synth.cancel(); if (cur) { cur.speaking = false; cur.utter = null; } }
 
-    // ---- the narrator: a cartoon face in a corner, drawn by the player; blinks on the step clock, lips follow the voice ----
+    // ---- the narrator: a face over the picture (a corner, a side panel, a band, the whole picture), drawn by the
+    // player; blinks on the step clock, lips follow the voice. Chosen like a voice: step < video < project < defaults.
     var AVATAR_SVG = '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">' +
       '<g id="head"><circle cx="50" cy="52" r="34" fill="#f2c9a8"/><path d="M18 46c2-22 18-32 32-32s30 10 32 32c-6-10-18-14-32-14s-26 4-32 14z" fill="#3b2a24"/>' +
       '<g id="eye-l"><ellipse cx="38" cy="50" rx="4.2" ry="4.6" fill="#2b2b2b"/><circle cx="39.4" cy="48.6" r="1.3" fill="#fff"/></g>' +
@@ -746,31 +747,61 @@
       '<path id="mouth-closed" d="M41 70q9 5 18 0" fill="none" stroke="#9c4a3c" stroke-width="2.4" stroke-linecap="round"/>' +
       '<ellipse id="mouth-mid" cx="50" cy="71" rx="7.5" ry="3.2" fill="#8d3b31"/>' +
       '<g id="mouth-open"><ellipse cx="50" cy="72" rx="8.5" ry="6" fill="#8d3b31"/><ellipse cx="50" cy="69.5" rx="6" ry="2" fill="#fff"/></g></g></svg>';
-    var avatarOpts = opts.avatar || {};
-    var avatarEl = $(".cf-avatar"), av = null; // av: the moving parts
-    function setupAvatar() {
-      if (avatarOpts.provider !== "svg" || slides) return;
-      avatarEl.innerHTML = DATA.avatar || AVATAR_SVG;
-      var svg = avatarEl.querySelector("svg");
-      if (!svg) return;
-      av = { svg: svg, eyes: [svg.querySelector("#eye-l"), svg.querySelector("#eye-r")], mouths: { closed: svg.querySelector("#mouth-closed"), mid: svg.querySelector("#mouth-mid"), open: svg.querySelector("#mouth-open") }, pulse: -1e9, bound: false, level: 0 };
-      av.eyes.forEach(function (e) { if (e) { e.style.transformBox = "fill-box"; e.style.transformOrigin = "50% 50%"; } });
-      avatarEl.hidden = false;
-      avatarEl.className = "cf-avatar cf-av-" + (avatarOpts.position || "bottom-right") + (avatarOpts.shape === "rounded" ? " cf-av-rounded" : "");
-      if ((avatarOpts.position || "bottom-right") === "bottom-right") app.classList.add("cf-av-br");
-      avatarEl.style.height = ((avatarOpts.size || 0.28) * 100) + "%";
-      avatarEl.style.background = avatarOpts.background || "#1f2a44";
-      paintAvatar(0, 0);
+    var AVATAR_DEFAULTS = { provider: "none", mode: "pip", position: "bottom-right", x: 0.7, y: 0.6, size: 0.28, shape: "round", background: "#1f2a44" };
+    var avatarEl = $(".cf-avatar"), faceEl = $(".cf-av-face"), av = null, avKey = "";
+    /** What the narrator is in a step: the step's choices over the video's over the project's over the defaults. */
+    function avatarOf(st) {
+      var out = {}, layers = [AVATAR_DEFAULTS, DATA.avatarGlobal, opts.avatar, st && st.avatar];
+      layers.forEach(function (l) { Object.keys(l || {}).forEach(function (k) { if (l[k] !== undefined) out[k] = l[k]; }); });
+      return out;
+    }
+    function isImagePath(v) { return typeof v === "string" && /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(v) && !/^(data:|https?:)/.test(v); }
+    function kitImage(v) { return (DATA.avatarImages || {})[v] || null; }
+    /** Puts the face where the step says. Idempotent: called at every step entry (and seek). */
+    function applyAvatar(st) {
+      var a = avatarOf(st);
+      var on = !slides && a.provider !== "none" && a.mode !== "off" && (a.provider !== "image" || kitImage(a.image));
+      app.classList.toggle("cf-av-br", on && a.mode === "pip" && a.position === "bottom-right");
+      avatarEl.hidden = !on;
+      if (!on) { avKey = ""; return; } // the face stays built for the next step that shows it
+      var key = JSON.stringify(a);
+      if (key === avKey) return;
+      avKey = key;
+      // the face itself
+      var faceKey = a.provider + ":" + (a.image || "");
+      if (faceEl.getAttribute("data-face") !== faceKey) {
+        faceEl.setAttribute("data-face", faceKey);
+        faceEl.innerHTML = a.provider === "image" ? '<img alt="" src="' + kitImage(a.image) + '">' : (DATA.avatar || AVATAR_SVG);
+        var svg = faceEl.querySelector("svg"), img = faceEl.querySelector("img");
+        av = { svg: svg, img: img, eyes: svg ? [svg.querySelector("#eye-l"), svg.querySelector("#eye-r")] : [], mouths: svg ? { closed: svg.querySelector("#mouth-closed"), mid: svg.querySelector("#mouth-mid"), open: svg.querySelector("#mouth-open") } : {}, pulse: -1e9, bound: false, level: 0 };
+        av.eyes.forEach(function (e) { if (e) { e.style.transformBox = "fill-box"; e.style.transformOrigin = "50% 50%"; } });
+      }
+      // where, how big, on what
+      var pos = a.position, mode = a.mode;
+      if (mode === "pip" && ["bottom-right", "bottom-left", "top-right", "top-left", "custom"].indexOf(pos) < 0) pos = "bottom-right";
+      if (mode === "side" && pos !== "left") pos = "right";
+      if (mode === "band" && pos !== "top") pos = "bottom";
+      avatarEl.className = "cf-avatar cf-av-" + mode + " cf-av-" + pos + (mode === "pip" && a.shape === "rounded" ? " cf-av-rounded" : "");
+      var cs = avatarEl.style;
+      cs.left = cs.right = cs.top = cs.bottom = cs.width = cs.height = "";
+      if (mode === "pip") { cs.height = a.size * 100 + "%"; if (pos === "custom") { cs.left = a.x * 100 + "%"; cs.top = a.y * 100 + "%"; } }
+      else if (mode === "side") cs.width = a.size * 100 + "%";
+      else if (mode === "band") cs.height = a.size * 100 + "%";
+      var bgImage = isImagePath(a.background) ? kitImage(a.background) : null;
+      cs.background = bgImage ? "url(" + JSON.stringify(bgImage) + ") center / cover no-repeat" : a.background;
+      paintAvatar(cur ? cur.t : 0, 0);
     }
     /* a small deterministic noise of the step time: the same t gives the same blink, in a seek as in playback */
     function noise(n) { var x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); }
     function paintAvatar(t, level) {
-      if (!av) return;
+      if (!av || avatarEl.hidden) return;
       // a blink every 2.5–5 s, 150 ms long; the slot's own noise picks its moment
       var slot = Math.floor(t / 3600), at = slot * 3600 + 400 + noise(slot) * 2800, blink = reduce ? 0 : Math.max(0, 1 - Math.abs(t - at) / 75);
       av.eyes.forEach(function (e) { if (e) e.style.transform = "scaleY(" + (1 - 0.92 * blink) + ")"; });
-      // a slow sway of the head, none when motion is reduced
-      av.svg.style.transform = reduce ? "" : "rotate(" + (1.4 * Math.sin(t / 1300)) + "deg) translateY(" + (0.6 * Math.sin(t / 900)) + "%)";
+      // a slow sway; a picture also nods a little as it speaks
+      var sway = reduce ? "" : "rotate(" + (1.4 * Math.sin(t / 1300)) + "deg) translateY(" + (0.6 * Math.sin(t / 900)) + "%)";
+      if (av.svg) av.svg.style.transform = sway;
+      if (av.img) av.img.style.transform = sway + (reduce ? "" : " scale(" + (1 + 0.015 * level) + ")");
       var m = level < 0.12 ? "closed" : level < 0.45 ? "mid" : "open";
       Object.keys(av.mouths).forEach(function (k) { if (av.mouths[k]) av.mouths[k].style.display = k === m ? "" : "none"; });
     }
@@ -803,7 +834,6 @@
       var beat = Math.floor(cur.t / 190);
       return noise(beat + 7) < 0.3 ? 0.08 : 0.35 + 0.65 * Math.abs(Math.sin(cur.t / 95));
     }
-    setupAvatar();
 
     // ---- steps ----
     async function enterStep(i, instant) {
@@ -826,6 +856,7 @@
       showCaption(text);
       if (slides) paintSlide();
       applyCamera(st.camera || cam, instant ? 0 : 700);
+      applyAvatar(st);
       if (!instant && playing) {
         if (cur.audio) { cur.audio.currentTime = 0; playSound(cur.audio); }
         else if (!cur.mute) speak(cur, said);
