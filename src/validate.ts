@@ -69,6 +69,11 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
       const many = (a.do === "show" || a.do === "hide") && a.stagger != null;
       if ("to" in a) refs.push({ label, selector: a.to, many, number: a.do === "count" && a.from == null });
       if (a.do === "scroll") refs.push({ label, selector: a.in });
+      if (a.do === "reorder" || a.do === "drag") {
+        const given = (["into", "before", "after"] as const).filter((key) => a[key] != null);
+        if (given.length !== 1) errors.push(`${where}, ${label}: give exactly one of into, before, after (the place the element goes to)`);
+        for (const key of given) refs.push({ label: `${label} ${key}`, selector: a[key]! });
+      }
       if (a.do === "camera" && typeof a.target === "string") refs.push({ label, selector: a.target });
       const texts = [
         a.do === "type" ? a.text : undefined,

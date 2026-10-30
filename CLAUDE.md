@@ -25,7 +25,7 @@ Decisions taken by the maintainers — do not re-litigate:
 
 | File | Role |
 |---|---|
-| `schema.ts` | zod schemas: `Guide`, `Step`, `Action` (move, click, type, highlight, set, select, value, check, show, hide, tween, count, scroll, camera), `Camera`; motion fields shared by the actions: `easing` (named curve or cubic-bezier), `effect` + `stagger` on show/hide, `animate` on state changes |
+| `schema.ts` | zod schemas: `Guide`, `Step`, `Action` (move, hover, click, type, highlight with `style` ring/glow/spotlight, set, select, value, check, show, hide, tween, count, reorder, drag, scroll, camera), `Camera`; motion fields shared by the actions: `easing` (named curve or cubic-bezier), `effect` + `stagger` on show/hide, `animate` on state changes; reorder/drag take exactly one of `into` (+ `index`), `before`, `after` (checked in `validate.ts`, a discriminated union cannot refine) |
 | `kit.ts` | kit folder layout, load/save guides (atomic write), list scenes/guides |
 | `scene.ts` | `inlineScene` (inlines local CSS/JS/images/fonts → one standalone HTML; with a `Shared` map, stylesheets and images go there once by hash and the scene keeps placeholders), `bestFontSources` (one format per @font-face), `describeScene` (targetable elements + best selector), `countMatches` |
 | `capture.ts` | `capture.json` (zod) → Playwright: login, steps, cues, remove/hide, replace, script; `freezePage` runs in the page and works on a **copy** of the document (the live page stays usable for the next scene); assets mirrored in `shared/` (best font format only, image type sniffed) |
@@ -75,6 +75,15 @@ Player model worth knowing before touching it:
   values at `finish` (`_cfStyle`); `animate` sets `transition: all <ms>` for the time of the change (`animated`/`unanimate`).
   `count` reads the start number from the element in the locale's own notation (`numberIn`) and writes with
   `Intl.NumberFormat`.
+- **Elements that change place** (`reorder`, `drag`): `relocate` measures the children of the two parents, moves the
+  node in the DOM at `start`, and `flipStart` records each one's offset to its old place (FLIP); `update` sets the
+  transforms back towards 0 (`flipAt`), `finish` restores the inline transforms. A drag is the same move with the
+  element held at its old place, lifted (shadow, scale 1.03, z-index), carried over 15–85 % of the time with the cursor
+  on it, while the others make room from 60 %. The DOM changes at `start` in every mode, so a seek into the action
+  shows it half way like any other effect; `prefers-reduced-motion` places at once. `hover` adds `.cf-hover`: at scene
+  load `withShared` rewrites every `:hover` of the scene's and shared stylesheets to `.cf-hover` (`hoverable`), the
+  iframe never gets a real pointer anyway. `highlight` fades its box in and out over 15 % of its time: `.cf-ring`
+  (ring, or `.cf-glow`), or `.cf-spot` for spotlight (a window on the element, one 9999px box-shadow is the veil).
 - "What comes next": `site.ts` gives every item page a `next` (the following item of the catalog, row by row, videos
   and written guides alike, never a `soon` one). A video page passes it to `mount(..., { next: { title, href } })` and the
   player shows a "Go to {title}" banner (`.cf-up-next`, label `next`) over the picture once the video has ended; a

@@ -38,6 +38,17 @@ before(async () => {
             { do: "camera", target: "#sidebar", padding: 30, at: 3400, duration: 700 }
           ],
           narration: { en: "A panel builds piece by piece, the size counts, then the camera moves to the menu." }
+        },
+        {
+          id: "place",
+          camera: { target: "#sidebar", padding: 30 },
+          actions: [
+            { do: "reorder", to: "#nav-documents", into: "#sidebar", index: 1, at: 300, duration: 500 },
+            { do: "drag", to: "#nav-documents", after: "#sidebar a:last-child", at: 1200, duration: 1200 },
+            { do: "hover", to: "#choose-file", at: 2600, duration: 700 },
+            { do: "highlight", to: "#upload-btn", at: 2600, duration: 1500, style: "spotlight" }
+          ],
+          narration: { en: "Documents goes first, then it is dragged to the bottom." }
         }
       ]
     })
@@ -83,6 +94,24 @@ describe("motion", () => {
       const t1 = await world();
       await page.waitForTimeout(400);
       assert.equal(await world(), t1, "a paused camera stays where it is");
+      // step 2: an element that changes place slides there; a drag shows the element in flight at a seek too
+      const seek2 = (t: number) => page.evaluate((t) => (window as unknown as { __cueflow: { seek(i: number, t: number): Promise<unknown> } }).__cueflow.seek(1, t), t);
+      await seek2(550); // the reorder half way: Documents is first in the DOM but still sliding
+      const links = () => scene.locator("#sidebar a").evaluateAll((els) => els.map((e) => [e.id, (e as HTMLElement).style.transform]));
+      let l = await links();
+      assert.equal(l[0]![0], "nav-documents");
+      assert.notEqual(l[0]![1], "", "still on its way");
+      await seek2(1800); // the drag in flight: last in the DOM, lifted, not yet there
+      l = await links();
+      assert.equal(l[l.length - 1]![0], "nav-documents");
+      assert.match(l[l.length - 1]![1]!, /translate\(.*scale\(1\.03\)/);
+      await seek2(2500);
+      l = await links();
+      assert.equal(l[l.length - 1]![0], "nav-documents");
+      assert.equal(l[l.length - 1]![1], "", "dropped: no transform left behind");
+      await seek2(3000);
+      assert.equal(await scene.locator("#choose-file").evaluate((el) => el.classList.contains("cf-hover")), true);
+      assert.equal(await page.locator(".cf-spot").evaluate((el) => (el as HTMLElement).style.opacity), "1");
       assert.deepEqual(errors, []);
     } finally {
       await browser.close();

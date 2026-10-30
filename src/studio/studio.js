@@ -510,6 +510,7 @@
       el.appendChild(h("button", { class: "btn primary", onclick: function () {
         var a = { do: pend.type }; a[pend.type === "camera" ? "target" : "to"] = S.picked; a.at = defaultAt();
         if (pend.type === "count") a.end = 0; // the only field without a default: the card asks for it
+        if (pend.type === "reorder" || pend.type === "drag") a.into = ""; // the card asks where
         if (pend.type === "tween") { a.prop = "width"; a.from = "0%"; a.end = "100%"; }
         S.draft.push(a); S.dirty = true; finishPick();
       } }, "Add “" + pend.type + "” on it"));
@@ -672,7 +673,7 @@
     p.appendChild(h("p", null, "Change a word here to correct how it sounds, such as a term in another language. Captions and transcript keep the text of the Narration tab."));
     p.appendChild(area);
     var buttons = h("div", { class: "row" },
-      h("button", { class: "btn primary", onclick: function () { store(area.value.trim()); } }, "Save"),
+      h("button", { class: "btn primary", onclick: function () { store(area.value.trim()); } }, "Save spoken text"),
       listenButton(function () { return area.value; }, msg));
     if (mine) buttons.appendChild(h("button", { class: "btn", onclick: function () { store(""); } }, "Use the caption again"));
     p.appendChild(buttons);
@@ -690,19 +691,22 @@
   }
 
   /* ---------- actions ---------- */
-  var ACTION_TYPES = ["move", "click", "type", "highlight", "show", "hide", "value", "select", "check", "count", "camera", "set", "scroll", "tween"];
-  var WITH_DURATION = { move: 1, type: 1, highlight: 1, tween: 1, scroll: 1, camera: 1, show: 1, hide: 1, count: 1 };
-  var WITH_EASING = { move: 1, tween: 1, scroll: 1, camera: 1, show: 1, hide: 1, count: 1 };
+  var ACTION_TYPES = ["move", "hover", "click", "type", "highlight", "show", "hide", "value", "select", "check", "count", "reorder", "drag", "camera", "set", "scroll", "tween"];
+  var WITH_DURATION = { move: 1, hover: 1, type: 1, highlight: 1, tween: 1, scroll: 1, camera: 1, show: 1, hide: 1, count: 1, reorder: 1, drag: 1 };
+  var WITH_EASING = { move: 1, tween: 1, scroll: 1, camera: 1, show: 1, hide: 1, count: 1, reorder: 1, drag: 1 };
+  var PLACES = ["into", "before", "after"];
   var WITH_ANIMATE = { set: 1, check: 1, select: 1, value: 1 };
   var EASINGS = ["", "linear", "ease", "ease-in", "ease-out", "ease-in-out", "spring"];
   var EFFECTS = ["none", "fade", "slide-up", "slide-down", "slide-left", "slide-right", "scale"];
-  var DEFAULT_MS = { move: 800, type: 1200, highlight: 1800, tween: 1500, scroll: 450, camera: 700, show: 300, hide: 200, count: 1200 };
+  var DEFAULT_MS = { move: 800, hover: 600, type: 1200, highlight: 1800, tween: 1500, scroll: 450, camera: 700, show: 300, hide: 200, count: 1200, reorder: 500, drag: 1200 };
   /* how long an action takes on the timeline, the player's rule without the stagger count (that needs the scene) */
   function actionMs(a) { return a.do === "click" ? 350 : a.animate != null ? a.animate : a.duration != null ? a.duration : WITH_DURATION[a.do] ? DEFAULT_MS[a.do] : 0; }
   function actionTip(a) {
     var parts = [a.do + " at " + (typeof a.at === "string" ? a.at : Math.round(a.at) + " ms")];
     if (a.do !== "click" && actionMs(a)) parts.push(actionMs(a) + " ms");
     if (a.effect) parts.push(a.effect);
+    if (a.style) parts.push(a.style);
+    PLACES.forEach(function (k) { if (a[k] != null) parts.push(k + " " + a[k]); });
     if (a.stagger != null) parts.push("stagger " + a.stagger + " ms");
     if (a.easing) parts.push(a.easing);
     return parts.join(" · ") + " — click to edit";
@@ -782,6 +786,18 @@
       card.appendChild(h("div", { class: "pickrow" },
         selectField("Effect", a.effect || (a.do === "show" ? "fade" : "none"), EFFECTS, function (v) { a.effect = v; }),
         msField("Stagger (ms, all the matches)", a.stagger, function (v) { if (v == null) delete a.stagger; else a.stagger = v; }, 110)));
+    }
+    if (a.do === "highlight") card.appendChild(selectField("Style", a.style || "ring", ["ring", "glow", "spotlight"], function (v) { a.style = v; }));
+    if (a.do === "reorder" || a.do === "drag") {
+      var place = PLACES.filter(function (k) { return a[k] != null; })[0] || "into";
+      var dest = h("input", { type: "text", placeholder: "the container, or the sibling" }); dest.value = a[place] || "";
+      dest.addEventListener("input", function () { a[place] = dest.value; touch(); });
+      var kind = h("select", null, PLACES.map(function (k) { return h("option", { value: k }, k === "into" ? "into (a container)" : k + " (a sibling)"); })); kind.value = place;
+      kind.addEventListener("change", function () { var v = a[place]; delete a[place]; place = kind.value; a[place] = v || ""; if (place !== "into") delete a.index; touch(); renderPanel(); });
+      var row2 = h("div", { class: "pickrow" }, h("label", { class: "lab" }, "Goes", kind), h("label", { class: "lab", style: "flex:1" }, "Where", h("div", { class: "pickrow" }, dest,
+        h("button", { class: "btn", onclick: function () { S.pending = { kind: "field", index: i, field: place }; S.picked = null; setMode("pick"); } }, "Pick"))));
+      if (place === "into") row2.appendChild(msField("Position (0 = first, empty = last)", a.index, function (v) { if (v == null) delete a.index; else a.index = v; }, 70));
+      card.appendChild(row2);
     }
     if (a.do === "count") {
       var fmt = function () { return a.format || (a.format = {}); };

@@ -30,3 +30,5 @@ h1 { font-size: 24px; margin: 0 0 4px; }
 .progress > div { height: 100%; width: 0; background: var(--brand); }
 .toast { margin-top: 18px; padding: 12px 14px; border-radius: 10px; background: #e6f6ee; color: #0e6b42; border: 1px solid #b7e4cf; font-weight: 600; }
 .badge { padding: 2px 7px; border-radius: 5px; background: #fde8e6; color: #b3261e; font-size: 12px; font-weight: 700; }
+
+.btn:hover { filter: brightness(1.12); box-shadow: 0 0 0 3px rgba(37,99,235,.25); }

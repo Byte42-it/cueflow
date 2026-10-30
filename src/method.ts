@@ -69,7 +69,13 @@ A tutorial is its narration; motion shows what the words say and never decorates
   follow it.
 - A control that changes state (check, select, value, set with classes) changes with animate: 250, never at once.
 - A number that changes counts (count: a total, a KPI, a badge); it does not jump. A bar or a width: tween.
-- The cursor moves (move) before it clicks, with the default easing; spring only for a playful product.
+- The cursor moves (move) before it clicks, with the default easing; spring only for a playful product. A button
+  gets a hover before its click, so it answers the cursor like the real one.
+- Something that changes place moves there (reorder): a list that is sorted, a task done that goes down, a card
+  that changes column; the others make room. Never hide + show for that. When the person would drag it, drag:
+  the cursor lifts it, carries it, drops it.
+- highlight has three styles: ring to point at something, glow for a control about to be used, spotlight when the
+  rest of the screen would distract (a dense dashboard, a long form).
 - One effect per idea. A step with more than three animated things is two steps.
 - Put motion where the narration names it (at: "40%" when the word comes) and keep it shorter than the sentence.
 

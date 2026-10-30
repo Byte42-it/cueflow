@@ -44,7 +44,44 @@ export const Action = z.discriminatedUnion("do", [
   z.object({ do: z.literal("move"), to: selector, at, duration: duration(800), easing }).describe("move the cursor to the center of an element"),
   z.object({ do: z.literal("click"), to: selector, at }).describe("click an element (also dispatches a real click event in the scene); move the cursor there first"),
   z.object({ do: z.literal("type"), to: selector, text: Localized, at, duration: duration(1200) }).describe("type text into an input or element (text: a string, or one per language)"),
-  z.object({ do: z.literal("highlight"), to: selector, at, duration: duration(1800) }).describe("draw an attention ring around an element"),
+  z
+    .object({
+      do: z.literal("highlight"),
+      to: selector,
+      at,
+      duration: duration(1800),
+      style: z.enum(["ring", "glow", "spotlight"]).default("ring").describe("ring: a pulsing frame; glow: a soft light around a control; spotlight: the rest of the screen darkens")
+    })
+    .describe("draw attention to an element for a while"),
+  z
+    .object({ do: z.literal("hover"), to: selector, at, duration: duration(600) })
+    .describe("rest the cursor on an element so that it shows its hover look (the scene's :hover styles), e.g. a button before its click"),
+  z
+    .object({
+      do: z.literal("reorder"),
+      to: selector.describe("the element that moves"),
+      into: selector.optional().describe("the container it goes into (at `index`, else at the end)"),
+      before: selector.optional().describe("the sibling it goes before"),
+      after: selector.optional().describe("the sibling it goes after"),
+      index: z.number().int().min(0).optional().describe("position inside `into`, 0 = first"),
+      at,
+      duration: duration(500),
+      easing
+    })
+    .describe("move an element to another place of the page; it and the elements that make room slide to their new positions (a sorted list, a task done going down, a card changing column)"),
+  z
+    .object({
+      do: z.literal("drag"),
+      to: selector.describe("the element that is dragged"),
+      into: selector.optional().describe("the container it is dropped into (at `index`, else at the end)"),
+      before: selector.optional().describe("the sibling it is dropped before"),
+      after: selector.optional().describe("the sibling it is dropped after"),
+      index: z.number().int().min(0).optional(),
+      at,
+      duration: duration(1200),
+      easing
+    })
+    .describe("drag and drop as a person would: the cursor lifts the element, carries it to its new place and drops it; the others make room"),
   z
     .object({
       do: z.literal("set"),

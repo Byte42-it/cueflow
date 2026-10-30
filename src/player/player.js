@@ -79,7 +79,7 @@
       '<div class="cf-app cf-captions-' + captionMode + (slides ? " cf-slides" : "") + '" tabindex="-1">' +
       '<div class="cf-stage"><div class="cf-world">' +
       '<iframe class="cf-frame" scrolling="no" tabindex="-1"></iframe>' +
-      '<div class="cf-ring"></div><div class="cf-cursor"></div>' +
+      '<div class="cf-spot"></div><div class="cf-ring"></div><div class="cf-cursor"></div>' +
       "</div>" +
       '<p class="cf-subs" aria-live="polite" hidden><span></span></p>' +
       '<button class="cf-big" aria-label="Play">' + ICON_PLAY + "</button>" +
@@ -102,7 +102,7 @@
 
     var $ = function (s) { return root.querySelector(s); };
     var app = $(".cf-app"), stage = $(".cf-stage"), world = $(".cf-world"), frame = $(".cf-frame");
-    var ring = $(".cf-ring"), cursor = $(".cf-cursor"), caption = $(".cf-caption"), subs = $(".cf-subs");
+    var ring = $(".cf-ring"), spot = $(".cf-spot"), cursor = $(".cf-cursor"), caption = $(".cf-caption"), subs = $(".cf-subs");
     var big = $(".cf-big"), playBtn = $(".cf-play"), fill = $(".cf-fill"), langSel = $(".cf-lang");
     var chapters = $(".cf-chapters"), speedBtn = $(".cf-speed"), ccBtn = $(".cf-cc"), voiceBtn = $(".cf-voice");
     var transcript = $(".cf-transcript");
@@ -221,9 +221,12 @@
     function withShared(html) {
       var shared = DATA.shared || {};
       return String(html)
-        .replace(/<style data-cf-style="([0-9a-f]+)"><\/style>/g, function (_, h) { return "<style>" + (shared[h] || "") + "</style>"; })
+        .replace(/<style data-cf-style="([0-9a-f]+)"><\/style>/g, function (_, h) { return "<style>" + hoverable(shared[h] || "") + "</style>"; })
+        .replace(/<style([^>]*)>([\s\S]*?)<\/style>/g, function (_, attrs, css) { return "<style" + attrs + ">" + hoverable(css) + "</style>"; })
         .replace(/cf-shared:([0-9a-f]+)/g, function (_, h) { return shared[h] || ""; });
     }
+    /* the scene never sees a real pointer: its :hover rules answer to .cf-hover, which the hover action sets */
+    function hoverable(css) { return css.replace(/:hover\b/g, ".cf-hover"); }
 
     function loadScene(name) {
       return new Promise(function (resolve) {
@@ -234,6 +237,7 @@
         curScene = lang + "/" + name;
         cursor.style.opacity = "0";
         ring.style.opacity = "0";
+        spot.style.opacity = "0";
         cursorPos = null;
       });
     }
@@ -341,10 +345,71 @@
         start: function (a) {
           var el = $el(a.to);
           if (!el) return;
-          var r = el.getBoundingClientRect();
-          ring.style.cssText = "opacity:1;left:" + (r.left - 6) + "px;top:" + (r.top - 6) + "px;width:" + (r.width + 12) + "px;height:" + (r.height + 12) + "px";
+          var r = el.getBoundingClientRect(), box = a.style === "spotlight" ? spot : ring;
+          ring.className = "cf-ring" + (a.style === "glow" ? " cf-glow" : "");
+          box.style.cssText = "opacity:0;left:" + (r.left - 6) + "px;top:" + (r.top - 6) + "px;width:" + (r.width + 12) + "px;height:" + (r.height + 12) + "px";
+          a._box = box;
         },
-        finish: function () { ring.style.opacity = "0"; }
+        update: function (a, p) {
+          if (!a._box) return;
+          // in and out over the first and last 15 % of the time; the ring keeps its own pulse in between
+          var q = p < 0.15 ? p / 0.15 : p > 0.85 ? (1 - p) / 0.15 : 1;
+          a._box.style.opacity = String(Math.max(0, Math.min(1, q)));
+        },
+        finish: function (a) { if (a._box) a._box.style.opacity = "0"; }
+      },
+      hover: {
+        start: function (a) {
+          var el = $el(a.to);
+          if (!el) return;
+          var c = center(el);
+          cursor.style.opacity = "1";
+          putCursor(c.x, c.y);
+          el.classList.add("cf-hover");
+          a._el = el;
+        },
+        finish: function (a) { if (a._el) a._el.classList.remove("cf-hover"); a._el = null; }
+      },
+      reorder: {
+        /* FLIP: measure, move the node, measure again, start everyone from where it was and let it slide */
+        start: function (a) {
+          var moved = relocate(a);
+          a._flip = moved && !reduce ? flipStart(moved) : null; // a seek into the action shows it half way too
+        },
+        update: function (a, p) { if (a._flip) flipAt(a._flip, 1 - eased(a, p)); },
+        finish: function (a) { if (a._flip) flipEnd(a._flip); a._flip = null; }
+      },
+      drag: {
+        /* the node goes to its place at once (FLIP), but on screen it is held where it was: lifted, carried by the
+           cursor, dropped; the others make room while it travels */
+        start: function (a) {
+          var moved = relocate(a);
+          if (!moved) return;
+          var el = moved.el;
+          cursor.style.opacity = "1";
+          if (reduce) { putCursor(center(el).x, center(el).y); return; }
+          a._flip = flipStart(moved);
+          el._cfLift = { boxShadow: el.style.boxShadow, zIndex: el.style.zIndex, position: el.style.position };
+          a._el = el;
+        },
+        update: function (a, p) {
+          if (!a._flip) return;
+          var el = a._el, q = eased(a, p);
+          // lift (0–15 %): the element rises; travel (15–85 %): it moves with the cursor; drop: it settles, the room closes
+          var lift = p < 0.15 ? p / 0.15 : p > 0.85 ? (1 - p) / 0.15 : 1;
+          var travel = p < 0.15 ? 0 : p > 0.85 ? 1 : (p - 0.15) / 0.7;
+          var room = p < 0.6 ? 0 : Math.min(1, (p - 0.6) / 0.3);
+          flipAt(a._flip, 1 - easeFn("ease-in-out")(travel), 1 - easeFn("ease-out")(room), el, 1 + 0.03 * lift);
+          el.style.boxShadow = "0 " + 10 * lift + "px " + 24 * lift + "px rgba(0,0,0," + 0.25 * lift + ")";
+          el.style.zIndex = "1000"; if (!el.style.position || el.style.position === "static") el.style.position = "relative";
+          var c = center(el); putCursor(c.x, c.y);
+        },
+        finish: function (a) {
+          if (a._flip) flipEnd(a._flip);
+          var el = a._el;
+          if (el && el._cfLift) { el.style.boxShadow = el._cfLift.boxShadow; el.style.zIndex = el._cfLift.zIndex; el.style.position = el._cfLift.position; delete el._cfLift; }
+          a._flip = null; a._el = null;
+        }
       },
       set: {
         start: function (a, ctx) {
@@ -478,6 +543,42 @@
         update: function (a, p) { if (a._to) setCam(p >= 1 ? a._to : lerpCam(a._from, a._to, eased(a, p))); }
       }
     };
+    /* reorder/drag: put the node where the action says; the two parents' children are the ones that may move */
+    function relocate(a) {
+      var el = $el(a.to);
+      if (!el) return null;
+      var from = el.parentNode, dest, ref = null;
+      if (a.before != null) { ref = $el(a.before); dest = ref && ref.parentNode; }
+      else if (a.after != null) { ref = $el(a.after); dest = ref && ref.parentNode; if (ref) ref = ref.nextSibling; }
+      else { dest = $el(a.into); if (dest && a.index != null) ref = dest.children[a.index] || null; }
+      if (!dest || dest === el || el.contains(dest)) return null;
+      var family = Array.prototype.slice.call(from.children);
+      if (dest !== from) family = family.concat(Array.prototype.slice.call(dest.children));
+      var before = family.map(function (x) { return x.getBoundingClientRect(); });
+      dest.insertBefore(el, ref);
+      return { el: el, family: family, before: before };
+    }
+    function flipStart(m) {
+      var items = [];
+      m.family.forEach(function (x, i) {
+        var r = x.getBoundingClientRect(), b = m.before[i], dx = b.left - r.left, dy = b.top - r.top;
+        if (!dx && !dy && x !== m.el) return; // did not move: left alone
+        items.push({ el: x, dx: dx, dy: dy, transform: x.style.transform, transition: x.style.transition });
+        x.style.transition = "none";
+      });
+      return { items: items };
+    }
+    /* k = how far back towards the old place (1 = old, 0 = new); kOthers for the elements that make room; the
+       dragged element may be scaled while carried */
+    function flipAt(f, k, kOthers, dragged, scale) {
+      f.items.forEach(function (it) {
+        var kk = dragged && it.el !== dragged ? kOthers : k;
+        var t = "translate(" + it.dx * kk + "px," + it.dy * kk + "px)";
+        if (dragged && it.el === dragged && scale && scale !== 1) t += " scale(" + scale + ")";
+        it.el.style.transform = t;
+      });
+    }
+    function flipEnd(f) { f.items.forEach(function (it) { it.el.style.transform = it.transform; it.el.style.transition = it.transition; }); }
     /* show/hide helpers: which elements (all of them with a stagger), each one's own progress, the entrance itself */
     function targets(a) { return a.stagger != null ? $all(a.to) : [$el(a.to)].filter(Boolean); }
     function reveal(el) { el.removeAttribute("hidden"); el.style.display = ""; }
@@ -524,6 +625,7 @@
       if (a.do === "show" || a.do === "hide") return a.duration + staggerSpan(a);
       if (a.do === "set" || a.do === "check" || a.do === "select" || a.do === "value") return a.animate || 0;
       if (a.do === "scroll") return a.duration != null ? a.duration : 450;
+      if (a.do === "hover") return a.duration != null ? a.duration : 600;
       return a.duration || 0;
     }
     function endOf(a, narrDur) { return atMs(a, narrDur) + (a.do === "click" ? CLICK_MS : a.animate != null ? a.animate : (a.duration != null ? a.duration : 0) + staggerSpan(a)); }
