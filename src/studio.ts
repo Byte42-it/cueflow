@@ -180,7 +180,7 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     const rel = safeRel(decodeURIComponent(am[1]!));
     const file = path.join(kit.root, rel);
     const ext = path.extname(file).toLowerCase();
-    const types: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml", ".css": "text/css", ".woff2": "font/woff2", ".woff": "font/woff" };
+    const types: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".avif": "image/avif", ".svg": "image/svg+xml", ".css": "text/css", ".woff2": "font/woff2", ".woff": "font/woff" };
     if (!types[ext]) throw new HttpError(404, "not found");
     return send(res, 200, await readFile(file).catch(() => { throw new HttpError(404, "not found"); }), types[ext]!);
   }
@@ -343,7 +343,7 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
       const [guide, ...more] = rest.split("/");
       file = path.join(areaDir(kit, "media", guide), safeRel(more.join("/")));
     }
-    const type = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".svg": "image/svg+xml", ".webp": "image/webp", ".ico": "image/x-icon", ".css": "text/css", ".js": "text/javascript", ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf", ".otf": "font/otf", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav", ".ogg": "audio/ogg" }[path.extname(file).toLowerCase()] ?? "application/octet-stream";
+    const type = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".svg": "image/svg+xml", ".webp": "image/webp", ".avif": "image/avif", ".ico": "image/x-icon", ".css": "text/css", ".js": "text/javascript", ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf", ".otf": "font/otf", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav", ".ogg": "audio/ogg" }[path.extname(file).toLowerCase()] ?? "application/octet-stream";
     try {
       return send(res, 200, await read(file), type);
     } catch {

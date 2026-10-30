@@ -14,7 +14,7 @@ export type MediaKind = "scene" | "image" | "font" | "style" | "script" | "audio
 export type MediaItem = { name: string; kind: MediaKind; size: number; usedBy: string[]; url?: string; languages?: string[] };
 
 const KIND: Record<string, MediaKind> = {
-  ".png": "image", ".jpg": "image", ".jpeg": "image", ".gif": "image", ".svg": "image", ".webp": "image", ".ico": "image",
+  ".png": "image", ".jpg": "image", ".jpeg": "image", ".gif": "image", ".svg": "image", ".webp": "image", ".avif": "image", ".ico": "image",
   ".woff": "font", ".woff2": "font", ".ttf": "font", ".otf": "font",
   ".css": "style", ".js": "script", ".mp3": "audio", ".m4a": "audio", ".wav": "audio", ".ogg": "audio"
 };
