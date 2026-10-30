@@ -32,6 +32,14 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
     // no picture yet: the narrator is simply not shown (and nothing is generated); a word, not a wall
     if ((a?.provider === "image" || isGenerated(a?.provider)) && !a?.image && !guide.player.avatar?.image && !kit.settings.avatar?.image) warnings.push(`${where}: provider "${a?.provider}" has no picture of the person yet (\`image\`: upload one, or generate_portrait); the narrator is not shown until it has one`);
   }
+  // a generated narrator speaks from text, so it needs the model's own voice for every language of the guide
+  // (the usual voice of Settings reads the steps it cannot generate: the picture is shown instead, swaying)
+  {
+    const levels = [kit.settings.avatar, guide.player.avatar, ...guide.steps.map((s) => s.avatar)];
+    const hasVoice = (lang: string) => levels.some((a) => a?.voices?.[lang]);
+    const generated = levels.some((a) => isGenerated(a?.provider)) && levels.some((a) => a?.image);
+    if (generated && guide.format !== "slides") for (const lang of guide.languages) if (!hasVoice(lang)) warnings.push(`avatar: the generated narrator has no voice for "${lang}" (set \`voices.${lang}\` in Studio's Avatar page, or with set_avatar): no clip is generated in this language, the picture is shown and the usual voice reads it`);
+  }
   for (const p of pictures) {
     if (p.file.split(/[\\/]/).includes("..")) errors.push(`${p.where}: "${p.file}" must be inside the kit`);
     else if (!(await stat(path.join(kit.root, p.file)).then((s) => s.isFile(), () => false))) errors.push(`${p.where}: the picture "${p.file}" does not exist in the kit`);
