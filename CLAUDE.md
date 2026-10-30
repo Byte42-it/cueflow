@@ -33,7 +33,7 @@ Decisions taken by the maintainers — do not re-litigate:
 | `tts.ts` | `TtsProvider` interface (+ `format`: mp3/m4a/wav/ogg) with OpenAI, `command` (any local program, e.g. Piper) and `say` (macOS) providers; on-disk cache keyed by hash(provider, voice, lang, text); ported from the sister chess project |
 | `theme.ts` | optional kit `theme/`: `theme.css` appended after the player CSS (urls inlined), `labels.json` (player words per language, validated), `avatar.svg` (the kit's own narrator face; must have the groups of `AVATAR_IDS`, checked at load) |
 | `avatar.ts`, `avatars.ts` | the narrator: schema `Avatar` (all fields optional), `AVATAR_DEFAULTS`, `resolveAvatar` (step < video < project < defaults), `isGenerated`; `setAvatar` at one level, `avatarImages` (the pictures a guide may show, inlined), `stepAvatar` (what a step shows), `isKitImage` |
-| `avatar-video.ts` | the **generated narrator**: a picture of a person → a clip of that person saying the step. `fantastico` = the video models of Fantastico's catalogue, paid with the Fantastico key: Cueflow mints the runtime key itself (`runtimeKey`: `POST <FANTASTICO_BASE_URL>/<edge|runtime>/key`, what the SDK does inside — the SDK keeps the key private and has no video surface, and is not to be changed), calls the models' video API (`FANTASTICO_MODELS_URL`, `POST /videos`: `heygen/avatar-iv` by default, `input_references` = the picture **and the step's audio** as data URLs, `prompt` = the spoken text, `aspect_ratio`, `provider.options.heygen` with `background` / `remove_background`), polls `GET /videos/{id}`, downloads `/content`, mints again on 401/402. The clip is **driven by the tutorial's own voice**: `padAudio` (FFmpeg) appends the step's hold as silence, so the clip covers narration and hold. Portrait from words: chat completions with `modalities: ["image","text"]` (`google/gemini-2.5-flash-image` by default). `command` = a local program through a template, same audio. `stepClip` caches `<kit>/avatar/<hash>.mp4` by provider fingerprint + picture + audio + hold + background + aspect; `previewOnly` never generates. `IMAGE_MIME`/`imageMimeOf`: png, jpg, webp, **avif**, gif |
+| `avatar-video.ts` | the **generated narrator**: a picture of a person → a clip of that person saying the step. `fantastico` = the video models of Fantastico's catalogue, paid with the Fantastico key: Cueflow mints the runtime key itself (`runtimeKey`: `POST <FANTASTICO_BASE_URL>/<edge|runtime>/key`, what the SDK does inside — the SDK keeps the key private and has no video surface, and is not to be changed), calls the models' video API (`FANTASTICO_MODELS_URL`, `POST /videos`: `heygen/avatar-iv` by default, `prompt` = the spoken text, `input_references` = the picture as a data URL, `aspect_ratio`, `provider.options.heygen` with `voice_id` (= `voices[lang]`), `background` / `remove_background`), polls `GET /videos/{id}`, downloads `/content`, mints again on 401/402. **Text-driven**: an audio input would have to be a public HTTPS URL, which a local Cueflow has not (tried: refused), so the model voices the words and `clipAudio` (FFmpeg) makes that voice the step's audio (silence as long as the clip when it has none). Portrait from words: chat completions with `modalities: ["image","text"]`. `command` = a local program through a template, driven by the audio Cueflow made. `stepClip` caches `<kit>/avatar/<hash>.mp4` (+ `.wav`) by provider fingerprint + picture + text/voice (or audio) + hold + background + aspect; `previewOnly` never generates. `IMAGE_MIME`/`imageMimeOf`: png, jpg, webp, **avif**, gif |
 | `build.ts` | guide → `dist/<id>.html` (player + css + scenes + `shared` + base64 audio, JSON embedded script-safe); `estimateDuration` (same rule as the silent player) |
 | `player/player.js`, `player.css` | browser runtime, plain JS inlined at build time (not bundled/compiled) |
 | `site.ts` | `site.json` catalog → `dist/site/` (home + one page per item: player, transcript, `pages/<id>.html` article); validation, posters via `preview.ts` |
@@ -131,16 +131,16 @@ Player model worth knowing before touching it:
   the browser voice's word boundaries, else a syllable guess; closed when paused, at a seek, or silent. Never on
   slides; `prefers-reduced-motion` stops blink and sway. `.cf-av-br` moves the Cueflow mark out of a bottom-right pip.
   **Generated** (`provider: fantastico | command`, 2026-10-30): `guideBundle` makes a clip only for a step whose resolved
-  narrator is generated, not `off`, with real audio, never in a preview (`provider === null` only reads the cache);
-  the request carries the step's audio and `silenceAfterMs = step.hold`, so the clip covers narration AND hold —
-  nothing frozen, no idle loop; before start and on pause everything stops. Clips travel as
-  `DATA.avatarVideo[lang][stepId]` (data URI; files under `assets/avatar/` in the site); `BuildResult.clips`/
-  `clipsMade` tell the credit spent. The player's face is a muted `<video>` on the step clock (`syncClip`: play/pause
-  with the player, resync when it drifts, `seek` waits for `seeked`), the picture stands in where there is no clip
-  (previews). `generate_portrait` (MCP) and `POST /api/avatar-portrait` (Studio, "Generate a portrait…") draw the
-  person and save the picture in `shared/avatar/`. A narrator without a picture yet is a warning, never an error.
-  `test/avatar-video.test.ts` runs stand-ins for Fantastico (`/edge/key`) and the models (`/videos`,
-  `/chat/completions`); FFmpeg makes a real clip. Person-facing words say Fantastico only.
+  narrator is generated, not `off`, never in a preview (`provider === null` only reads the cache). A voiced provider
+  (fantastico) gets the spoken text and `voices[lang]` (the only per-language field of the narrator: it is a voice; a
+  language without one gets a warning and the usual voice, no clip) and gives back clip + audio, so no TTS is paid for
+  that step; `command` gets the audio Cueflow made first. The clip ends with the words, so during `hold` the `<video>`
+  shows its last frame. Clips travel as `DATA.avatarVideo[lang][stepId]` (data URI; files under `assets/avatar/` in
+  the site); `BuildResult.clips`/`clipsMade` tell the credit spent. The player's face is a muted `<video>` on the step
+  clock (`syncClip`), the picture stands in where there is no clip (previews). `generate_portrait` (MCP) and
+  `POST /api/avatar-portrait` (Studio) draw the person and save the picture in `shared/avatar/`. A narrator without a
+  picture yet is a warning, never an error. `test/avatar-video.test.ts` runs stand-ins for Fantastico (`/edge/key`)
+  and the models (`/videos`, `/chat/completions`); FFmpeg makes a real clip. Person-facing words say Fantastico only.
   Doors: MCP `set_avatar` (scope global | video | step, `avatar` null = inherit), Studio `POST /api/avatar` (same),
   `validate` checks the pictures exist. Studio: Settings › "Narrator for every tutorial", the **Avatar** page of the
   bottom bar (this video: Auto or its own), the **Avatar lane first on the timeline** (one block per step, what is

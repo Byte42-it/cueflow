@@ -10,7 +10,7 @@ import { promisify } from "node:util";
 import { buildGuide, guideBundle } from "../src/build.ts";
 import { commandAvatarProvider, fantasticoAvatarProvider, imageMimeOf, stepClip } from "../src/avatar-video.ts";
 import { setAvatar } from "../src/avatars.ts";
-import { loadGuide, openKit, saveGuide, type Kit } from "../src/kit.ts";
+import { loadGuide, openKit, type Kit } from "../src/kit.ts";
 import { launchChromium } from "../src/preview.ts";
 import { validateGuide } from "../src/validate.ts";
 
@@ -57,14 +57,7 @@ before(async () => {
   await mkdir(path.join(dir, "shared", "avatar"), { recursive: true });
   await writeFile(path.join(dir, "shared", "avatar", "face.avif"), PNG); // the bytes do not matter to the stand-in; the type travels
   kit = openKit(dir);
-  await setAvatar(kit, { scope: "global" }, { provider: "fantastico", image: "shared/avatar/face.avif", background: "#101010" });
-  // a wav of silence for one step: real audio, so the step can have a clip
-  const wav = Buffer.alloc(44 + 8000); wav.write("RIFF", 0); wav.writeUInt32LE(36 + 8000, 4); wav.write("WAVEfmt ", 8); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22); wav.writeUInt32LE(8000, 24); wav.writeUInt32LE(16000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write("data", 36); wav.writeUInt32LE(8000, 40);
-  await mkdir(path.join(dir, "media", "dashboard", "voice"), { recursive: true });
-  await writeFile(path.join(dir, "media", "dashboard", "voice", "figures.en.wav"), wav);
-  const g = await loadGuide(kit, "dashboard");
-  g.steps[1]!.voice = { en: { provider: "file", file: "media/dashboard/voice/figures.en.wav" } };
-  await saveGuide(kit, g);
+  await setAvatar(kit, { scope: "global" }, { provider: "fantastico", image: "shared/avatar/face.avif", background: "#101010", voices: { en: "Daniel" } });
   await setAvatar(kit, { scope: "video", guide: "dashboard" }, { mode: "off" });
   await setAvatar(kit, { scope: "step", guide: "dashboard", step: "figures" }, { mode: "side", position: "left" }); // the only step that shows it
   kit = openKit(dir);
@@ -88,29 +81,32 @@ describe("the generated narrator", () => {
     assert.doesNotMatch(JSON.stringify(kit.settings), /rk-/, "no runtime key is ever written");
   });
 
-  it("asks for the clip of the person lip-synced to the step's audio with the hold appended, the place's shape and the background, and caches it", async () => {
+  it("asks for the clip of the person saying the text, with the place's shape and the background, and caches it", async () => {
     const real = await realClip();
     if (real) clipBytes = real;
     const p = fantasticoAvatarProvider(env(), { pollMs: 5 })!;
-    const wav = await readFile(path.join(dir, "media", "dashboard", "voice", "figures.en.wav"));
-    const req = { image: PNG, imageMime: "image/avif", text: "Hello there.", lang: "en", audio: wav, audioMime: "audio/wav", silenceAfterMs: 600, background: "transparent", aspect: "9:16" as const };
-    let first;
-    try { first = await stepClip(kit, p, req); } catch (e) { if (/ffmpeg/i.test(String(e))) return; throw e; } // no FFmpeg: nothing to pad with
+    assert.equal(p.voiced, true);
+    const req = { image: PNG, imageMime: "image/avif", text: "Hello there.", lang: "en", voice: "Daniel", silenceAfterMs: 600, background: "transparent", aspect: "9:16" as const };
+    if (!real) { // without FFmpeg the clip's voice cannot be taken: the request itself is still checked
+      await assert.rejects(stepClip(kit, p, req), /ffmpeg|FFmpeg/i);
+      return;
+    }
+    const first = await stepClip(kit, p, req);
     assert.equal(first!.made, true);
     assert.equal(first!.clip.mime, "video/mp4");
     assert.equal(first!.clip.costUsd, 0.15);
-    const job = seen.jobs[seen.jobs.length - 1] as { model: string; prompt: string; aspect_ratio: string; input_references: { type: string; image_url?: { url: string }; audio_url?: { url: string } }[]; provider: { options: Record<string, Record<string, unknown>> } };
+    assert.equal(first!.audio!.mime, "audio/wav");
+    assert.ok(first!.audio!.data.length > 44, "the clip's voice became the step's audio");
+    const job = seen.jobs[seen.jobs.length - 1] as { model: string; prompt: string; aspect_ratio: string; input_references: { image_url: { url: string } }[]; provider: { options: Record<string, Record<string, unknown>> } };
     assert.equal(job.model, "heygen/avatar-iv");
     assert.equal(job.prompt, "Hello there.");
     assert.equal(job.aspect_ratio, "9:16");
-    assert.match(job.input_references[0]!.image_url!.url, /^data:image\/avif;base64,/);
-    assert.equal(job.input_references[1]!.type, "audio_url");
-    const sent = Buffer.from(job.input_references[1]!.audio_url!.url.replace(/^data:audio\/wav;base64,/, ""), "base64");
-    assert.ok(sent.length > 44 + 24000 * 2 * 0.5 + 24000 * 2 * 0.6 - 2000, "the audio sent is the step's voice plus 600 ms of silence (24 kHz mono)");
-    assert.deepEqual(job.provider.options.heygen, { remove_background: true });
+    assert.match(job.input_references[0]!.image_url.url, /^data:image\/avif;base64,/);
+    assert.deepEqual(job.provider.options.heygen, { voice_id: "Daniel", remove_background: true });
     const again = await stepClip(kit, p, req);
     assert.equal(again!.made, false, "the same inputs come from the cache, nothing is paid twice");
-    assert.equal(await stepClip(kit, p, { ...req, silenceAfterMs: 601 }, { previewOnly: true }), null, "a preview never generates");
+    assert.equal(again!.audio!.mime, "audio/wav");
+    assert.equal(await stepClip(kit, p, { ...req, text: "Other words." }, { previewOnly: true }), null, "a preview never generates");
   });
 
   it("builds a clip only for the step that shows the narrator; its voice is the clip's; a preview reads the cache", async () => {
@@ -118,12 +114,13 @@ describe("the generated narrator", () => {
     await withEnv(async () => {
       const jobs = seen.jobs.length;
       const b = await guideBundle(kit, "dashboard");
-      assert.equal(b.clips, 1, "the one step that shows the narrator and has real audio (English only has a file)");
+      assert.equal(b.clips, 1, "English has a voice; Italian has none, so no clip there (a warning), the usual voice instead");
       assert.equal(b.clipsMade, 1);
+      assert.match(b.warnings.join("\n"), /in "it": the narrator has no voice for this language/);
       assert.match(b.data.avatarVideo.en!.figures!, /^data:video\/mp4;base64,/);
-      assert.match(b.data.audio.en!.figures!, /^data:audio\/wav;base64,/, "the step keeps its own voice");
+      assert.match(b.data.audio.en!.figures!, /^data:audio\/wav;base64,/, "the step's audio is the clip's voice");
       assert.equal(b.data.avatarVideo.en!.intro, undefined, "hidden there: no clip, no credit");
-      const en = seen.jobs[jobs] as { prompt: string; aspect_ratio: string; provider: { options: { heygen: Record<string, unknown> } } };
+      const en = (seen.jobs.slice(jobs) as { prompt: string; aspect_ratio: string; provider: { options: { heygen: Record<string, unknown> } } }[]).find((j) => j.provider.options.heygen.voice_id === "Daniel")!;
       assert.match(en.prompt, /^Documents, open cases/);
       assert.equal(en.aspect_ratio, "9:16");
       assert.equal(en.provider.options.heygen.background, "#101010");
@@ -150,6 +147,7 @@ describe("the generated narrator", () => {
 
   it("runs a local program through a command template, driven by the audio Cueflow made", async () => {
     const p = commandAvatarProvider("cp {image} {out} && test {silence} = 600 && test {aspect} = 1:1 && grep -q Hello {text}", "mp4");
+    assert.equal(p.voiced, false);
     const clip = await p.animate({ image: PNG, imageMime: "image/png", text: "Hello", lang: "en", audio: Buffer.from("a"), audioMime: "audio/wav", silenceAfterMs: 600, background: "#000", aspect: "1:1" });
     assert.equal(clip.mime, "video/mp4");
     assert.ok(clip.data.equals(PNG), "whatever the program wrote at {out}");

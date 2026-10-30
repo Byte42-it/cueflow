@@ -73,6 +73,7 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
 
   const audio: Record<string, Record<string, string>> = {};
   const avatarVideo: Record<string, Record<string, string>> = {};
+  const warnings = [...report.warnings];
   let audioFiles = 0, clips = 0, clipsMade = 0;
   // `provider` undefined: each language speaks with the voice cueflow.json gives it; null: silent (previews); a provider: forced
   let browserVoice = false;
@@ -91,21 +92,33 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
       const own = step.voice?.[lang];
       if (own?.provider === "browser") browserVoice = true;
       else if (langSilent && anyBrowser && !own) step.voice = { ...step.voice, [lang]: { provider: "none" } };
-      // the generated narrator: a clip of the person saying the step with the step's own audio, only where the narrator is
-      // shown and the step has real audio, never made for a preview (the cache is read)
+      // the generated narrator: a clip of the person saying the step, only where the narrator is shown, never made for a
+      // preview (the cache is read). A voiced provider (the models through Fantastico) makes the audio of the step too; a provider
+      // driven by audio (a local command) needs the step's voice first.
       const av = stepAvatar(kit, guide, step);
-      const generated = isGenerated(av.provider) && av.mode !== "off" && isKitImage(av.image);
+      const generated = isGenerated(av.provider) && av.mode !== "off" && isKitImage(av.image) && !(own?.provider === "none");
       let p: AvatarVideoProvider | null = null;
       if (generated) {
         try { p = avatarVideoProviderFor(av.provider, process.env, av.model); } catch (e) { if (provider !== null) throw e; } // a preview without a key: no clip, no error
       }
-      const sound = await stepAudio(kit, guide, step, lang, provider);
+      let sound: { data: Buffer; mime: string } | null = null;
       let clip: Awaited<ReturnType<typeof stepClip>> = null;
-      const image = p && sound ? await readFile(path.join(kit.root, av.image!)).catch(() => null) : null; // missing: validate reports it
-      if (p && sound && image) {
-        const text = spokenText(spokenOf(step, lang).trim(), { ...(await loadBrief(kit)).pronunciation, ...guide.pronunciation });
-        const req = { image, imageMime: imageMimeOf(av.image!), text, lang, audio: sound.data, audioMime: sound.mime, silenceAfterMs: step.hold, background: av.background, aspect: clipAspect(av.mode) };
+      const image = p ? await readFile(path.join(kit.root, av.image!)).catch(() => null) : null; // missing: validate reports it
+      const text = spokenText(spokenOf(step, lang).trim(), { ...(await loadBrief(kit)).pronunciation, ...guide.pronunciation });
+      if (p && image && p.voiced && text && !av.voices?.[lang]) {
+        warnings.push(`step "${step.id}" in "${lang}": the narrator has no voice for this language (voices.${lang}, a HeyGen voice id): no clip, the usual voice reads it`);
+        p = null;
+      }
+      if (p && image && p.voiced && text) {
+        const req = { image, imageMime: imageMimeOf(av.image!), text, lang, voice: av.voices?.[lang], silenceAfterMs: step.hold, background: av.background, aspect: clipAspect(av.mode) };
         clip = await stepClip(kit, p, req, { previewOnly: provider === null });
+        sound = clip?.audio ?? (provider === null ? await stepAudio(kit, guide, step, lang, provider) : null); // a preview without the clip yet: the usual voice
+      } else {
+        sound = await stepAudio(kit, guide, step, lang, provider);
+        if (p && image && sound) {
+          const req = { image, imageMime: imageMimeOf(av.image!), text, lang, audio: sound.data, audioMime: sound.mime, silenceAfterMs: step.hold, background: av.background, aspect: clipAspect(av.mode) };
+          clip = await stepClip(kit, p, req, { previewOnly: provider === null });
+        }
       }
       opts.onProgress?.(++done, total);
       if (clip) {
@@ -119,7 +132,7 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
   }
   // a language without a recorded voice is read by the viewer's browser when that is what was chosen for it
   if (browserVoice) guide.player = { ...guide.player, fallbackVoice: "browser" };
-  return { guide, data: { guide, scenes, sceneLang, shared, audio, avatarGlobal: kit.settings.avatar, avatarImages: await avatarImages(kit, guide), avatarVideo }, scenes: names, audioFiles, clips, clipsMade, warnings: report.warnings };
+  return { guide, data: { guide, scenes, sceneLang, shared, audio, avatarGlobal: kit.settings.avatar, avatarImages: await avatarImages(kit, guide), avatarVideo }, scenes: names, audioFiles, clips, clipsMade, warnings };
 }
 
 const MS_PER_CHAR = 65; // as in the player: narration length estimate when there is no audio
