@@ -101,7 +101,7 @@ describe("the generated narrator", () => {
     assert.equal(job.model, "heygen/avatar-iv");
     assert.equal(job.prompt, "Hello there.");
     assert.equal(job.aspect_ratio, "9:16");
-    assert.match(job.input_references[0]!.image_url.url, /^data:image\/avif;base64,/);
+    assert.match(job.input_references[0]!.image_url.url, /^data:image\/png;base64,/, "the model takes jpeg and png only: an avif picture travels as png");
     assert.deepEqual(job.provider.options.heygen, { voice_id: "Daniel", remove_background: true });
     const again = await stepClip(kit, p, req);
     assert.equal(again!.made, false, "the same inputs come from the cache, nothing is paid twice");

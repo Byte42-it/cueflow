@@ -146,10 +146,11 @@ export function fantasticoAvatarProvider(env: NodeJS.ProcessEnv = process.env, o
     async animate(req) {
       if (!req.voice) throw new Error(`the narrator needs a voice for "${req.lang}": set \`voices.${req.lang}\` on the narrator (Studio's Avatar page or set_avatar), or let the export pick one`);
       const modelOptions: Record<string, unknown> = { voice_id: req.voice, ...(req.background === "transparent" ? { remove_background: true } : { background: req.background }) };
+      const picture = await modelPicture(req.image, req.imageMime); // the model takes jpeg and png only
       const body = {
         model,
         prompt: req.text,
-        input_references: [{ type: "image_url", image_url: { url: `data:${req.imageMime};base64,${req.image.toString("base64")}` } }],
+        input_references: [{ type: "image_url", image_url: { url: `data:${picture.mime};base64,${picture.data.toString("base64")}` } }],
         aspect_ratio: req.aspect,
         resolution: env.CUEFLOW_AVATAR_RESOLUTION ?? "720p",
         provider: { options: { [model.split("/")[0]!]: modelOptions } }
@@ -249,6 +250,21 @@ export async function stepClip(kit: Kit, p: AvatarVideoProvider, req: ClipReques
 }
 
 /** The voice of a clip as a wav (the step's audio), or silence as long as the clip when it has no sound. */
+/** the picture as the models take it: jpeg and png travel as they are, avif / webp / gif become png (FFmpeg) */
+export async function modelPicture(image: Buffer, mime: string): Promise<{ data: Buffer; mime: string }> {
+  if (mime === "image/png" || mime === "image/jpeg") return { data: image, mime };
+  const ffmpeg = await resolveFFmpeg();
+  const dir = await mkdtemp(path.join(tmpdir(), "cueflow-picture-"));
+  try {
+    const src = path.join(dir, `picture.${mime.split("/")[1] ?? "bin"}`), out = path.join(dir, "picture.png");
+    await writeFile(src, image);
+    await run(ffmpeg, ["-y", "-i", src, "-frames:v", "1", out]);
+    return { data: await readFile(out), mime: "image/png" };
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 export async function clipAudio(clip: Buffer, extension: string): Promise<Buffer> {
   const ffmpeg = await resolveFFmpeg();
   const dir = await mkdtemp(path.join(tmpdir(), "cueflow-clipaudio-"));
