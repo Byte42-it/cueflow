@@ -137,7 +137,8 @@ describe("the generated narrator", () => {
     const k = openKit(own);
     await setAvatar(k, { scope: "video", guide: "upload" }, { provider: "fantastico" });
     const r = await validateGuide(openKit(own), await loadGuide(openKit(own), "upload"));
-    assert.match(r.errors.join("\n"), /provider "fantastico" needs `image`/);
+    assert.deepEqual(r.errors, [], "a missing picture must not block the tutorial");
+    assert.match(r.warnings.join("\n"), /provider "fantastico" has no picture of the person yet/);
     await rm(own, { recursive: true, force: true });
     assert.equal(imageMimeOf("x/me.AVIF"), "image/avif");
     assert.equal(imageMimeOf("x/me.jpg"), "image/jpeg");

@@ -29,7 +29,8 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
   for (const [where, a] of [["cueflow.json avatar", kit.settings.avatar], ["player.avatar", guide.player.avatar], ...guide.steps.map((s, i) => [`step ${i + 1} (${s.id}) avatar`, s.avatar] as const)] as const) {
     if (isKitImage(a?.image)) pictures.push({ where, file: a.image });
     if (isKitImage(a?.background)) pictures.push({ where, file: a.background });
-    if ((a?.provider === "image" || isGenerated(a?.provider)) && !a?.image && !guide.player.avatar?.image && !kit.settings.avatar?.image) errors.push(`${where}: provider "${a?.provider}" needs \`image\`, the path of a picture of the person inside the kit (upload one, or generate_portrait)`);
+    // no picture yet: the narrator is simply not shown (and nothing is generated); a word, not a wall
+    if ((a?.provider === "image" || isGenerated(a?.provider)) && !a?.image && !guide.player.avatar?.image && !kit.settings.avatar?.image) warnings.push(`${where}: provider "${a?.provider}" has no picture of the person yet (\`image\`: upload one, or generate_portrait); the narrator is not shown until it has one`);
   }
   for (const p of pictures) {
     if (p.file.split(/[\\/]/).includes("..")) errors.push(`${p.where}: "${p.file}" must be inside the kit`);
