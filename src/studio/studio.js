@@ -1173,13 +1173,20 @@
         body.appendChild(num("Height of the band", "size", 10, 100, 1));
       }
       if (r.mode !== "off" && r.provider !== "none") {
-        var isImg = isImagePath(r.background);
+        var isImg = isImagePath(r.background), clear = r.background === "transparent";
         var color = h("input", { type: "color" }); color.value = /^#[0-9a-f]{6}$/i.test(r.background) ? r.background : "#1f2a44";
         color.addEventListener("change", function () { v.background = color.value; store(); render(); });
-        var row = h("div", { class: "pickrow" }, h("label", { class: "lab" }, "Background" + (v.background == null && !root ? " (Auto)" : ""), color),
-          h("button", { class: "btn", onclick: function () { avatarUpload(function (p) { v.background = p; store(); render(); }); } }, isImg ? "Picture: " + r.background.split("/").pop() + " — change…" : "A picture instead…"));
-        if (isImg) row.appendChild(h("button", { class: "btn", onclick: function () { v.background = color.value; store(); render(); } }, "Colour instead"));
-        if (!root && v.background != null) row.appendChild(h("button", { class: "btn small", onclick: function () { delete v.background; store(); render(); } }, "Auto"));
+        var state = clear ? "transparent" : isImg ? "picture " + r.background.split("/").pop() : "colour";
+        // a small palette: transparent (no panel, no shadow: a cut-out floats on the scene), a few colours, any colour
+        var palette = h("div", { class: "swatches" });
+        [["transparent", "Transparent: no panel, no shadow"], ["#1f2a44", "Navy"], ["#111111", "Black"], ["#ffffff", "White"], ["#2563eb", "Blue"], ["#0f766e", "Teal"], ["#b45309", "Amber"]].forEach(function (c) {
+          palette.appendChild(h("button", { class: "sw" + (c[0] === "transparent" ? " clear" : "") + (r.background === c[0] ? " on" : ""), title: c[1], style: c[0] === "transparent" ? "" : "background:" + c[0], onclick: function () { v.background = c[0]; store(); render(); } }));
+        });
+        palette.appendChild(color);
+        var row = h("div", { class: "pickrow" }, h("label", { class: "lab" }, "Background: " + state + (v.background == null && !root ? " (Auto)" : ""), palette),
+          h("button", { class: "btn", onclick: function () { avatarUpload(function (p) { v.background = p; store(); render(); }); } }, isImg ? "Change picture…" : "A picture…"));
+        if (isImg || clear) row.appendChild(h("button", { class: "btn", onclick: function () { if (root) v.background = color.value; else delete v.background; store(); render(); } }, root ? "Remove: colour" : "Remove"));
+        if (!root && v.background != null && !isImg && !clear) row.appendChild(h("button", { class: "btn small", onclick: function () { delete v.background; store(); render(); } }, "Auto"));
         body.appendChild(row);
       }
     }

@@ -14,7 +14,7 @@ export const Avatar = z
     y: z.number().min(0).max(1).optional().describe("pip custom: top edge, as a fraction of the picture's height"),
     size: z.number().min(0.05).max(1).optional().describe("pip: height of the narrator; side: width of the panel; band: height of the panel; all as a fraction of the picture"),
     shape: z.enum(["round", "rounded"]).optional().describe("pip only"),
-    background: z.string().optional().describe("a CSS colour, or the path of a picture inside the kit, behind the narrator (pip) or filling its panel (side, band, full)")
+    background: z.string().optional().describe("a CSS colour, \"transparent\" (no panel, no shadow: a cut-out picture floats on the scene), or the path of a picture inside the kit, behind the narrator (pip) or filling its panel (side, band, full)")
   })
   .default({});
 export type Avatar = z.infer<typeof Avatar>;

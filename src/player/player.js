@@ -789,6 +789,7 @@
       else if (mode === "band") cs.height = a.size * 100 + "%";
       var bgImage = isImagePath(a.background) ? kitImage(a.background) : null;
       cs.background = bgImage ? "url(" + JSON.stringify(bgImage) + ") center / cover no-repeat" : a.background;
+      avatarEl.classList.toggle("cf-av-clear", a.background === "transparent"); // no panel: no shadow either
       paintAvatar(cur ? cur.t : 0, 0);
     }
     /* a small deterministic noise of the step time: the same t gives the same blink, in a seek as in playback */
