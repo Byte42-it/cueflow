@@ -978,7 +978,7 @@
     }
     if (external.length) p.appendChild(h("p", { class: "msg warn" }, "Building generates audio with the external voice chosen for this video (" + external.map(function (r) { return r.language + ": " + r.provider; }).join(", ") + "): the narration text is sent to that service, and it may cost. Texts already generated are not paid again."));
     var genSteps = S.guide ? S.guide.steps.filter(function (st, i) { var sh = S.state.guides.filter(function (x) { return x.id === S.guide.id; })[0]; var a = sh && sh.steps[i] && sh.steps[i].shown; return a && a.provider === "fantastico" && a.mode !== "off"; }).length : 0;
-    if (genSteps) p.appendChild(h("p", { class: "msg warn" }, "Building makes a video of the narrator for " + genSteps + " step(s) × " + (S.guide.languages.length) + " language(s) with Fantastico: the picture and the audio of each step are sent to the service, and it costs per second of video. Steps already made are not paid again."));
+    if (genSteps) p.appendChild(h("p", { class: "msg warn" }, "Building makes a video of the narrator for " + genSteps + " step(s) × " + (S.guide.languages.length) + " language(s) through OpenRouter with the Fantastico key: the picture and the words of each step are sent to the model, and it costs per second of video (HeyGen Avatar IV: about $0.05/s). Steps already made are not paid again."));
     p.appendChild(h("h3", null, "MP4 video"));
     p.appendChild(h("p", null, S.guide.vertical ? "Format: vertical (portrait)." : "Format: horizontal (landscape)."));
     p.appendChild(h("p", null, "Export in " + S.lang + ". Includes recorded audio; browser voices cannot be included. Requires Chromium; FFmpeg is included with Cueflow. Rendering may take several minutes."));
@@ -1153,7 +1153,7 @@
       var r = resolved();
       body.appendChild(h("p", { class: "cur" }, "Now: " + avatarWords(r)));
       body.appendChild(h("div", { class: "pickrow" },
-        sel("Narrator", "provider", [["none", "None"], ["svg", "Cartoon face, drawn by the player"], ["image", "A picture, swaying as it speaks"], ["fantastico", "A video of the person (Fantastico, made at build)"], ["command", "A video of the person (local program)"]]),
+        sel("Narrator", "provider", [["none", "None"], ["svg", "Cartoon face, drawn by the player"], ["image", "A picture, swaying as it speaks"], ["fantastico", "A video of the person (OpenRouter via Fantastico, made at build)"], ["command", "A video of the person (local program)"]]),
         sel("Where", "mode", [["off", "Hidden"], ["pip", "Small, in a corner"], ["side", "Half bust, on a side"], ["band", "A band"], ["full", "Full screen"]])));
       if (r.provider === "image" || r.provider === "fantastico" || r.provider === "command") {
         var img = h("input", { type: "text", placeholder: "shared/avatar/me.png" }); img.value = v.image || "";
@@ -1163,7 +1163,20 @@
           h("button", { class: "btn", title: "Describe the person: Fantastico draws a portrait, saved in the kit like an uploaded picture", onclick: function () { portraitDialog(function (p) { v.image = p; img.value = p; store(); render(); }); } }, "Generate a portrait…"));
         body.appendChild(h("div", { class: "pickrow" }, h("label", { class: "lab", style: "flex:1" }, "Picture of the person" + (v.image == null && above.image ? " (Auto: " + above.image + ")" : ""), picRow)));
         if (r.image) body.appendChild(h("img", { class: "avpreview", src: "/kit/" + r.image, alt: "" }));
-        if (r.provider === "fantastico") body.appendChild(h("p", { class: "cur" }, "At build, every step that shows the narrator becomes a short video of this person saying it, with the voice of the tutorial. It uses Fantastico credit per second of video; a step already made is not paid again. Previews show the picture instead."));
+        if (r.provider === "fantastico") {
+          body.appendChild(h("p", { class: "cur" }, "At build, every step that shows the narrator becomes a short video of this person saying it: the model (HeyGen Avatar IV on OpenRouter) voices the words itself, and that voice becomes the step's audio. Paid with the Fantastico key, per second of video; a step already made is not paid again. Previews show the picture."));
+          var langs = (video() && video().languages) || Object.keys(S.state.brief && S.state.brief.languages ? S.state.brief.languages.reduce(function (o, l) { o[l] = 1; return o; }, {}) : { en: 1 });
+          var vrow = h("div", { class: "pickrow" });
+          langs.forEach(function (l) {
+            var inp = h("input", { type: "text", placeholder: "model's default", style: "width:140px" }); inp.value = (v.voices && v.voices[l]) || "";
+            inp.addEventListener("change", function () { var m = Object.assign({}, v.voices || {}); if (inp.value.trim()) m[l] = inp.value.trim(); else delete m[l]; if (Object.keys(m).length) v.voices = m; else delete v.voices; store(); });
+            vrow.appendChild(h("label", { class: "lab" }, "Voice id · " + l + ((!v.voices || !v.voices[l]) && above.voices && above.voices[l] ? " (Auto: " + above.voices[l] + ")" : ""), inp));
+          });
+          var model = h("input", { type: "text", placeholder: "heygen/avatar-iv", style: "width:180px" }); model.value = v.model || "";
+          model.addEventListener("change", function () { if (model.value.trim()) v.model = model.value.trim(); else delete v.model; store(); });
+          vrow.appendChild(h("label", { class: "lab" }, "Model" + (v.model == null && above.model ? " (Auto: " + above.model + ")" : ""), model));
+          body.appendChild(vrow);
+        }
         if (r.provider === "command") body.appendChild(h("p", { class: "cur" }, "At build, CUEFLOW_AVATAR_COMMAND makes the clip of every step that shows the narrator ({image}, {audio}, {out}; optional {background}, {silence}, {aspect})."));
       }
       if (r.mode === "pip") {

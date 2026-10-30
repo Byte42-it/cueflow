@@ -1,5 +1,7 @@
 import { avatarImages, stepAvatar } from "./avatars.ts";
-import { avatarVideoProviderFor, clipAspect, stepClip } from "./avatar-video.ts";
+import { avatarVideoProviderFor, clipAspect, imageMimeOf, stepClip, type AvatarVideoProvider } from "./avatar-video.ts";
+import { spokenText } from "./tts.ts";
+import { loadBrief } from "./brief.ts";
 import { isGenerated } from "./avatar.ts";
 import { isKitImage } from "./avatars.ts";
 import type { Avatar } from "./avatar.ts";
@@ -89,25 +91,38 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
       const own = step.voice?.[lang];
       if (own?.provider === "browser") browserVoice = true;
       else if (langSilent && anyBrowser && !own) step.voice = { ...step.voice, [lang]: { provider: "none" } };
-      const sound = await stepAudio(kit, guide, step, lang, provider);
+      // the generated narrator: a clip of the person saying the step, only where the narrator is shown, never made for a
+      // preview (the cache is read). A voiced provider (OpenRouter's models) makes the audio of the step too; a provider
+      // driven by audio (a local command) needs the step's voice first.
+      const av = stepAvatar(kit, guide, step);
+      const generated = isGenerated(av.provider) && av.mode !== "off" && isKitImage(av.image) && !(own?.provider === "none");
+      let p: AvatarVideoProvider | null = null;
+      if (generated) {
+        try { p = avatarVideoProviderFor(av.provider, process.env, av.model); } catch (e) { if (provider !== null) throw e; } // a preview without a key: no clip, no error
+      }
+      let sound: { data: Buffer; mime: string } | null = null;
+      let clip: Awaited<ReturnType<typeof stepClip>> = null;
+      const image = p ? await readFile(path.join(kit.root, av.image!)).catch(() => null) : null; // missing: validate reports it
+      const text = spokenText(spokenOf(step, lang).trim(), { ...(await loadBrief(kit)).pronunciation, ...guide.pronunciation });
+      if (p && image && p.voiced && text) {
+        const req = { image, imageMime: imageMimeOf(av.image!), text, lang, voice: av.voices?.[lang], silenceAfterMs: step.hold, background: av.background, aspect: clipAspect(av.mode) };
+        clip = await stepClip(kit, p, req, { previewOnly: provider === null });
+        sound = clip?.audio ?? (provider === null ? await stepAudio(kit, guide, step, lang, provider) : null); // a preview without the clip yet: the usual voice
+      } else {
+        sound = await stepAudio(kit, guide, step, lang, provider);
+        if (p && image && sound) {
+          const req = { image, imageMime: imageMimeOf(av.image!), text, lang, audio: sound.data, audioMime: sound.mime, silenceAfterMs: step.hold, background: av.background, aspect: clipAspect(av.mode) };
+          clip = await stepClip(kit, p, req, { previewOnly: provider === null });
+        }
+      }
       opts.onProgress?.(++done, total);
+      if (clip) {
+        (avatarVideo[lang] ??= {})[step.id] = `data:${clip.clip.mime};base64,${clip.clip.data.toString("base64")}`;
+        clips += 1; if (clip.made) clipsMade += 1;
+      }
       if (!sound) continue;
       (audio[lang] ??= {})[step.id] = `data:${sound.mime};base64,${sound.data.toString("base64")}`;
       audioFiles += 1;
-      // the generated narrator: only the steps that show it, only with real audio, never spent for a preview
-      const av = stepAvatar(kit, guide, step);
-      if (isGenerated(av.provider) && av.mode !== "off" && isKitImage(av.image)) {
-        const image = await readFile(path.join(kit.root, av.image)).catch(() => null);
-        if (!image) continue; // validate reports the missing picture
-        let p = null;
-        try { p = avatarVideoProviderFor(av.provider, process.env, av.model); } catch (e) { if (provider !== null) throw e; } // a preview without a key: no clip, no error
-        if (!p) continue;
-        const req = { image, imageMime: /\.png$/i.test(av.image) ? "image/png" : "image/jpeg", audio: sound.data, audioMime: sound.mime, silenceAfterMs: step.hold, background: av.background, aspect: clipAspect(av.mode) };
-        const r = await stepClip(kit, p, req, { previewOnly: provider === null });
-        if (!r) continue;
-        (avatarVideo[lang] ??= {})[step.id] = `data:${r.clip.mime};base64,${r.clip.data.toString("base64")}`;
-        clips += 1; if (r.made) clipsMade += 1;
-      }
     }
   }
   // a language without a recorded voice is read by the viewer's browser when that is what was chosen for it
