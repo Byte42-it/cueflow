@@ -81,6 +81,7 @@
       '<iframe class="cf-frame" scrolling="no" tabindex="-1"></iframe>' +
       '<div class="cf-spot"></div><div class="cf-ring"></div><div class="cf-cursor"></div>' +
       "</div>" +
+      '<div class="cf-avatar" hidden aria-hidden="true"></div>' +
       '<p class="cf-subs" aria-live="polite" hidden><span></span></p>' +
       '<button class="cf-big" aria-label="Play">' + ICON_PLAY + "</button>" +
       '<p class="cf-veil-text" aria-hidden="true"><strong></strong><span></span></p>' +
@@ -731,9 +732,78 @@
       c.speaking = true;
       c.utter = u;
       u.onend = u.onerror = function () { if (c.utter === u) c.speaking = false; }; // a cancelled utterance ends late
+      u.onboundary = function () { avatarPulse(); }; // a word: the narrator's mouth moves (Chromium gives these)
       synth.speak(u);
     }
     function stopVoice() { if (synth) synth.cancel(); if (cur) { cur.speaking = false; cur.utter = null; } }
+
+    // ---- the narrator: a cartoon face in a corner, drawn by the player; blinks on the step clock, lips follow the voice ----
+    var AVATAR_SVG = '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">' +
+      '<g id="head"><circle cx="50" cy="52" r="34" fill="#f2c9a8"/><path d="M18 46c2-22 18-32 32-32s30 10 32 32c-6-10-18-14-32-14s-26 4-32 14z" fill="#3b2a24"/>' +
+      '<g id="eye-l"><ellipse cx="38" cy="50" rx="4.2" ry="4.6" fill="#2b2b2b"/><circle cx="39.4" cy="48.6" r="1.3" fill="#fff"/></g>' +
+      '<g id="eye-r"><ellipse cx="62" cy="50" rx="4.2" ry="4.6" fill="#2b2b2b"/><circle cx="63.4" cy="48.6" r="1.3" fill="#fff"/></g>' +
+      '<path d="M46 60q4 3 8 0" fill="none" stroke="#d99a7a" stroke-width="1.6" stroke-linecap="round"/>' +
+      '<path id="mouth-closed" d="M41 70q9 5 18 0" fill="none" stroke="#9c4a3c" stroke-width="2.4" stroke-linecap="round"/>' +
+      '<ellipse id="mouth-mid" cx="50" cy="71" rx="7.5" ry="3.2" fill="#8d3b31"/>' +
+      '<g id="mouth-open"><ellipse cx="50" cy="72" rx="8.5" ry="6" fill="#8d3b31"/><ellipse cx="50" cy="69.5" rx="6" ry="2" fill="#fff"/></g></g></svg>';
+    var avatarOpts = opts.avatar || {};
+    var avatarEl = $(".cf-avatar"), av = null; // av: the moving parts
+    function setupAvatar() {
+      if (avatarOpts.provider !== "svg" || slides) return;
+      avatarEl.innerHTML = DATA.avatar || AVATAR_SVG;
+      var svg = avatarEl.querySelector("svg");
+      if (!svg) return;
+      av = { svg: svg, eyes: [svg.querySelector("#eye-l"), svg.querySelector("#eye-r")], mouths: { closed: svg.querySelector("#mouth-closed"), mid: svg.querySelector("#mouth-mid"), open: svg.querySelector("#mouth-open") }, pulse: -1e9, bound: false, level: 0 };
+      av.eyes.forEach(function (e) { if (e) { e.style.transformBox = "fill-box"; e.style.transformOrigin = "50% 50%"; } });
+      avatarEl.hidden = false;
+      avatarEl.className = "cf-avatar cf-av-" + (avatarOpts.position || "bottom-right") + (avatarOpts.shape === "rounded" ? " cf-av-rounded" : "");
+      if ((avatarOpts.position || "bottom-right") === "bottom-right") app.classList.add("cf-av-br");
+      avatarEl.style.height = ((avatarOpts.size || 0.28) * 100) + "%";
+      avatarEl.style.background = avatarOpts.background || "#1f2a44";
+      paintAvatar(0, 0);
+    }
+    /* a small deterministic noise of the step time: the same t gives the same blink, in a seek as in playback */
+    function noise(n) { var x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); }
+    function paintAvatar(t, level) {
+      if (!av) return;
+      // a blink every 2.5–5 s, 150 ms long; the slot's own noise picks its moment
+      var slot = Math.floor(t / 3600), at = slot * 3600 + 400 + noise(slot) * 2800, blink = reduce ? 0 : Math.max(0, 1 - Math.abs(t - at) / 75);
+      av.eyes.forEach(function (e) { if (e) e.style.transform = "scaleY(" + (1 - 0.92 * blink) + ")"; });
+      // a slow sway of the head, none when motion is reduced
+      av.svg.style.transform = reduce ? "" : "rotate(" + (1.4 * Math.sin(t / 1300)) + "deg) translateY(" + (0.6 * Math.sin(t / 900)) + "%)";
+      var m = level < 0.12 ? "closed" : level < 0.45 ? "mid" : "open";
+      Object.keys(av.mouths).forEach(function (k) { if (av.mouths[k]) av.mouths[k].style.display = k === m ? "" : "none"; });
+    }
+    function avatarPulse() { if (av) { av.pulse = performance.now(); av.bound = true; } }
+    /* how open the mouth is now, 0–1: the audio's loudness, else the words of the browser voice, else a guess from the text */
+    var analyser = null, analysed = null, bins = null;
+    function mouthLevel() {
+      if (!av || !cur || !playing) return 0;
+      if (cur.audio && !cur.audio.paused && voiceOn) {
+        try {
+          if (keepAlive && analysed !== cur.audio) {
+            analyser = keepAlive.createAnalyser(); analyser.fftSize = 512; bins = new Uint8Array(analyser.frequencyBinCount);
+            var src = keepAlive.createMediaElementSource(cur.audio); src.connect(analyser); analyser.connect(keepAlive.destination);
+            analysed = cur.audio;
+          }
+          if (analyser && analysed === cur.audio) {
+            analyser.getByteTimeDomainData(bins);
+            var sum = 0; for (var i = 0; i < bins.length; i++) { var d = (bins[i] - 128) / 128; sum += d * d; }
+            var rms = Math.sqrt(sum / bins.length);
+            av.peak = Math.max(rms, (av.peak || 0) * 0.995, 0.01); // the loudest recent moment is "wide open", whatever the recording's volume
+            av.level = Math.max(rms / av.peak, av.level * 0.6); // quick up, soft down
+            return Math.min(1, av.level);
+          }
+        } catch (e) { /* no analyser (a cross-origin file): the text guess below */ }
+      }
+      var speaking = cur.audio ? !cur.audio.paused : cur.speaking || (!cur.mute && cur.t < cur.narrDur && synth);
+      if (!speaking) return 0;
+      if (av.bound && !cur.audio) { var since = performance.now() - av.pulse; return since < 220 ? 1 - since / 220 * 0.6 : since < 420 ? 0.3 : 0; }
+      // no clue from the voice itself: syllables at about 5 a second, with pauses the text would have
+      var beat = Math.floor(cur.t / 190);
+      return noise(beat + 7) < 0.3 ? 0.08 : 0.35 + 0.65 * Math.abs(Math.sin(cur.t / 95));
+    }
+    setupAvatar();
 
     // ---- steps ----
     async function enterStep(i, instant) {
@@ -786,7 +856,7 @@
         else if (cur && cur.speaking) synth.resume();
         else if (cur && !cur.audio && !cur.mute && cur.t < cur.narrDur) { synth.resume(); speak(cur, cur.text); }
       }
-      if (v) { last = performance.now(); raf = requestAnimationFrame(tick); } else cancelAnimationFrame(raf);
+      if (v) { last = performance.now(); raf = requestAnimationFrame(tick); } else { cancelAnimationFrame(raf); if (cur) paintAvatar(cur.t, 0); } // a paused narrator closes its mouth
     }
 
     function progressBar() {
@@ -805,6 +875,7 @@
       last = ts;
       cur.t += dt * speed;
       tickCamera(cur.t);
+      paintAvatar(cur.t, mouthLevel());
       runDue(cur, cur.t, { instant: false });
       progressBar();
       // the browser voice has no known length: wait for it to finish, within a generous bound
@@ -838,6 +909,7 @@
       cur.t = t;
       loading = false;
       progressBar();
+      paintAvatar(t, 0);
       paintVeil();
     }
 

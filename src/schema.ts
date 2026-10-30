@@ -213,6 +213,20 @@ export const Step = z.object({
 export type Step = z.infer<typeof Step>;
 
 /** How the player looks and behaves around the scene. Everything has a default, so old guides keep working. */
+/** The narrator drawn over the picture: none, or a cartoon face (the kit's theme/avatar.svg, else the built-in one) whose lips follow the voice. */
+export const Avatar = z
+  .object({
+    provider: z.enum(["none", "svg"]).default("none").describe("none: no narrator; svg: a cartoon narrator drawn by the player, lips moving with the voice, blinking while idle; free, no service"),
+    position: z.enum(["bottom-right", "bottom-left", "top-right", "top-left"]).default("bottom-right").describe("corner of the picture"),
+    size: z.number().min(0.1).max(0.6).default(0.28).describe("height of the narrator as a fraction of the picture's height"),
+    shape: z.enum(["round", "rounded"]).default("round"),
+    background: z.string().default("#1f2a44").describe("CSS colour behind the narrator")
+  })
+  .default({});
+export type Avatar = z.infer<typeof Avatar>;
+/** The groups a theme/avatar.svg must have for the player to move it. */
+export const AVATAR_IDS = ["head", "eye-l", "eye-r", "mouth-closed", "mouth-mid", "mouth-open"] as const;
+
 export const PlayerOptions = z
   .object({
     captions: z.enum(["below", "overlay", "off"]).default("below").describe("where the narration text is shown: under the video, over its bottom edge like subtitles, or not at all"),
@@ -226,7 +240,8 @@ export const PlayerOptions = z
     fallbackVoice: z
       .enum(["none", "browser"])
       .default("none")
-      .describe("when a step has no audio: stay silent, or read the narration with the browser's own voice (a preview: it differs from machine to machine)")
+      .describe("when a step has no audio: stay silent, or read the narration with the browser's own voice (a preview: it differs from machine to machine)"),
+    avatar: Avatar
   })
   .default({});
 export type PlayerOptions = z.infer<typeof PlayerOptions>;

@@ -202,5 +202,10 @@
         "it": "Trascina un'attività in alto per farla diventare la prossima: l'ordine della lista lo decidi tu."
       }
     }
-  ]
+  ],
+  "player": {
+    "avatar": {
+      "provider": "svg"
+    }
+  }
 }

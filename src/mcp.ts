@@ -16,7 +16,7 @@ import { renderFrame } from "./preview.ts";
 import { describeScene } from "./scene.ts";
 import { buildSite, checkEndpoint, loadSite, syncSite, validateSite } from "./site.ts";
 import { createArticle, readArticle, writeArticle } from "./articles.ts";
-import { Guide, orientedGuide, Step } from "./schema.ts";
+import { Avatar, Guide, orientedGuide, Step } from "./schema.ts";
 import { validateGuide } from "./validate.ts";
 
 const text = (value: unknown) => ({ content: [{ type: "text" as const, text: typeof value === "string" ? value : JSON.stringify(value, null, 2) }] });
@@ -159,6 +159,22 @@ export function createServer(kit: Kit): McpServer {
     safe(async () => text({ options: voiceOptions(), current: kit.settings.voices, table: await voiceTable(kit),
       ...(process.env.FANTASTICO_API_KEY ? await speechModels().then((models) => ({ speechModels: models }), (error: Error) => ({ catalogueError: error.message })) : {})
     }))
+  );
+
+  server.registerTool(
+    "set_avatar",
+    {
+      description:
+        "Put a narrator on a video's picture, or remove it: a cartoon face in a corner that blinks and moves its lips with the voice, drawn by the player (free, no service; the kit's theme/avatar.svg when it has one). Only when the user asks for a narrator or a presenter; never on slides.",
+      inputSchema: { guide: guideId, avatar: Avatar }
+    },
+    safe(async ({ guide, avatar }) => {
+      const g = await loadGuide(kit, guide);
+      if (g.format === "slides") throw new Error(`"${guide}" is a presentation: slides have no voice, so no narrator`);
+      g.player = { ...g.player, avatar };
+      await saveGuide(kit, g);
+      return text({ guide, avatar: g.player.avatar });
+    })
   );
 
   server.registerTool(

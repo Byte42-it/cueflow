@@ -31,7 +31,7 @@ Decisions taken by the maintainers — do not re-litigate:
 | `capture.ts` | `capture.json` (zod) → Playwright: login, steps, cues, remove/hide, replace, script; `freezePage` runs in the page and works on a **copy** of the document (the live page stays usable for the next scene); assets mirrored in `shared/` (best font format only, image type sniffed) |
 | `validate.ts` | checks selectors against the scene current at each step, duplicate ids, unknown scenes, missing narration per language |
 | `tts.ts` | `TtsProvider` interface (+ `format`: mp3/m4a/wav/ogg) with OpenAI, `command` (any local program, e.g. Piper) and `say` (macOS) providers; on-disk cache keyed by hash(provider, voice, lang, text); ported from the sister chess project |
-| `theme.ts` | optional kit `theme/`: `theme.css` appended after the player CSS (urls inlined), `labels.json` (player words per language, validated) |
+| `theme.ts` | optional kit `theme/`: `theme.css` appended after the player CSS (urls inlined), `labels.json` (player words per language, validated), `avatar.svg` (the kit's own narrator face; must have the groups of `AVATAR_IDS`, checked at load) |
 | `build.ts` | guide → `dist/<id>.html` (player + css + scenes + `shared` + base64 audio, JSON embedded script-safe); `estimateDuration` (same rule as the silent player) |
 | `player/player.js`, `player.css` | browser runtime, plain JS inlined at build time (not bundled/compiled) |
 | `site.ts` | `site.json` catalog → `dist/site/` (home + one page per item: player, transcript, `pages/<id>.html` article); validation, posters via `preview.ts` |
@@ -114,6 +114,17 @@ Player model worth knowing before touching it:
   calls `play()` (Studio's timeline) the parked groups get their time back and the slides run like a video. Controls
   are `cf-sl-*` (the site already uses `.cf-prev`). The site labels such items "Presentation · N slides", drops the
   transcript section and the print panel when nothing is printable.
+- **Narrator** (`player.avatar`, 2026-10-30; MCP `set_avatar`, Studio Voice page › "Narrator on the picture"): provider
+  `none` (default) or `svg` — a cartoon face in a corner of the stage (`.cf-avatar`, size as a fraction of the
+  height, round or rounded, a background colour), the kit's `theme/avatar.svg` or the built-in `AVATAR_SVG`. The
+  player moves its groups: `#eye-l`/`#eye-r` blink (`scaleY`, deterministic from the step time via `noise(slot)`, so
+  a seek gives the same face twice), the `<svg>` sways, `#mouth-closed`/`#mouth-mid`/`#mouth-open` follow
+  `mouthLevel()`: the loudness of the step's audio (an `AnalyserNode` on the `keepAlive` AudioContext, self-calibrated
+  on the recent peak), else the word boundaries of the browser voice (`u.onboundary` → `avatarPulse`), else a syllable
+  guess from the clock; closed when paused, at a seek, or without any voice. Never on slides. `prefers-reduced-motion`
+  stops blink and sway. `.cf-av-br` moves the Cueflow mark out of the narrator's corner. The next provider (an
+  audio-driven service such as HeyGen, one clip per step and language) would replace the SVG in the same `.cf-avatar`
+  layer; the site already keeps media as files (`externalize`).
 - On a docs page the player fits the window by **narrowing** (`--cf-aspect`, set by `mount`, times the available
   height), never by capping the stage height: a capped stage cropped the bottom of every scene on wide screens.
 

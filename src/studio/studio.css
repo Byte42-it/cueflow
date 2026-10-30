@@ -110,7 +110,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .55); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #1a0d08; font-weight: 600; }
 .row { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
 .msg { margin-top: 8px; font-size: 13px; } .msg.ok { color: var(--ok); } .msg.err { color: var(--err); } .msg.warn { color: var(--accent-ink); }
-.lvl { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; margin-bottom: 12px; }
+.lvl, .nar { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; margin-bottom: 12px; }
 .lvl h4 { margin: 0; font-size: 13.5px; } .lvl .cur { color: var(--muted); font-size: 13px; margin: 2px 0 8px; }
 .opt { display: block; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-top: 6px; cursor: pointer; }
 .opt:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }

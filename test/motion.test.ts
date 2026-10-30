@@ -4,11 +4,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { pathToFileURL } from "node:url";
-import { buildGuide } from "../src/build.ts";
+import { buildGuide, renderGuideHtml, writeAtomic } from "../src/build.ts";
 import { loadGuide, openKit, saveGuide, type Kit } from "../src/kit.ts";
 import { launchChromium } from "../src/preview.ts";
 import { Guide } from "../src/schema.ts";
 import { validateGuide } from "../src/validate.ts";
+import { loadTheme } from "../src/theme.ts";
+import { mkdir, writeFile } from "node:fs/promises";
 
 /* The motion engine: every effect runs on the step clock, so a seek is exact and repeatable, and a pause stops everything. */
 let dir: string;
@@ -56,6 +58,61 @@ before(async () => {
   );
 });
 after(() => rm(dir, { recursive: true, force: true }));
+
+describe("narrator", () => {
+  it("is off unless asked, and a kit's own face must have the groups the player moves", async () => {
+    assert.equal(Guide.parse({ id: "g", title: "G", scene: "s" }).player.avatar.provider, "none");
+    const own = await mkdtemp(path.join(tmpdir(), "cueflow-avatar-"));
+    await mkdir(path.join(own, "theme"));
+    await writeFile(path.join(own, "theme", "avatar.svg"), '<svg viewBox="0 0 10 10"><g id="head"><g id="eye-l"/><g id="eye-r"/><path id="mouth-closed"/></g></svg>');
+    await assert.rejects(loadTheme(openKit(own)), /theme\/avatar\.svg: no element with id "mouth-mid", "mouth-open"/);
+    await writeFile(path.join(own, "theme", "avatar.svg"), '<svg viewBox="0 0 10 10"><g id="head"><g id="eye-l"/><g id="eye-r"/><path id="mouth-closed"/><path id="mouth-mid"/><path id="mouth-open"/></g></svg>');
+    assert.match((await loadTheme(openKit(own))).avatar ?? "", /^<svg/);
+    await rm(own, { recursive: true, force: true });
+  });
+
+  it("blinks on the step clock and closes its mouth when paused", { skip: !process.env.CUEFLOW_TEST_BROWSER, timeout: 90000 }, async () => {
+    const own = await mkdtemp(path.join(tmpdir(), "cueflow-showcase-"));
+    await cp(path.join(import.meta.dirname, "..", "examples", "motion-kit"), own, { recursive: true, filter: (s) => !/[\\/]dist([\\/]|$)/.test(s) });
+    const showcase = openKit(own);
+    // silent build read by the browser's voice (Studio's preview): without any voice the narrator would stay silent too
+    const { html } = await renderGuideHtml(showcase, "dashboard", null, { browserVoice: true });
+    const file = path.join(own, "dist", "dashboard.html");
+    await writeAtomic(file, html);
+    const browser = await launchChromium("en");
+    try {
+      const page = await browser.newPage({ viewport: { width: 760, height: 520 } });
+      await page.goto(pathToFileURL(file).href);
+      await page.waitForFunction(() => (window as unknown as { __cueflow?: unknown }).__cueflow);
+      const seek = (t: number) => page.evaluate((t) => (window as unknown as { __cueflow: { seek(i: number, t: number): Promise<unknown> } }).__cueflow.seek(1, t), t);
+      assert.equal(await page.locator(".cf-avatar").isVisible(), true);
+      // the first blink of a step is at 400 + noise(0) * 2800 ms: the same noise as the player's
+      const noise = (n: number) => { const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); };
+      const blink = Math.round(400 + noise(0) * 2800);
+      await seek(blink);
+      const eye = () => page.locator("#eye-l").evaluate((el) => (el as HTMLElement).style.transform);
+      assert.match(await eye(), /scaleY\(0\.0/, "eyes shut at the blink's middle");
+      const shut = await page.locator(".cf-avatar").screenshot();
+      await seek(blink + 800);
+      assert.equal(await eye(), "scaleY(1)");
+      await seek(blink);
+      assert.ok(Buffer.compare(shut, await page.locator(".cf-avatar").screenshot()) === 0, "the same time, the same face");
+      const mouth = () => page.evaluate(() => ["mouth-closed", "mouth-mid", "mouth-open"].filter((id) => document.getElementById(id)!.style.display !== "none").join());
+      assert.equal(await mouth(), "mouth-closed", "silent at a seek");
+      await page.locator(".cf-play").click(); // from the seek on: the bar's play
+      await page.waitForTimeout(1200);
+      const seen = new Set<string>();
+      for (let i = 0; i < 20; i++) { seen.add(await mouth()); await page.waitForTimeout(50); }
+      assert.ok(seen.size >= 2, `the mouth moves while the narration runs: ${[...seen].join(" ")}`);
+      await page.locator(".cf-play").click();
+      await page.waitForTimeout(100);
+      assert.equal(await mouth(), "mouth-closed", "paused: closed");
+    } finally {
+      await browser.close();
+      await rm(own, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("motion", () => {
   it("the showcase kit (examples/motion-kit) uses the whole vocabulary and validates clean", async () => {

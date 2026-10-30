@@ -131,7 +131,7 @@ export async function renderGuideHtml(kit: Kit, id: string, provider?: TtsProvid
   if (opts.browserVoice) bundle.guide.player = { ...bundle.guide.player, fallbackVoice: "browser" };
   const { js, css, theme } = await playerAssets(kit);
   const styles = theme.css ? `${css}\n/* kit theme */\n${theme.css}` : css;
-  return { bundle, html: pageHtml(bundle.guide, styles, js, { ...bundle.data, labels: theme.labels }, opts.extras) };
+  return { bundle, html: pageHtml(bundle.guide, styles, js, { ...bundle.data, labels: theme.labels, avatar: theme.avatar }, opts.extras) };
 }
 
 /** Builds guides/<id>.json into <output>/<id>.html: one self-contained file with player, scenes, timeline and audio. */

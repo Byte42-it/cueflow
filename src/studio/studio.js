@@ -1094,7 +1094,33 @@
       p.appendChild(h("p", null, "Auto uses the project voice for the language selected above. Turn off Auto to choose a voice just for this tutorial in “" + lang + "”."));
       var own = v.current.guides[g.id] || {};
       p.appendChild(level(v, { scope: "video", guide: g.id, language: lang }, "Voice · “" + lang + "”", (own.languages || {})[lang] || own.default));
+      if (g.format !== "slides") narratorForm(p, g);
     }).catch(function (e) { p.textContent = e.message; });
+  }
+  /* the narrator on the picture: a cartoon face whose lips follow the voice; off, or drawn by the player (free) */
+  function narratorForm(p, g) {
+    var a = (g.player && g.player.avatar) || {};
+    var box = h("section", { class: "nar", "aria-label": "Narrator" }); // not .lvl: the voice tests count those
+    box.appendChild(h("h3", null, "Narrator on the picture"));
+    box.appendChild(h("p", null, "A face in a corner of the video that speaks the narration: it blinks, sways a little and moves its lips with the voice. Drawn by the player, no service, no cost. Give the kit a theme/avatar.svg to use your own face."));
+    var on = h("select", null, [["none", "None"], ["svg", "Cartoon face, drawn by the player"]].map(function (k) { return h("option", { value: k[0] }, k[1]); })); on.value = a.provider === "svg" ? "svg" : "none";
+    var pos = h("select", null, ["bottom-right", "bottom-left", "top-right", "top-left"].map(function (k) { return h("option", { value: k }, k.replace("-", " ")); })); pos.value = a.position || "bottom-right";
+    var size = h("input", { type: "range", min: "10", max: "60", step: "2" }); size.value = Math.round((a.size || 0.28) * 100);
+    var shape = h("select", null, [["round", "round"], ["rounded", "rounded square"]].map(function (k) { return h("option", { value: k[0] }, k[1]); })); shape.value = a.shape || "round";
+    var bg = h("input", { type: "color" }); bg.value = /^#[0-9a-f]{6}$/i.test(a.background || "") ? a.background : "#1f2a44";
+    var msg = h("div", { class: "msg" });
+    var store = function () {
+      save(function (gg) {
+        gg.player = gg.player || {};
+        gg.player.avatar = { provider: on.value, position: pos.value, size: +size.value / 100, shape: shape.value, background: bg.value };
+      }).then(function () { S.audioRev = (S.audioRev || 0) + 1; msg.className = "msg ok"; msg.textContent = on.value !== "none" ? "Saved: the narrator is on. See it in Preview." : "Saved: no narrator."; })
+        .catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+    };
+    [on, pos, size, shape, bg].forEach(function (el) { el.addEventListener("change", store); });
+    box.appendChild(h("label", { class: "lab" }, "Narrator", on));
+    box.appendChild(h("div", { class: "pickrow" }, h("label", { class: "lab" }, "Corner", pos), h("label", { class: "lab" }, "Size", size), h("label", { class: "lab" }, "Shape", shape), h("label", { class: "lab" }, "Background", bg)));
+    box.appendChild(msg);
+    p.appendChild(box);
   }
   function level(v, target, title, spec) {
     var box = h("div", { class: "lvl" });

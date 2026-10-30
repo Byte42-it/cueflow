@@ -364,7 +364,7 @@ ${body}
       item: it.id,
       articles,
       next: nextOf(it.id),
-      guide: b ? { ...external[it.guide!]!, labels: theme.labels } : undefined
+      guide: b ? { ...external[it.guide!]!, labels: theme.labels, avatar: theme.avatar } : undefined
     };
     await writeAtomic(path.join(out, it.id, "index.html"), page(`${name(it.title)} · ${name(site.title)}`, "../", body, data));
     pages.push(`${it.id}/index.html`);
