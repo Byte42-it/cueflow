@@ -12,14 +12,13 @@ import { resolveFFmpeg } from "./video.ts";
  * The narrator as a generated video: a picture of a person becomes a clip of that person saying the step (lips on the
  * voice), one clip per step and per language. Chosen like a voice: `provider: "fantastico"` or `"command"`.
  *
- * `fantastico`: the models of OpenRouter (HeyGen Avatar IV by default), paid with the Fantastico key like the voices.
- * Fantastico is the bank of keys: Cueflow mints an OpenRouter **runtime key** from it (`POST <base>/<surface>/key`,
+ * `fantastico`: the video models of Fantastico's catalogue (HeyGen Avatar IV by default), paid with the Fantastico key
+ * like the voices. Fantastico is the bank of keys: Cueflow mints a **runtime key** from it (`POST <base>/<surface>/key`,
  * the same thing the Fantastico SDK does inside, rebuilt here because the SDK keeps the key private and has no video
- * surface), calls OpenRouter's video API with it, and mints again when it expires or is refused. The clip is driven by
- * the narration text and the model's own voice (`voices[lang]`, a HeyGen voice id; OpenRouter exposes no audio input
- * for this model), so the clip's audio **becomes the audio of the step** (extracted with FFmpeg): durations, lips and
- * captions agree by construction, and no TTS is paid for that step.
- * `command`: a local program (LivePortrait, Wav2Lip, SadTalker…) driven by the audio Cueflow already made.
+ * surface), calls the models' video API with it, and mints again when it expires or is refused. The clip is **driven by
+ * the audio Cueflow already made** for the step (the voice of the tutorial), with the step's hold appended as silence,
+ * so lips follow the same voice as everywhere else and the face lives through the pause: nothing frozen, nothing looped.
+ * `command`: a local program (LivePortrait, Wav2Lip, SadTalker…) driven by the same audio.
  *
  * Cached under <kit>/avatar/ by content hash like the audio; only a changed step is generated again.
  */
@@ -27,15 +26,13 @@ export type ClipRequest = {
   /** the person: a picture of the kit (png, jpg, webp, avif) */
   image: Buffer;
   imageMime: string;
-  /** what is said (the spoken form of the narration) and in which language — the service voices it */
+  /** what is said (the spoken form of the narration), for a program that wants the words too */
   text: string;
   lang: string;
-  /** the model's voice for that language (a HeyGen voice id); omitted = the model's default for the language */
-  voice?: string;
-  /** audio already made by Cueflow, for providers driven by audio (command) */
-  audio?: Buffer;
-  audioMime?: string;
-  /** silence the clip should keep after the words (the step's hold), for providers that take it */
+  /** the audio Cueflow made for the step: the clip's lips follow it */
+  audio: Buffer;
+  audioMime: string;
+  /** silence appended after the words (the step's hold): the clip covers the whole step */
   silenceAfterMs: number;
   /** a CSS colour, or "transparent" (the person cut out, when the model can) */
   background: string;
@@ -45,10 +42,8 @@ export type ClipRequest = {
 export type Clip = { data: Buffer; mime: string; costUsd?: number };
 export type AvatarVideoProvider = {
   id: string;
-  /** what makes a clip different besides its inputs (model, voice, key…): part of the cache key */
+  /** what makes a clip different besides its inputs (model, key…): part of the cache key */
   fingerprint: string;
-  /** the clip carries its own voice: its audio is the step's */
-  voiced: boolean;
   animate(req: ClipRequest): Promise<Clip>;
   /** a portrait from words (the service only): the picture then lives in the kit like an uploaded one */
   portrait?(prompt: string, style?: string): Promise<Clip>;
@@ -83,17 +78,17 @@ export async function runtimeKey(env: NodeJS.ProcessEnv, f: typeof fetch, fresh 
   return data.runtimeKey;
 }
 
-/* ---- OpenRouter's video API, with the minted key: submit, poll, download ---- */
+/* ---- the models' video API behind Fantastico, with the minted key: submit, poll, download ---- */
 export const DEFAULT_AVATAR_MODEL = "heygen/avatar-iv";
 export const DEFAULT_PORTRAIT_MODEL = "google/gemini-2.5-flash-image";
 export function fantasticoAvatarProvider(env: NodeJS.ProcessEnv = process.env, options: { model?: string; portraitModel?: string; fetchImpl?: typeof fetch; pollMs?: number } = {}): AvatarVideoProvider | null {
   const apiKey = env.FANTASTICO_API_KEY;
   if (!apiKey) return null;
-  const or = (env.OPENROUTER_API_URL ?? "https://openrouter.ai/api/v1").replace(/\/$/, "");
+  const or = (env.FANTASTICO_MODELS_URL ?? "https://openrouter.ai/api/v1").replace(/\/$/, "");
   const f = options.fetchImpl ?? fetch;
   const model = options.model || env.CUEFLOW_AVATAR_MODEL || DEFAULT_AVATAR_MODEL;
   const portraitModel = options.portraitModel || env.CUEFLOW_PORTRAIT_MODEL || DEFAULT_PORTRAIT_MODEL;
-  /* every call to OpenRouter runs with the key in hand; a refusal of the key (401/402) mints one more and tries once again */
+  /* every call to the models runs with the key in hand; a refusal of the key (401/402) mints one more and tries once again */
   async function withKey<T>(run: (headers: Record<string, string>) => Promise<T>): Promise<T> {
     const headers = (k: string) => ({ Authorization: `Bearer ${k}`, "Content-Type": "application/json", "HTTP-Referer": "https://cueflow.fantastico.cc", "X-Title": "Cueflow" });
     try {
@@ -107,13 +102,12 @@ export function fantasticoAvatarProvider(env: NodeJS.ProcessEnv = process.env, o
   const check = async (r: Response, what: string) => {
     if (r.ok) return;
     const body = await r.text().catch(() => "");
-    if (r.status === 401 || r.status === 402) throw new RefusedKey(`OpenRouter refused the key for ${what} (${r.status}): ${body.slice(0, 160)}`);
-    throw new Error(`OpenRouter ${what} failed (${r.status}): ${body.slice(0, 200)}`);
+    if (r.status === 401 || r.status === 402) throw new RefusedKey(`Fantastico refused the key for ${what} (${r.status}): ${body.slice(0, 160)}`);
+    throw new Error(`Fantastico ${what} failed (${r.status}): ${body.slice(0, 600)}`);
   };
   return {
     id: "fantastico",
-    voiced: true,
-    fingerprint: JSON.stringify(["openrouter", model, createHash("sha256").update(apiKey).digest("hex").slice(0, 16)]),
+    fingerprint: JSON.stringify(["fantastico", model, createHash("sha256").update(apiKey).digest("hex").slice(0, 16)]),
     async portrait(prompt, style) {
       return withKey(async (headers) => {
         const r = await f(`${or}/chat/completions`, { method: "POST", headers, body: JSON.stringify({ model: portraitModel, modalities: ["image", "text"], messages: [{ role: "user", content: `A portrait of a narrator for a product tutorial, head and shoulders, facing the camera, plain background${style ? `, ${style}` : ""}: ${prompt}` }] }) });
@@ -126,22 +120,26 @@ export function fantasticoAvatarProvider(env: NodeJS.ProcessEnv = process.env, o
       });
     },
     async animate(req) {
-      const params: Record<string, unknown> = { background: req.background === "transparent" ? undefined : req.background, remove_background: req.background === "transparent" || undefined, voice_id: req.voice };
-      Object.keys(params).forEach((k) => params[k] === undefined && delete params[k]);
+      // the words come as audio (the tutorial's own voice) with the hold appended; the model lip-syncs to it
+      const voice = await padAudio(req.audio, req.audioMime, req.silenceAfterMs);
+      const modelOptions: Record<string, unknown> = req.background === "transparent" ? { remove_background: true } : { background: req.background };
       const body = {
         model,
         prompt: req.text,
-        input_references: [{ type: "image_url", image_url: { url: `data:${req.imageMime};base64,${req.image.toString("base64")}` } }],
+        input_references: [
+          { type: "image_url", image_url: { url: `data:${req.imageMime};base64,${req.image.toString("base64")}` } },
+          { type: "audio_url", audio_url: { url: `data:audio/wav;base64,${voice.toString("base64")}` } }
+        ],
         aspect_ratio: req.aspect,
         resolution: env.CUEFLOW_AVATAR_RESOLUTION ?? "720p",
-        provider: { options: { [model.split("/")[0]!]: { parameters: params } } }
+        provider: { options: { [model.split("/")[0]!]: modelOptions } }
       };
       const { id } = await withKey(async (headers) => {
         const r = await f(`${or}/videos`, { method: "POST", headers, body: JSON.stringify(body) });
         await check(r, "video job");
         return (await r.json()) as { id: string };
       });
-      if (!id) throw new Error("OpenRouter returned no job id");
+      if (!id) throw new Error("Fantastico returned no job id for the clip");
       const started = Date.now(), limit = 20 * 60 * 1000;
       for (;;) {
         const j = await withKey(async (headers) => { const r = await f(`${or}/videos/${encodeURIComponent(id)}`, { headers }); await check(r, "job status"); return (await r.json()) as { status: string; error?: unknown; usage?: { cost?: number } }; });
@@ -149,9 +147,10 @@ export function fantasticoAvatarProvider(env: NodeJS.ProcessEnv = process.env, o
           const data = await withKey(async (headers) => { const r = await f(`${or}/videos/${encodeURIComponent(id)}/content?index=0`, { headers }); await check(r, "clip download"); return Buffer.from(await r.arrayBuffer()); });
           return { data, mime: "video/mp4", costUsd: j.usage?.cost };
         }
-        if (j.status === "failed" || j.status === "cancelled" || j.status === "expired") throw new Error(`OpenRouter could not make the clip (${j.status}): ${typeof j.error === "string" ? j.error : JSON.stringify(j.error ?? "")}`);
+        if (j.status === "failed" || j.status === "cancelled" || j.status === "expired") throw new Error(`Fantastico could not make the clip (${j.status}): ${typeof j.error === "string" ? j.error : JSON.stringify(j.error ?? "")}`);
         if (Date.now() - started > limit) throw new Error("the clip took more than 20 minutes: try again later");
-        await new Promise((res) => setTimeout(res, options.pollMs ?? 3000));
+        const wait: number = options.pollMs ?? 3000;
+        await new Promise<void>((res) => setTimeout(res, wait));
       }
     }
   };
@@ -164,13 +163,11 @@ export function commandAvatarProvider(template: string, format: "mp4" | "webm" =
   if (!/\{image\}|\{audio\}|\{out\}/.test(template)) throw new Error("CUEFLOW_AVATAR_COMMAND must use {image}, {audio} and {out} (optional {text}, {background}, {silence}, {aspect})");
   return {
     id: "command",
-    voiced: false,
     fingerprint: JSON.stringify(["command", template, format]),
     async animate(req) {
-      if (!req.audio) throw new Error("the command provider needs the step's audio");
       const dir = await mkdtemp(path.join(tmpdir(), "cueflow-avatar-"));
       try {
-        const image = path.join(dir, "face" + (path.extname(Object.keys(IMAGE_MIME).find((e) => IMAGE_MIME[e] === req.imageMime) ?? ".png"))), audio = path.join(dir, "voice." + ((req.audioMime ?? "").includes("wav") ? "wav" : "mp3")), text = path.join(dir, "text.txt"), out = path.join(dir, "clip." + format);
+        const image = path.join(dir, "face" + (path.extname(Object.keys(IMAGE_MIME).find((e) => IMAGE_MIME[e] === req.imageMime) ?? ".png"))), audio = path.join(dir, "voice." + (req.audioMime.includes("wav") ? "wav" : "mp3")), text = path.join(dir, "text.txt"), out = path.join(dir, "clip." + format);
         await writeFile(image, req.image);
         await writeFile(audio, req.audio);
         await writeFile(text, req.text);
@@ -203,16 +200,15 @@ export function avatarVideoProviderFor(provider: string | undefined, env: NodeJS
 
 const ext = (mime: string) => (mime.includes("webm") ? "webm" : "mp4");
 
-/** The clip of one step (and, for a voiced provider, its audio as the step's), from the cache or made now. */
-export async function stepClip(kit: Kit, p: AvatarVideoProvider, req: ClipRequest, opts: { previewOnly?: boolean } = {}): Promise<{ clip: Clip; audio?: { data: Buffer; mime: string }; made: boolean } | null> {
+/** The clip of one step, from the cache or made now; `made` tells whether the provider was called. */
+export async function stepClip(kit: Kit, p: AvatarVideoProvider, req: ClipRequest, opts: { previewOnly?: boolean } = {}): Promise<{ clip: Clip; made: boolean } | null> {
   const hash = createHash("sha256")
-    .update(p.fingerprint).update("\0").update(req.image).update("\0").update(p.voiced ? `${req.lang}\0${req.voice ?? ""}\0${req.text}` : req.audio ?? Buffer.alloc(0)).update("\0")
+    .update(p.fingerprint).update("\0").update(req.image).update("\0").update(req.audio).update("\0")
     .update(JSON.stringify([req.silenceAfterMs, req.background, req.aspect])).digest("hex").slice(0, 24);
   const dir = avatarVideoDir(kit);
-  const audioOf = async () => { const data = await readFile(path.join(dir, `${hash}.wav`)).catch(() => null); return data ? { data, mime: "audio/wav" } : undefined; };
   for (const e of ["mp4", "webm"]) {
     const data = await readFile(path.join(dir, `${hash}.${e}`)).catch(() => null);
-    if (data) return { clip: { data, mime: e === "webm" ? "video/webm" : "video/mp4" }, audio: p.voiced ? await audioOf() : undefined, made: false };
+    if (data) return { clip: { data, mime: e === "webm" ? "video/webm" : "video/mp4" }, made: false };
   }
   if (opts.previewOnly) return null; // a preview never spends credit
   const clip = await p.animate(req);
@@ -220,31 +216,17 @@ export async function stepClip(kit: Kit, p: AvatarVideoProvider, req: ClipReques
   const file = path.join(dir, `${hash}.${ext(clip.mime)}`);
   await writeFile(`${file}.tmp`, clip.data);
   await rename(`${file}.tmp`, file);
-  let audio: { data: Buffer; mime: string } | undefined;
-  if (p.voiced) {
-    const wav = await clipAudio(clip.data, ext(clip.mime));
-    await writeFile(path.join(dir, `${hash}.wav`), wav);
-    audio = { data: wav, mime: "audio/wav" };
-  }
-  return { clip, audio, made: true };
+  return { clip, made: true };
 }
 
-/** The voice of a clip as a wav (the step's audio), or silence as long as the clip when it has no sound. */
-export async function clipAudio(clip: Buffer, extension: string): Promise<Buffer> {
+/** The step's audio as a wav with silence appended (the hold): what the clip must cover. */
+export async function padAudio(audio: Buffer, mime: string, silenceMs: number): Promise<Buffer> {
   const ffmpeg = await resolveFFmpeg();
-  const dir = await mkdtemp(path.join(tmpdir(), "cueflow-clipaudio-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "cueflow-pad-"));
   try {
-    const src = path.join(dir, `clip.${extension}`), out = path.join(dir, "voice.wav");
-    await writeFile(src, clip);
-    try {
-      await run(ffmpeg, ["-y", "-i", src, "-vn", "-acodec", "pcm_s16le", "-ar", "24000", "-ac", "1", out]);
-    } catch (e) {
-      // no audio stream: silence as long as the picture (the duration comes from FFmpeg's own report)
-      const probe = await run(ffmpeg, ["-i", src]).catch((err: { stderr?: string }) => err);
-      const m = /Duration: (\d+):(\d+):(\d+(?:\.\d+)?)/.exec(String((probe as { stderr?: string }).stderr ?? ""));
-      const seconds = m ? +m[1]! * 3600 + +m[2]! * 60 + +m[3]! : 3;
-      await run(ffmpeg, ["-y", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", String(seconds), out]);
-    }
+    const src = path.join(dir, "voice." + (mime.includes("wav") ? "wav" : mime.includes("ogg") ? "ogg" : mime.includes("mp4") || mime.includes("m4a") ? "m4a" : "mp3")), out = path.join(dir, "padded.wav");
+    await writeFile(src, audio);
+    await run(ffmpeg, ["-y", "-i", src, "-af", `apad=pad_dur=${Math.max(0, silenceMs) / 1000}`, "-acodec", "pcm_s16le", "-ar", "24000", "-ac", "1", out]);
     return await readFile(out);
   } finally {
     await rm(dir, { recursive: true, force: true });
