@@ -25,7 +25,7 @@ Decisions taken by the maintainers — do not re-litigate:
 
 | File | Role |
 |---|---|
-| `schema.ts` | zod schemas: `Guide`, `Step`, `Action` (move, hover, click, type, highlight with `style` ring/glow/spotlight, set, select, value, check, show, hide, tween, count, reorder, drag, scroll, camera), `Camera`; motion fields shared by the actions: `easing` (named curve or cubic-bezier), `effect` + `stagger` on show/hide, `animate` on state changes; reorder/drag take exactly one of `into` (+ `index`), `before`, `after` (checked in `validate.ts`, a discriminated union cannot refine) |
+| `schema.ts` | zod schemas: `Guide`, `Step`, `Action` (move, hover, click, type, highlight with `style` ring/glow/spotlight, set, select, value, check, show, hide, tween, count, grow, draw, reorder, drag, scroll, camera), `Camera`; motion fields shared by the actions: `easing` (named curve or cubic-bezier), `effect` + `stagger` on show/hide, `animate` on state changes; reorder/drag take exactly one of `into` (+ `index`), `before`, `after` (checked in `validate.ts`, a discriminated union cannot refine) |
 | `kit.ts` | kit folder layout, load/save guides (atomic write), list scenes/guides |
 | `scene.ts` | `inlineScene` (inlines local CSS/JS/images/fonts → one standalone HTML; with a `Shared` map, stylesheets and images go there once by hash and the scene keeps placeholders), `bestFontSources` (one format per @font-face), `describeScene` (targetable elements + best selector), `countMatches` |
 | `capture.ts` | `capture.json` (zod) → Playwright: login, steps, cues, remove/hide, replace, script; `freezePage` runs in the page and works on a **copy** of the document (the live page stays usable for the next scene); assets mirrored in `shared/` (best font format only, image type sniffed) |
@@ -84,6 +84,14 @@ Player model worth knowing before touching it:
   load `withShared` rewrites every `:hover` of the scene's and shared stylesheets to `.cf-hover` (`hoverable`), the
   iframe never gets a real pointer anyway. `highlight` fades its box in and out over 15 % of its time: `.cf-ring`
   (ring, or `.cf-glow`), or `.cf-spot` for spotlight (a window on the element, one 9999px box-shadow is the veil).
+  `grow` scales from an edge (`transform-origin`), `draw` runs `stroke-dashoffset` from the path's length to 0; both
+  take `stagger` like show/hide. A slow push-in is just a long `camera` action on the same target (no drift concept).
+- **`examples/motion-kit`** is the showcase and acceptance test of the vocabulary (one dashboard scene, en + it, guide
+  `dashboard`); `test/motion.test.ts` checks it validates clean and, with `CUEFLOW_TEST_BROWSER=1`, drives the player
+  (same frame twice, count, camera still when paused, reorder and drag half way, hover, spotlight). The demo kit stays
+  as it is: several Studio tests count its guides and media.
+- Studio: the ▶ in an action card plays that action alone (`replayAction`: seek 150 ms before `at`, play, pause after
+  `actionMs`); `actionMs` is Studio's copy of `durationOf` without the stagger count.
 - "What comes next": `site.ts` gives every item page a `next` (the following item of the catalog, row by row, videos
   and written guides alike, never a `soon` one). A video page passes it to `mount(..., { next: { title, href } })` and the
   player shows a "Go to {title}" banner (`.cf-up-next`, label `next`) over the picture once the video has ended; a

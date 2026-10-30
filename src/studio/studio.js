@@ -691,14 +691,15 @@
   }
 
   /* ---------- actions ---------- */
-  var ACTION_TYPES = ["move", "hover", "click", "type", "highlight", "show", "hide", "value", "select", "check", "count", "reorder", "drag", "camera", "set", "scroll", "tween"];
-  var WITH_DURATION = { move: 1, hover: 1, type: 1, highlight: 1, tween: 1, scroll: 1, camera: 1, show: 1, hide: 1, count: 1, reorder: 1, drag: 1 };
-  var WITH_EASING = { move: 1, tween: 1, scroll: 1, camera: 1, show: 1, hide: 1, count: 1, reorder: 1, drag: 1 };
+  var ACTION_TYPES = ["move", "hover", "click", "type", "highlight", "show", "hide", "value", "select", "check", "count", "grow", "draw", "reorder", "drag", "camera", "set", "scroll", "tween"];
+  var WITH_DURATION = { move: 1, hover: 1, type: 1, highlight: 1, tween: 1, scroll: 1, camera: 1, show: 1, hide: 1, count: 1, reorder: 1, drag: 1, grow: 1, draw: 1 };
+  var WITH_EASING = { move: 1, tween: 1, scroll: 1, camera: 1, show: 1, hide: 1, count: 1, reorder: 1, drag: 1, grow: 1, draw: 1 };
+  var WITH_STAGGER = { show: 1, hide: 1, grow: 1, draw: 1 };
   var PLACES = ["into", "before", "after"];
   var WITH_ANIMATE = { set: 1, check: 1, select: 1, value: 1 };
   var EASINGS = ["", "linear", "ease", "ease-in", "ease-out", "ease-in-out", "spring"];
   var EFFECTS = ["none", "fade", "slide-up", "slide-down", "slide-left", "slide-right", "scale"];
-  var DEFAULT_MS = { move: 800, hover: 600, type: 1200, highlight: 1800, tween: 1500, scroll: 450, camera: 700, show: 300, hide: 200, count: 1200, reorder: 500, drag: 1200 };
+  var DEFAULT_MS = { move: 800, hover: 600, type: 1200, highlight: 1800, tween: 1500, scroll: 450, camera: 700, show: 300, hide: 200, count: 1200, reorder: 500, drag: 1200, grow: 900, draw: 1200 };
   /* how long an action takes on the timeline, the player's rule without the stagger count (that needs the scene) */
   function actionMs(a) { return a.do === "click" ? 350 : a.animate != null ? a.animate : a.duration != null ? a.duration : WITH_DURATION[a.do] ? DEFAULT_MS[a.do] : 0; }
   function actionTip(a) {
@@ -761,6 +762,7 @@
     var card = h("div", { class: "act" });
     card.appendChild(h("div", { class: "acthead" }, h("b", null, (i + 1) + " · " + a.do),
       h("span", null,
+        h("button", { title: "Play this action", onclick: function () { replayAction(a); } }, "▶"),
         h("button", { title: "Earlier", disabled: i === 0, onclick: function () { d.splice(i - 1, 0, d.splice(i, 1)[0]); S.dirty = true; renderPanel(); } }, "↑"),
         h("button", { title: "Later", disabled: i === d.length - 1, onclick: function () { d.splice(i + 1, 0, d.splice(i, 1)[0]); S.dirty = true; renderPanel(); } }, "↓"),
         h("button", { title: "Remove", onclick: function () { d.splice(i, 1); S.dirty = true; renderPanel(); } }, "✕"))));
@@ -782,10 +784,12 @@
     if (WITH_EASING[a.do]) row.appendChild(selectField("Easing", a.easing, EASINGS, function (v) { if (v) a.easing = v; else delete a.easing; }));
     if (WITH_ANIMATE[a.do]) row.appendChild(msField("Animate (ms)", a.animate, function (v) { if (v == null) delete a.animate; else a.animate = v; }));
     card.appendChild(row);
-    if (a.do === "show" || a.do === "hide") {
-      card.appendChild(h("div", { class: "pickrow" },
-        selectField("Effect", a.effect || (a.do === "show" ? "fade" : "none"), EFFECTS, function (v) { a.effect = v; }),
-        msField("Stagger (ms, all the matches)", a.stagger, function (v) { if (v == null) delete a.stagger; else a.stagger = v; }, 110)));
+    if (WITH_STAGGER[a.do]) {
+      var extra = h("div", { class: "pickrow" });
+      if (a.do === "show" || a.do === "hide") extra.appendChild(selectField("Effect", a.effect || (a.do === "show" ? "fade" : "none"), EFFECTS, function (v) { a.effect = v; }));
+      if (a.do === "grow") extra.appendChild(selectField("Grows from", a.from || "bottom", ["bottom", "left", "top", "right", "center"], function (v) { a.from = v; }));
+      extra.appendChild(msField("Stagger (ms, all the matches)", a.stagger, function (v) { if (v == null) delete a.stagger; else a.stagger = v; }, 110));
+      card.appendChild(extra);
     }
     if (a.do === "highlight") card.appendChild(selectField("Style", a.style || "ring", ["ring", "glow", "spotlight"], function (v) { a.style = v; }));
     if (a.do === "reorder" || a.do === "drag") {
@@ -1310,6 +1314,16 @@
     if (S.mode === "pick") renderView(false);
     return true;
   }
+  /* plays one action of the selected step and stops right after it: the quickest way to judge an effect */
+  function replayAction(a) {
+    var p = player(); if (!p || !PH || !PH.timing) return;
+    var i = S.step, tm = PH.timing[i], at = typeof a.at === "string" ? parseFloat(a.at) / 100 * tm.narration : a.at;
+    var from = Math.max(0, at - 150);
+    seekGlobal(PH.starts[i] + from, function () {
+      p.play();
+      setTimeout(function () { p.pause(); }, at - from + actionMs(a) + 250);
+    });
+  }
   function transport(act) {
     var p = player(); if (!p || !PH) return;
     var st = p.state();
@@ -1495,7 +1509,7 @@
     lTr.querySelectorAll(".vo").forEach(function (b) { if (b._wave) drawWave(b._wave.cv, b._wave.peaks); });
     if (full) loadWaves();
     if (keep) { scroll.scrollLeft = keep.l; scroll.scrollTop = keep.t; }
-    PH = { starts: starts, px: px, total: total, head: head, time: timeEl, play: playBtn, scroll: scroll, at: starts[S.step] || 0, playing: false, scrub: false };
+    PH = { starts: starts, px: px, total: total, timing: timing, head: head, time: timeEl, play: playBtn, scroll: scroll, at: starts[S.step] || 0, playing: false, scrub: false };
     // drag on the ruler: the video follows; the step under the playhead becomes the selected one when it is let go
     ruler.addEventListener("pointerdown", function (e) {
       if (S.dirty && !confirmLeave()) return;

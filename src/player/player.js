@@ -516,6 +516,35 @@
           el.textContent = a._pre + a._fmt.format(v) + a._suf;
         }
       },
+      draw: {
+        /* a stroke drawn by a pen: dash as long as the path, offset from all to none */
+        start: function (a) {
+          a._els = targets(a).filter(function (el) { return typeof el.getTotalLength === "function"; });
+          a._els.forEach(function (el) {
+            var len = el.getTotalLength();
+            el._cfDraw = { len: len, dasharray: el.style.strokeDasharray, dashoffset: el.style.strokeDashoffset };
+            el.style.strokeDasharray = len; el.style.strokeDashoffset = len;
+          });
+        },
+        update: function (a, p) {
+          (a._els || []).forEach(function (el, k) { if (el._cfDraw) el.style.strokeDashoffset = el._cfDraw.len * (1 - eased(a, local(a, p, k))); });
+        },
+        finish: function (a) {
+          (a._els || []).forEach(function (el) { if (el._cfDraw) { el.style.strokeDasharray = el._cfDraw.dasharray; el.style.strokeDashoffset = el._cfDraw.dashoffset; delete el._cfDraw; } });
+        }
+      },
+      grow: {
+        start: function (a) {
+          a._els = targets(a);
+          a._els.forEach(function (el) {
+            el._cfGrow = { transform: el.style.transform, origin: el.style.transformOrigin };
+            el.style.transformOrigin = { bottom: "50% 100%", top: "50% 0", left: "0 50%", right: "100% 50%", center: "50% 50%" }[a.from] || "50% 100%";
+            el.style.transform = growAt(a.from, 0);
+          });
+        },
+        update: function (a, p) { (a._els || []).forEach(function (el, k) { el.style.transform = growAt(a.from, eased(a, local(a, p, k))); }); },
+        finish: function (a) { (a._els || []).forEach(function (el) { if (el._cfGrow) { el.style.transform = el._cfGrow.transform; el.style.transformOrigin = el._cfGrow.origin; delete el._cfGrow; } }); }
+      },
       scroll: {
         /* just enough to show the element (below, or above), measured when the action starts */
         start: function (a) {
@@ -582,6 +611,7 @@
     /* show/hide helpers: which elements (all of them with a stagger), each one's own progress, the entrance itself */
     function targets(a) { return a.stagger != null ? $all(a.to) : [$el(a.to)].filter(Boolean); }
     function reveal(el) { el.removeAttribute("hidden"); el.style.display = ""; }
+    function growAt(from, q) { q = Math.max(0, q); return from === "left" || from === "right" ? "scaleX(" + q + ")" : from === "center" ? "scale(" + q + ")" : "scaleY(" + q + ")"; }
     function effective(a) { return a.effect && a.effect !== "none" && !reduce; }
     function local(a, p, k) {
       var n = a._els.length, total = a.duration + (n - 1) * (a.stagger || 0), t = p * total;
@@ -622,7 +652,7 @@
     function durationOf(a) {
       if (a.do === "click") return CLICK_MS;
       if (reduce && a.do !== "type" && a.do !== "count") return 0;
-      if (a.do === "show" || a.do === "hide") return a.duration + staggerSpan(a);
+      if (a.do === "show" || a.do === "hide" || a.do === "draw" || a.do === "grow") return a.duration + staggerSpan(a);
       if (a.do === "set" || a.do === "check" || a.do === "select" || a.do === "value") return a.animate || 0;
       if (a.do === "scroll") return a.duration != null ? a.duration : 450;
       if (a.do === "hover") return a.duration != null ? a.duration : 600;

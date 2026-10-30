@@ -142,6 +142,20 @@ export const Action = z.discriminatedUnion("do", [
     })
     .describe("count a number up or down in an element (a total, a KPI, a badge): it counts, it does not jump"),
   z
+    .object({ do: z.literal("draw"), to: selector.describe("an SVG path, line, polyline or circle"), at, duration: duration(1200), easing, stagger })
+    .describe("draw an SVG stroke from its start to its end, like a pen (a line chart, an arrow, a signature); several with stagger"),
+  z
+    .object({
+      do: z.literal("grow"),
+      to: selector,
+      at,
+      from: z.enum(["bottom", "left", "top", "right", "center"]).default("bottom").describe("the edge the element grows from: bottom for bars, left for horizontal bars, center for a badge"),
+      duration: duration(900),
+      easing,
+      stagger
+    })
+    .describe("grow an element from nothing to its size (the bars of a chart, a progress segment, a badge); several with stagger"),
+  z
     .object({
       do: z.literal("scroll"),
       to: selector.describe("element to bring into view"),

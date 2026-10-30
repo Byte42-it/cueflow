@@ -5,9 +5,10 @@ import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { pathToFileURL } from "node:url";
 import { buildGuide } from "../src/build.ts";
-import { openKit, saveGuide, type Kit } from "../src/kit.ts";
+import { loadGuide, openKit, saveGuide, type Kit } from "../src/kit.ts";
 import { launchChromium } from "../src/preview.ts";
 import { Guide } from "../src/schema.ts";
+import { validateGuide } from "../src/validate.ts";
 
 /* The motion engine: every effect runs on the step clock, so a seek is exact and repeatable, and a pause stops everything. */
 let dir: string;
@@ -57,6 +58,16 @@ before(async () => {
 after(() => rm(dir, { recursive: true, force: true }));
 
 describe("motion", () => {
+  it("the showcase kit (examples/motion-kit) uses the whole vocabulary and validates clean", async () => {
+    const showcase = openKit(path.join(import.meta.dirname, "..", "examples", "motion-kit"));
+    const guide = await loadGuide(showcase, "dashboard");
+    const used = new Set<string>(guide.steps.flatMap((s) => s.actions.map((a) => a.do)));
+    for (const action of ["show", "hide", "count", "highlight", "grow", "draw", "check", "set", "reorder", "drag"]) assert.ok(used.has(action), action);
+    const report = await validateGuide(showcase, guide);
+    assert.deepEqual(report.errors, []);
+    assert.deepEqual(report.warnings, []);
+  });
+
   it("seeks to the same frame twice, counts, and keeps the camera still while paused", { skip: !process.env.CUEFLOW_TEST_BROWSER, timeout: 90000 }, async () => {
     const built = await buildGuide(kit, "motion", null);
     const browser = await launchChromium("en");

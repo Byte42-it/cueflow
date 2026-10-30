@@ -66,7 +66,7 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
     if (typeof step.camera?.target === "string") refs.push({ label: "camera", selector: step.camera.target });
     for (const [j, a] of step.actions.entries()) {
       const label = `action ${j + 1} (${a.do})`;
-      const many = (a.do === "show" || a.do === "hide") && a.stagger != null;
+      const many = (a.do === "show" || a.do === "hide" || a.do === "draw" || a.do === "grow") && a.stagger != null;
       if ("to" in a) refs.push({ label, selector: a.to, many, number: a.do === "count" && a.from == null });
       if (a.do === "scroll") refs.push({ label, selector: a.in });
       if (a.do === "reorder" || a.do === "drag") {

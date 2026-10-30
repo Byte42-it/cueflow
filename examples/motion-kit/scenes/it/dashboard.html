@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <title>Dashboard — Acme Portal</title>
+  <link rel="stylesheet" href="../../shared/style.css">
+  <style>
+    .kpis { display: flex; gap: 16px; margin-bottom: 20px; }
+    .kpi { flex: 1; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+    .kpi .num { font-size: 28px; font-weight: 700; }
+    .kpi .lbl { color: var(--muted); font-size: 13px; }
+    .row2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
+    .card h2 { font-size: 15px; margin: 0 0 14px; }
+    .chart { position: relative; height: 150px; }
+    .cols { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 18px; padding: 0 6px 22px; }
+    .col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; position: relative; }
+    .col span { position: absolute; bottom: -22px; left: 0; right: 0; text-align: center; color: var(--muted); font-size: 12px; }
+    .bar { background: #c7d4f5; border-radius: 6px 6px 0 0; }
+    .trend { position: absolute; inset: 0 6px 22px; width: calc(100% - 12px); height: calc(100% - 22px); overflow: visible; }
+    .trend path { fill: none; stroke: var(--brand); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .tasks { list-style: none; margin: 0; padding: 0; }
+    .tasks li { display: flex; gap: 10px; align-items: center; padding: 10px 8px; border-radius: 8px; border-bottom: 1px solid var(--line); background: #fff; }
+    .tasks li.done label { text-decoration: line-through; color: var(--muted); }
+    .tasks li.done { opacity: .55; }
+    .tasks label { flex: 1; }
+  </style>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="logo">Acme Portal</div>
+    <a href="#" class="active" id="nav-dashboard">Dashboard</a>
+    <a href="#">Documenti</a>
+    <a href="#">Pratiche</a>
+    <a href="#">Clienti</a>
+    <a href="#">Impostazioni</a>
+  </aside>
+  <div class="main">
+    <header class="topbar" id="topbar">
+      <input placeholder="Search…" aria-label="Search">
+      <div class="avatar">MR</div>
+    </header>
+    <main class="content">
+      <h1>Dashboard</h1>
+      <p class="sub">Come vanno le pratiche questo mese.</p>
+      <div class="kpis" id="kpis">
+      <div class="kpi" id="kpi-docs"><div class="num" id="num-docs">128</div><div class="lbl">Documenti</div></div>
+      <div class="kpi" id="kpi-open"><div class="num" id="num-open">42</div><div class="lbl">Pratiche aperte</div></div>
+      <div class="kpi" id="kpi-due"><div class="num" id="num-due">7</div><div class="lbl">In scadenza</div></div>
+      </div>
+      <div class="row2">
+        <section class="card" id="chart-card">
+          <h2>Documenti caricati, ultime sei settimane</h2>
+          <div class="chart">
+            <div class="cols" id="bars">
+          <div class="col"><div class="bar" style="height:38%"></div><span>S1</span></div>
+          <div class="col"><div class="bar" style="height:52%"></div><span>S2</span></div>
+          <div class="col"><div class="bar" style="height:46%"></div><span>S3</span></div>
+          <div class="col"><div class="bar" style="height:70%"></div><span>S4</span></div>
+          <div class="col"><div class="bar" style="height:64%"></div><span>S5</span></div>
+          <div class="col"><div class="bar" style="height:88%"></div><span>S6</span></div>
+            </div>
+            <svg class="trend" viewBox="0 0 300 100" preserveAspectRatio="none" aria-hidden="true"><path id="trend" d="M 25 62 L 75 48 L 125 54 L 175 30 L 225 36 L 275 12"/></svg>
+          </div>
+        </section>
+        <section class="card" id="tasks-card">
+          <h2>Attività di oggi</h2>
+          <ul class="tasks" id="tasks">
+        <li id="task-1"><input type="checkbox" id="check-1"><label for="check-1">Rivedere il contratto Rossi</label></li>
+        <li id="task-2"><input type="checkbox" id="check-2"><label for="check-2">Chiamare il cliente per la pratica 2024-17</label></li>
+        <li id="task-3"><input type="checkbox" id="check-3"><label for="check-3">Caricare l'atto depositato</label></li>
+        <li id="task-4"><input type="checkbox" id="check-4"><label for="check-4">Preparare la riunione di lunedì</label></li>
+          </ul>
+        </section>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

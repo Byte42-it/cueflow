@@ -76,6 +76,10 @@ A tutorial is its narration; motion shows what the words say and never decorates
   the cursor lifts it, carries it, drops it.
 - highlight has three styles: ring to point at something, glow for a control about to be used, spotlight when the
   rest of the screen would distract (a dense dashboard, a long form).
+- Charts: the bars grow (grow, with a stagger of 60–100 ms, bottom up), a line draws itself (draw on the SVG path),
+  the figures count (count). Build a chart in that order, over the sentence that explains it.
+- A slow push-in while the voice explains a screen: a camera action on the same target with a smaller padding and a
+  long duration (3000–6000 ms, easing linear). Rarely, and only on a screen that stays still.
 - One effect per idea. A step with more than three animated things is two steps.
 - Put motion where the narration names it (at: "40%" when the word comes) and keep it shorter than the sentence.
 

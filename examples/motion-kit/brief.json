@@ -1,0 +1,8 @@
+{
+  "site": "Acme Portal (motion showcase)",
+  "audience": "whoever evaluates Cueflow's motion vocabulary",
+  "tone": "plain",
+  "languages": ["en", "it"],
+  "rules": ["synthetic data only"],
+  "maxSeconds": 90
+}

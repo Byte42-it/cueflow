@@ -1,0 +1,206 @@
+{
+  "id": "dashboard",
+  "title": "Reading the dashboard",
+  "scene": "dashboard",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "stage": {
+    "width": 640,
+    "height": 360
+  },
+  "languages": [
+    "en",
+    "it"
+  ],
+  "steps": [
+    {
+      "id": "intro",
+      "title": {
+        "en": "The dashboard builds up",
+        "it": "La dashboard si compone"
+      },
+      "camera": {
+        "target": ".content",
+        "padding": 20
+      },
+      "actions": [
+        {
+          "do": "hide",
+          "to": "#kpis .kpi, #chart-card, #tasks-card",
+          "at": 0,
+          "effect": "none",
+          "stagger": 0
+        },
+        {
+          "do": "show",
+          "to": "#kpis .kpi, #chart-card, #tasks-card",
+          "at": "10%",
+          "effect": "slide-up",
+          "duration": 450,
+          "stagger": 110
+        }
+      ],
+      "narration": {
+        "en": "The dashboard gathers, on one screen, what matters this month: figures, a trend and today's tasks.",
+        "it": "La dashboard raccoglie in una schermata ciò che conta questo mese: numeri, andamento e attività di oggi."
+      }
+    },
+    {
+      "id": "figures",
+      "title": {
+        "en": "Three figures",
+        "it": "Tre numeri"
+      },
+      "camera": {
+        "target": "#kpis",
+        "padding": 24
+      },
+      "actions": [
+        {
+          "do": "count",
+          "to": "#num-docs",
+          "at": "5%",
+          "from": 0,
+          "end": 128,
+          "duration": 1200
+        },
+        {
+          "do": "count",
+          "to": "#num-open",
+          "at": "20%",
+          "from": 0,
+          "end": 42,
+          "duration": 1000
+        },
+        {
+          "do": "count",
+          "to": "#num-due",
+          "at": "35%",
+          "from": 0,
+          "end": 7,
+          "duration": 800
+        },
+        {
+          "do": "highlight",
+          "to": "#kpi-due",
+          "at": "55%",
+          "duration": 1800,
+          "style": "glow"
+        }
+      ],
+      "narration": {
+        "en": "Documents, open cases, and the ones due this week: the last figure is the one to watch.",
+        "it": "Documenti, pratiche aperte e quelle in scadenza questa settimana: l'ultimo numero è quello da tenere d'occhio."
+      }
+    },
+    {
+      "id": "trend",
+      "title": {
+        "en": "The trend",
+        "it": "L'andamento"
+      },
+      "camera": {
+        "target": "#chart-card",
+        "padding": 24
+      },
+      "actions": [
+        {
+          "do": "grow",
+          "to": "#bars .bar",
+          "at": "5%",
+          "from": "bottom",
+          "duration": 700,
+          "stagger": 80
+        },
+        {
+          "do": "draw",
+          "to": "#trend",
+          "at": "40%",
+          "duration": 1400
+        }
+      ],
+      "narration": {
+        "en": "The chart shows the documents uploaded week by week, with the line giving the trend.",
+        "it": "Il grafico mostra i documenti caricati settimana per settimana, e la linea dà l'andamento."
+      }
+    },
+    {
+      "id": "done",
+      "title": {
+        "en": "A task done",
+        "it": "Un'attività fatta"
+      },
+      "camera": {
+        "target": "#tasks-card",
+        "padding": 24
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#check-1",
+          "at": "5%",
+          "duration": 700
+        },
+        {
+          "do": "click",
+          "to": "#check-1",
+          "at": "30%"
+        },
+        {
+          "do": "check",
+          "to": "#check-1",
+          "at": "30%"
+        },
+        {
+          "do": "set",
+          "to": "#task-1",
+          "at": "32%",
+          "add": [
+            "done"
+          ],
+          "animate": 300
+        },
+        {
+          "do": "reorder",
+          "to": "#task-1",
+          "into": "#tasks",
+          "at": "55%",
+          "duration": 600
+        }
+      ],
+      "narration": {
+        "en": "Tick a task when it is done: it is struck through and goes to the bottom of the list.",
+        "it": "Spunta un'attività quando è fatta: viene barrata e scende in fondo alla lista."
+      }
+    },
+    {
+      "id": "priority",
+      "title": {
+        "en": "Change the order",
+        "it": "Cambiare l'ordine"
+      },
+      "actions": [
+        {
+          "do": "drag",
+          "to": "#task-4",
+          "before": "#task-2",
+          "at": "10%",
+          "duration": 1400
+        },
+        {
+          "do": "highlight",
+          "to": "#tasks-card",
+          "at": "70%",
+          "duration": 1600,
+          "style": "spotlight"
+        }
+      ],
+      "narration": {
+        "en": "Drag a task up to make it the next one: the list is yours to order.",
+        "it": "Trascina un'attività in alto per farla diventare la prossima: l'ordine della lista lo decidi tu."
+      }
+    }
+  ]
+}
