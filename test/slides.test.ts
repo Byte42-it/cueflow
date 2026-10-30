@@ -117,6 +117,7 @@ describe("slides", () => {
       await page.keyboard.press("Space"); // second group
       await scene.locator("#b").waitFor();
       assert.equal(await page.locator(".cf-sl-count").textContent(), "1 / 2", "still on the first slide");
+      await page.waitForTimeout(600); // #b fades in (show, 300 ms): a press meanwhile would complete it, not change slide
       await page.keyboard.press("Space");
       await page.locator(".cf-sl-count").getByText("2 / 2").waitFor();
       assert.equal(await visible("#c"), false, "an action at 1000 ms waits for its press");
@@ -137,6 +138,7 @@ describe("slides", () => {
       await page.locator(".cf-sl-count").getByText("2 / 2").waitFor();
       await page.locator(".cf-sl-next").click();
       await scene.locator("#c").waitFor();
+      await page.waitForTimeout(600); // let its fade end: a press meanwhile completes the group instead of ending the deck
       await page.locator(".cf-sl-next").click();
       await page.locator(".cf-veil-text strong").getByText("Fine della presentazione").waitFor();
       assert.equal(await page.locator(".cf-sl-next").isDisabled(), true);
