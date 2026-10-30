@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cueflow Studio</title>
+<link rel="stylesheet" href="../shared/studio.css">
+
+</head>
+<body>
+<header class="top">
+  <div class="brand"><svg viewBox="152 152 950 950" width="22" height="22" aria-hidden="true"><g fill="none" stroke="#ff7a59" stroke-linecap="round" stroke-linejoin="round"><path d="M880 370A338 338 0 1 0 880 890" stroke-width="210"></path><path d="M830 525L1040 640L830 755Z" fill="#ff7a59" stroke-width="70"></path></g></svg><b>Cueflow</b> <span>Studio</span></div>
+  <div class="current" id="current">How to upload a document</div>
+  <div class="where" id="where" title="The project. Its Cueflow files are in /home/you/my-project/.cueflow">/home/you/my-project</div>
+  <button class="btn" id="undo" title="Nothing to undo" disabled="">↶ Undo</button>
+  <button class="btn" id="redo" title="Nothing to redo" disabled="">↷ Redo</button>
+  <label class="lang">Language <select id="lang"><option value="en" selected="">en</option><option value="it">it</option></select></label>
+  <button class="btn chip" id="update" title="A newer Cueflow is available" hidden=""></button>
+  <button class="btn chip" id="notes" title="Hand edits the assistant has not read yet" hidden="">✎ 0 notes for the assistant</button>
+  <button class="btn ai" id="ai" title="A prompt for your AI assistant: carry on in a new session without starting over"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9l10-5 10 5-10 5z"></path><path d="M6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5M22 9v6"></path></svg><span>AI</span><i class="dot" id="aidot" title="No assistant connected"></i></button>
+  <button class="btn" id="dashboard" title="The titles and descriptions of the dashboard">Dashboard</button>
+  <button class="btn" id="project" title="Settings: audio, audience, tone, languages, rules, pronunciation">Settings</button>
+  <button class="themebtn" id="theme" title="Dark / light" aria-label="Dark or light">◐</button>
+  <button class="btn primary" id="exportall" title="Build every tutorial and the dashboard that gathers them">Build</button>
+</header>
+<div class="banner" id="banner" hidden=""></div>
+
+<div class="work">
+  <!-- all the tutorials, as thumbnails -->
+  <nav class="film" id="film" aria-label="Tutorials"><button class="btn newbtn" title="A video tutorial, a written guide, or an announcement">+  New</button><div class="rowcap" data-row="ready">Watch and read</div><div class="tilewrap" data-item="upload" data-row="ready" draggable="true"><button class="tile on" title="How to upload a document — drag to change the order"><div class="thumb" style="aspect-ratio:1280 / 720"><span class="kindbadge video">Video</span><iframe loading="lazy" tabindex="-1" title="" srcdoc="&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;
+  &lt;meta charset=&quot;utf-8&quot;&gt;
+  &lt;title&gt;Documents — Acme Portal&lt;/title&gt;
+  &lt;style&gt;/* Stand-in for the real site's stylesheet: in a real kit this folder holds the CSS, fonts and icons copied from the site. */
+:root { --brand: #2f5bea; --brand-dark: #1f3fb0; --ink: #1c2230; --muted: #6b7384; --line: #e3e7ef; --bg: #f5f7fb; --ok: #1a9d62; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; height: 100vh; overflow: hidden; display: grid; grid-template-columns: 240px 1fr; font: 15px/1.5 system-ui, &quot;Segoe UI&quot;, sans-serif; color: var(--ink); background: var(--bg); }
+.sidebar { background: #101a3a; color: #cfd6ee; padding: 20px 14px; }
+.sidebar .logo { font-weight: 700; font-size: 20px; color: #fff; margin: 0 8px 24px; }
+.sidebar a { display: block; padding: 10px 12px; margin-bottom: 4px; border-radius: 8px; color: inherit; text-decoration: none; }
+.sidebar a.active { background: var(--brand); color: #fff; }
+.main { display: flex; flex-direction: column; min-width: 0; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; background: #fff; border-bottom: 1px solid var(--line); }
+.topbar input { width: 320px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center; font-weight: 600; }
+.content { padding: 28px; overflow: hidden; }
+h1 { font-size: 24px; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 22px; max-width: 760px; }
+.dropzone { border: 2px dashed #b9c3e0; border-radius: 12px; padding: 34px; text-align: center; color: var(--muted); background: #fafbff; }
+.dropzone strong { color: var(--ink); display: block; font-size: 17px; margin-bottom: 6px; }
+.btn { display: inline-block; margin-top: 14px; padding: 9px 16px; border: 0; border-radius: 8px; background: var(--brand); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.btn.secondary { background: #fff; color: var(--brand); border: 1px solid var(--brand); }
+.btn:disabled, .btn.disabled { opacity: .45; }
+.file-row { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; }
+.file-row .name { font-weight: 600; flex: 1; }
+.file-row .size { color: var(--muted); }
+.field { margin-top: 18px; }
+.field label { display: block; font-weight: 600; margin-bottom: 4px; }
+.field input { width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.progress { margin-top: 18px; height: 10px; background: #e8ecf6; border-radius: 6px; overflow: hidden; }
+.progress &gt; div { height: 100%; width: 0; background: var(--brand); }
+.toast { margin-top: 18px; padding: 12px 14px; border-radius: 10px; background: #e6f6ee; color: #0e6b42; border: 1px solid #b7e4cf; font-weight: 600; }
+.badge { padding: 2px 7px; border-radius: 5px; background: #fde8e6; color: #b3261e; font-size: 12px; font-weight: 700; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;aside class=&quot;sidebar&quot; id=&quot;sidebar&quot;&gt;
+    &lt;div class=&quot;logo&quot;&gt;Acme Portal&lt;/div&gt;
+    &lt;a href=&quot;#&quot;&gt;Dashboard&lt;/a&gt;
+    &lt;a href=&quot;#&quot; class=&quot;active&quot; id=&quot;nav-documents&quot;&gt;Documents&lt;/a&gt;
+    &lt;a href=&quot;#&quot;&gt;Cases&lt;/a&gt;
+    &lt;a href=&quot;#&quot;&gt;Clients&lt;/a&gt;
+    &lt;a href=&quot;#&quot;&gt;Settings&lt;/a&gt;
+  &lt;/aside&gt;
+  &lt;div class=&quot;main&quot;&gt;
+    &lt;header class=&quot;topbar&quot; id=&quot;topbar&quot;&gt;
+      &lt;input placeholder=&quot;Search…&quot; aria-label=&quot;Search&quot;&gt;
+      &lt;div class=&quot;avatar&quot;&gt;MR&lt;/div&gt;
+    &lt;/header&gt;
+    &lt;main class=&quot;content&quot;&gt;
+      &lt;h1&gt;Documents&lt;/h1&gt;
+      &lt;p class=&quot;sub&quot;&gt;Upload and organise the documents of your cases.&lt;/p&gt;
+      &lt;section class=&quot;card&quot; id=&quot;upload-card&quot;&gt;
+        &lt;div class=&quot;dropzone&quot; id=&quot;dropzone&quot;&gt;
+          &lt;strong&gt;Drag your files here&lt;/strong&gt;
+          or
+          &lt;br&gt;
+          &lt;button class=&quot;btn secondary&quot; id=&quot;choose-file&quot; type=&quot;button&quot;&gt;Choose a file&lt;/button&gt;
+        &lt;/div&gt;
+        &lt;div class=&quot;file-row&quot; id=&quot;file-row&quot; hidden=&quot;&quot;&gt;
+          &lt;span class=&quot;badge&quot;&gt;PDF&lt;/span&gt;
+          &lt;span class=&quot;name&quot; id=&quot;file-name&quot;&gt;contract-2024.pdf&lt;/span&gt;
+          &lt;span class=&quot;size&quot;&gt;1.2 MB&lt;/span&gt;
+        &lt;/div&gt;
+        &lt;div class=&quot;field&quot; id=&quot;title-field&quot; hidden=&quot;&quot;&gt;
+          &lt;label for=&quot;doc-title&quot;&gt;Document title&lt;/label&gt;
+          &lt;input id=&quot;doc-title&quot; placeholder=&quot;e.g. Service contract&quot;&gt;
+        &lt;/div&gt;
+        &lt;div class=&quot;progress&quot; id=&quot;progress&quot; hidden=&quot;&quot;&gt;&lt;div id=&quot;progress-bar&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+        &lt;button class=&quot;btn disabled&quot; id=&quot;upload-btn&quot; type=&quot;button&quot;&gt;Upload&lt;/button&gt;
+        &lt;div class=&quot;toast&quot; id=&quot;toast&quot; hidden=&quot;&quot;&gt;✓ Upload complete — the document is in your archive.&lt;/div&gt;
+      &lt;/section&gt;
+    &lt;/main&gt;
+  &lt;/div&gt;
+
+&lt;/body&gt;&lt;/html&gt;" style="width: 1280px; height: 720px; transform: scale(0.141406);" sandbox=""></iframe></div><span class="cap">How to upload a document</span><span class="sub">4 steps · 0:27</span></button><button class="del" title="Delete this tutorial" aria-label="Delete this tutorial"><span>🗑</span></button></div><div class="tilewrap" data-item="upload" data-row="ready" draggable="true"><button class="tile" title="How to upload a document — drag to change the order"><div class="thumb doc"><span class="kindbadge guide">Written part</span><i>Documents</i><b>How to upload a document</b></div><span class="cap">How to upload a document</span><span class="sub">in en, it</span></button><button class="del" title="Take it off the dashboard" aria-label="Take it off the dashboard"><span>🗑</span></button></div><div class="tilewrap" data-item="sharing" data-row="ready" draggable="true"><button class="tile" title="Sharing with your team — drag to change the order"><div class="thumb doc"><span class="kindbadge guide">Guide</span><i>Teamwork</i><b>Sharing with your team</b></div><span class="cap">Sharing with your team</span><span class="sub">not yet in: it</span></button><button class="del" title="Take it off the dashboard" aria-label="Take it off the dashboard"><span>🗑</span></button></div><div class="rowcap" data-row="soon">Coming soon</div><div class="tilewrap" data-item="search" data-row="soon" draggable="true"><button class="tile" title="Search by title, date and type. — drag to change the order"><div class="thumb soonthumb"><span class="kindbadge soon">Coming soon</span><b>Finding a document</b></div><span class="cap">Finding a document</span><span class="sub">announced: not written yet</span></button><button class="del wr" title="Start writing it: it becomes a written guide"><span>✎</span></button><button class="del" title="Take it off the dashboard" aria-label="Take it off the dashboard"><span>🗑</span></button></div><div class="tilewrap" data-item="settings" data-row="soon" draggable="true"><button class="tile" title="Language, notifications and password. — drag to change the order"><div class="thumb soonthumb"><span class="kindbadge soon">Coming soon</span><b>Your settings</b></div><span class="cap">Your settings</span><span class="sub">announced: not written yet</span></button><button class="del wr" title="Start writing it: it becomes a written guide"><span>✎</span></button><button class="del" title="Take it off the dashboard" aria-label="Take it off the dashboard"><span>🗑</span></button></div><div class="filmline" hidden=""></div></nav>
+
+  <div class="pages">
+    <!-- first start: no tutorial yet -->
+    <section class="welcome" id="welcome" hidden="">
+      <div class="wbox">
+        <h2>Let’s make your first tutorial</h2>
+        <p>Cueflow works with your AI assistant: it studies your product, agrees with you what is worth explaining, and writes the tutorials. Here you look at them, refine them and publish them.</p>
+        <ol>
+          <li>Open your assistant (Claude Code, or another that supports MCP) in your project’s folder.</li>
+          <li>Paste this prompt and answer its questions.</li>
+          <li>The first tutorial appears here by itself.</li>
+        </ol>
+        <pre id="welcome-prompt">Preparing the prompt…</pre>
+        <div class="row"><button class="btn primary" id="welcome-copy">Copy the prompt</button><button class="btn" id="welcome-new">or create an empty tutorial yourself</button></div>
+        <p class="msg" id="welcome-msg"></p>
+      </div>
+    </section>
+
+    <!-- MEDIA: the files of this tutorial, and the ones shared by all -->
+    <section class="page" id="page-media" hidden="">
+      <nav class="side" id="media-side" aria-label="Media"></nav>
+      <section class="center">
+        <div class="bar"><div class="pick" id="mpick"><span>Select a screen or a file.</span></div></div>
+        <div class="stage" id="mstage"></div>
+      </section>
+      <aside class="panel"><div class="body" id="media-panel"></div></aside>
+    </section>
+
+    <!-- TIMELINE: the video, its steps and what happens in them -->
+    <section class="page timeline" id="page-timeline">
+      <div class="grid">
+        <section class="center">
+          <div class="bar">
+            <div class="seg" role="tablist">
+              <button id="m-video" class="on">Video</button>
+              <button id="m-pick">Edit</button>
+            </div>
+            <div class="pick" id="pickinfo" hidden=""></div>
+          </div>
+          <div class="stage"><iframe id="view" title="Preview" srcdoc="&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;title&gt;How to upload a document&lt;/title&gt;
+
+&lt;style&gt;/* Every color, font and shape the player uses is a variable: a kit restyles the player from theme/theme.css. */
+:root {
+  --cf-bg: #0f1115; --cf-fg: #eef0f4; --cf-muted: #8b93a4; --cf-accent: #ff7a59; --cf-on-accent: #fff;
+  --cf-surface: #1b1f27; --cf-line: #2a2f3a;
+  --cf-font: 15px/1.5 system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif;
+  --cf-page-padding: 16px;
+  --cf-stage-bg: #fff; --cf-stage-radius: 10px; --cf-stage-shadow: 0 8px 30px rgba(0, 0, 0, .45);
+  --cf-control-radius: 6px;
+  --cf-subs-bg: rgba(0, 0, 0, .72); --cf-subs-fg: #fff;
+  --cf-ring: var(--cf-accent);
+}
+.cf-app, .cf-app * { box-sizing: border-box; }
+/* the standalone guide page; inside a docs site the player only styles its own box */
+html:has(&gt; .cf-page), .cf-page { margin: 0; background: var(--cf-bg); color: var(--cf-fg); font: var(--cf-font); }
+.cf-page { min-height: 100vh; display: grid; place-items: center; padding: var(--cf-page-padding); }
+/* The page grid must not shrink to its contents when Studio hides the controls
+   and the opening scene has no caption. The stage itself has no intrinsic width. */
+.cf-page &gt; #cueflow { width: 100%; min-width: 0; }
+.cf-page &gt; #cueflow &gt; .cf-app { margin-inline: auto; }
+.cf-app { width: 100%; outline: none; color: var(--cf-fg); font: var(--cf-font); }
+.cf-stage { position: relative; width: 100%; overflow: hidden; background: var(--cf-stage-bg); border-radius: var(--cf-stage-radius); box-shadow: var(--cf-stage-shadow); }
+.cf-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; } /* moved by the player on the step clock, no CSS transition: it pauses and seeks with the step */
+.cf-frame { display: block; border: 0; background: var(--cf-stage-bg); pointer-events: none; }
+.cf-ring { position: absolute; border: 3px solid var(--cf-ring); border-radius: 8px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--cf-ring) 25%, transparent); opacity: 0; pointer-events: none; animation: cf-pulse 1s ease-in-out infinite; }
+/* the fades of the cursor and the ring only while playing: a seek must land on a finished picture (previews, checks) */
+.cf-playing .cf-ring, .cf-playing .cf-cursor { transition: opacity 200ms; }
+.cf-cursor { position: absolute; left: 0; top: 0; width: 22px; height: 22px; margin: -3px 0 0 -3px; opacity: 0; pointer-events: none;
+  background: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 2l15 9-6.5 1.6L9 19z' fill='%23111' stroke='%23fff' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E&quot;) no-repeat; }
+.cf-cursor::after { content: &quot;&quot;; position: absolute; left: -9px; top: -9px; width: 24px; height: 24px; border-radius: 50%; background: color-mix(in srgb, var(--cf-ring) 55%, transparent); opacity: 0; transform: scale(.3); }
+.cf-cursor.cf-click::after { animation: cf-click 350ms ease-out; }
+.cf-big { position: absolute; inset: 0; z-index: 2; margin: auto; width: 68px; height: 68px; padding: 0; border-radius: 50%; border: 0; background: var(--cf-accent); color: var(--cf-on-accent); cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, .4); display: flex; align-items: center; justify-content: center; transition: transform .2s; }
+.cf-big svg { width: 50%; height: 50%; display: block; }
+.cf-big:hover { transform: scale(1.06); }
+/* made with Cueflow: a small mark in the corner of every player, linking to the project */
+.cf-brand { position: absolute; right: 10px; bottom: 10px; z-index: 3; display: flex; align-items: center; gap: 5px; height: 24px; padding: 0 6px; border-radius: 12px;
+  background: rgba(255, 255, 255, .82); color: #ff7a59; text-decoration: none; font: 600 11px/1 system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif; letter-spacing: .01em; opacity: .7; transition: opacity .2s; }
+.cf-brand svg { width: 15px; height: 15px; display: block; }
+.cf-brand span { color: #0f1115; max-width: 0; overflow: hidden; transition: max-width .25s; white-space: nowrap; }
+.cf-brand:hover, .cf-brand:focus-visible { opacity: 1; }
+.cf-brand:hover span, .cf-brand:focus-visible span { max-width: 60px; }
+.cf-brand.cf-brand-bar { position: static; flex: none; }
+.cf-captions-overlay .cf-subs { bottom: calc(4% + 22px); } /* clear of the mark */
+.cf-play svg { width: 16px; height: 16px; display: block; }
+.cf-bar .cf-play { display: flex; align-items: center; justify-content: center; padding: 4px 8px; }
+.cf-playing .cf-big, .cf-ready .cf-big { display: none; }
+/* what the big button does, under it: shown before the video starts and when it ends, not on a pause */
+.cf-veil-text { position: absolute; left: 0; right: 0; top: calc(50% + 24px); z-index: 2; margin: 0 auto; max-width: 86%; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  text-align: center; color: var(--cf-veil-fg, #fff); text-shadow: var(--cf-veil-shadow, 0 1px 3px rgba(0, 0, 0, .6)); pointer-events: none; }
+.cf-veil-text strong { font-size: clamp(14px, 2.2vw, 20px); font-weight: 600; }
+.cf-veil-text span { font-size: clamp(11px, 1.5vw, 13.5px); color: var(--cf-veil-muted, rgba(255, 255, 255, .85)); }
+.cf-veil-text span:empty { display: none; }
+.cf-playing .cf-veil-text, .cf-ready .cf-veil-text, .cf-started:not(.cf-ended) .cf-veil-text { display: none; }
+/* a still video sits behind a veil, so the button and its words read on any scene; it lifts while playing */
+.cf-app:not(.cf-started):not(.cf-ready) .cf-stage::after, .cf-ended .cf-stage::after { content: &quot;&quot;; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: var(--cf-veil-bg, rgba(15, 17, 21, .55)); backdrop-filter: blur(var(--cf-veil-blur, 2px)); }
+/* with its words under it, the button and the words are centered together */
+.cf-app:not(.cf-started) .cf-big, .cf-ended .cf-big { inset: -40px 0 0; }
+
+/* the next video, proposed over the picture once this one has ended; above the veil, clear of the mark.
+   Light on purpose: it always sits on the dark veil, whatever the theme's accent (--cf-up-next-bg/-fg/-arrow restyle it) */
+.cf-app a.cf-up-next { position: absolute; left: 50%; bottom: 7%; z-index: 3; transform: translateX(-50%); max-width: min(78%, 640px);
+  display: flex; align-items: center; gap: 12px; padding: 10px 16px 10px 20px; border-radius: var(--cf-up-next-radius, 12px);
+  background: var(--cf-up-next-bg, #fff); color: var(--cf-up-next-fg, #15171c); text-decoration: none;
+  font-size: clamp(13px, 2vw, 18px); line-height: 1.3; box-shadow: 0 8px 26px rgba(0, 0, 0, .45); animation: cf-up-next-in 350ms ease-out; }
+.cf-app a.cf-up-next[hidden] { display: none; }
+.cf-up-next span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-up-next b { font-weight: 700; }
+.cf-up-next i { color: var(--cf-up-next-arrow, currentColor); font-style: normal; font-size: 1.25em; transition: transform .2s; }
+.cf-up-next:hover i, .cf-up-next:focus-visible i { transform: translateX(4px); }
+.cf-up-next:focus-visible { outline: 2px solid var(--cf-fg); outline-offset: 3px; }
+/* with the banner low in the picture, the replay button and its words move up a little */
+.cf-ended:has(.cf-up-next:not([hidden])) .cf-big { inset: -90px 0 0; }
+.cf-ended:has(.cf-up-next:not([hidden])) .cf-veil-text { top: calc(50% - 1px); }
+@keyframes cf-up-next-in { from { opacity: 0; transform: translate(-50%, 10px); } }
+
+/* captions: under the stage, or over its bottom edge like subtitles */
+.cf-caption { min-height: 3.2em; padding: 10px 4px 0; color: var(--cf-fg); text-align: center; }
+.cf-captions-overlay .cf-caption, .cf-captions-off .cf-caption { display: none; }
+.cf-app:not(.cf-started):not(.cf-ready) .cf-subs { display: none; } /* subtitles start with the video */
+.cf-subs { position: absolute; left: 0; right: 0; bottom: 4%; margin: 0 auto; max-width: 86%; text-align: center; pointer-events: none; }
+.cf-subs span { display: inline; padding: .15em .45em; background: var(--cf-subs-bg); color: var(--cf-subs-fg); font-size: clamp(12px, 2.1vw, 17px); line-height: 1.6; border-radius: 4px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+
+/* controls */
+.cf-bar { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.cf-bar button, .cf-bar select { background: var(--cf-surface); color: var(--cf-fg); border: 1px solid var(--cf-line); border-radius: var(--cf-control-radius); padding: 4px 10px; cursor: pointer; font: inherit; font-size: 13px; }
+.cf-bar button[aria-pressed=&quot;false&quot;] { color: var(--cf-muted); text-decoration: line-through; }
+.cf-bar button:focus-visible, .cf-bar select:focus-visible, .cf-chap:focus-visible { outline: 2px solid var(--cf-accent); outline-offset: 2px; }
+.cf-track { flex: 1; height: 6px; background: var(--cf-line); border-radius: 3px; overflow: hidden; }
+.cf-fill { height: 100%; width: 0; background: var(--cf-accent); }
+
+/* chapters: one segment per step, replacing the single track */
+.cf-chapters { flex: 1; display: flex; gap: 3px; min-width: 0; }
+.cf-app:not(.cf-no-chapters) .cf-track { display: none; }
+.cf-no-chapters .cf-chapters { display: none; }
+.cf-bar .cf-chap { flex: 1; min-width: 0; padding: 8px 0; background: none; border: 0; border-radius: 0; text-align: left; }
+.cf-chap i { display: block; height: 5px; border-radius: 3px; background: var(--cf-line); overflow: hidden; }
+.cf-chap b { display: block; height: 100%; width: 0; background: var(--cf-accent); }
+.cf-chap.cf-past b { width: 100% !important; }
+.cf-chap small { display: block; margin-top: 4px; color: var(--cf-muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity 150ms; }
+.cf-chap:hover small, .cf-chap.cf-now small, .cf-chap:focus-visible small { opacity: 1; }
+.cf-chap.cf-now small { color: var(--cf-fg); }
+
+/* transcript */
+.cf-transcript { margin-top: 14px; border-top: 1px solid var(--cf-line); }
+.cf-transcript summary { display: flex; align-items: center; gap: 12px; padding: 10px 0; cursor: pointer; list-style: none; font-weight: 600; }
+.cf-transcript summary::-webkit-details-marker { display: none; }
+.cf-transcript summary::before { content: &quot;▸&quot;; color: var(--cf-muted); transition: transform 150ms; }
+.cf-transcript[open] summary::before { transform: rotate(90deg); }
+.cf-download { margin-left: auto; background: none; border: 0; color: var(--cf-accent); font: inherit; font-size: 13px; font-weight: 400; cursor: pointer; }
+.cf-transcript ol { margin: 0; padding: 0 0 8px 1.4em; color: var(--cf-fg); }
+.cf-transcript li { margin: 0 0 10px; }
+.cf-transcript li b { display: block; }
+.cf-transcript a { color: var(--cf-accent); font-size: 13px; white-space: nowrap; }
+
+/* slides: advanced by hand; no play/replay, no speed, no captions, no voice */
+.cf-slides .cf-play, .cf-slides .cf-restart, .cf-slides .cf-speed, .cf-slides .cf-cc, .cf-slides .cf-voice, .cf-slides .cf-caption, .cf-slides .cf-subs { display: none !important; }
+.cf-bar .cf-sl-prev, .cf-bar .cf-sl-next { min-width: 34px; font-size: 18px; line-height: 1; padding: 2px 10px; }
+.cf-bar .cf-sl-prev:disabled, .cf-bar .cf-sl-next:disabled { opacity: .4; cursor: default; }
+.cf-sl-count { flex: none; color: var(--cf-muted); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cf-bar .cf-sl-full { display: flex; align-items: center; padding: 4px 8px; }
+.cf-sl-full svg { width: 16px; height: 16px; display: block; }
+/* notes off is a choice, not a muted voice: no strike-through */
+.cf-bar .cf-sl-notes-btn[aria-pressed=&quot;false&quot;] { text-decoration: none; }
+.cf-bar .cf-sl-notes-btn[aria-pressed=&quot;true&quot;] { border-color: var(--cf-accent); }
+.cf-sl-notes { margin-top: 10px; padding: 10px 14px; border: 1px solid var(--cf-line); border-radius: var(--cf-control-radius); background: var(--cf-surface); color: var(--cf-fg); white-space: pre-wrap; }
+.cf-sl-notes[hidden] { display: none; }
+/* full screen: the slide as large as the screen allows, the bar and the notes over it, out of the way */
+.cf-app.cf-full { position: relative; width: 100vw; height: 100vh; max-width: none !important; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #000; }
+.cf-full .cf-stage { width: min(100vw, calc(100vh * var(--cf-aspect))); border-radius: 0; box-shadow: none; }
+.cf-full .cf-bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; margin: 0; padding: 12px 16px; background: linear-gradient(transparent, rgba(0, 0, 0, .75)); opacity: 0; transition: opacity .25s; }
+.cf-full .cf-bar:hover, .cf-full .cf-bar:focus-within { opacity: 1; }
+.cf-full .cf-sl-notes { position: absolute; left: 16px; right: 16px; bottom: 64px; z-index: 4; max-height: 30vh; overflow: auto; margin: 0; background: rgba(15, 17, 21, .92); }
+.cf-slides.cf-started:not(.cf-ended) .cf-big { display: none; }
+
+@keyframes cf-pulse { 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--cf-ring) 12%, transparent); } }
+@keyframes cf-click { 0% { opacity: .9; transform: scale(.3); } 100% { opacity: 0; transform: scale(1.4); } }
+@media (prefers-reduced-motion: reduce) {
+  .cf-cursor, .cf-chap small { transition: none !important; }
+  .cf-up-next { animation: none; }
+  .cf-ring { animation: none; }
+}
+@media (max-width: 480px) { .cf-chap small { display: none; } }
+
+.cf-bar,.cf-transcript,.cf-big,.cf-veil-text,.cf-stage::after{display:none!important}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body class=&quot;cf-page&quot;&gt;
+&lt;div id=&quot;cueflow&quot;&gt;&lt;div class=&quot;cf-app cf-captions-below&quot; tabindex=&quot;-1&quot; style=&quot;--cf-aspect: 1.7777777777777777; max-width: 640px;&quot;&gt;&lt;div class=&quot;cf-stage&quot; style=&quot;aspect-ratio: 640 / 360;&quot;&gt;&lt;div class=&quot;cf-world&quot; style=&quot;width: 1280px; height: 720px; transform: translate(0px, 0px) scale(0.486111);&quot;&gt;&lt;iframe class=&quot;cf-frame&quot; scrolling=&quot;no&quot; tabindex=&quot;-1&quot; srcdoc=&quot;&amp;lt;!doctype html&amp;gt;
+&amp;lt;html lang=&amp;quot;en&amp;quot;&amp;gt;
+&amp;lt;head&amp;gt;
+  &amp;lt;meta charset=&amp;quot;utf-8&amp;quot;&amp;gt;
+  &amp;lt;title&amp;gt;Documents — Acme Portal&amp;lt;/title&amp;gt;
+  &amp;lt;style&amp;gt;/* Stand-in for the real site's stylesheet: in a real kit this folder holds the CSS, fonts and icons copied from the site. */
+:root { --brand: #2f5bea; --brand-dark: #1f3fb0; --ink: #1c2230; --muted: #6b7384; --line: #e3e7ef; --bg: #f5f7fb; --ok: #1a9d62; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; height: 100vh; overflow: hidden; display: grid; grid-template-columns: 240px 1fr; font: 15px/1.5 system-ui, &amp;quot;Segoe UI&amp;quot;, sans-serif; color: var(--ink); background: var(--bg); }
+.sidebar { background: #101a3a; color: #cfd6ee; padding: 20px 14px; }
+.sidebar .logo { font-weight: 700; font-size: 20px; color: #fff; margin: 0 8px 24px; }
+.sidebar a { display: block; padding: 10px 12px; margin-bottom: 4px; border-radius: 8px; color: inherit; text-decoration: none; }
+.sidebar a.active { background: var(--brand); color: #fff; }
+.main { display: flex; flex-direction: column; min-width: 0; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; background: #fff; border-bottom: 1px solid var(--line); }
+.topbar input { width: 320px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center; font-weight: 600; }
+.content { padding: 28px; overflow: hidden; }
+h1 { font-size: 24px; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 22px; max-width: 760px; }
+.dropzone { border: 2px dashed #b9c3e0; border-radius: 12px; padding: 34px; text-align: center; color: var(--muted); background: #fafbff; }
+.dropzone strong { color: var(--ink); display: block; font-size: 17px; margin-bottom: 6px; }
+.btn { display: inline-block; margin-top: 14px; padding: 9px 16px; border: 0; border-radius: 8px; background: var(--brand); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.btn.secondary { background: #fff; color: var(--brand); border: 1px solid var(--brand); }
+.btn:disabled, .btn.disabled { opacity: .45; }
+.file-row { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; }
+.file-row .name { font-weight: 600; flex: 1; }
+.file-row .size { color: var(--muted); }
+.field { margin-top: 18px; }
+.field label { display: block; font-weight: 600; margin-bottom: 4px; }
+.field input { width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.progress { margin-top: 18px; height: 10px; background: #e8ecf6; border-radius: 6px; overflow: hidden; }
+.progress &amp;gt; div { height: 100%; width: 0; background: var(--brand); }
+.toast { margin-top: 18px; padding: 12px 14px; border-radius: 10px; background: #e6f6ee; color: #0e6b42; border: 1px solid #b7e4cf; font-weight: 600; }
+.badge { padding: 2px 7px; border-radius: 5px; background: #fde8e6; color: #b3261e; font-size: 12px; font-weight: 700; }
+&amp;lt;/style&amp;gt;
+&amp;lt;/head&amp;gt;
+&amp;lt;body&amp;gt;
+  &amp;lt;aside class=&amp;quot;sidebar&amp;quot; id=&amp;quot;sidebar&amp;quot;&amp;gt;
+    &amp;lt;div class=&amp;quot;logo&amp;quot;&amp;gt;Acme Portal&amp;lt;/div&amp;gt;
+    &amp;lt;a href=&amp;quot;#&amp;quot;&amp;gt;Dashboard&amp;lt;/a&amp;gt;
+    &amp;lt;a href=&amp;quot;#&amp;quot; class=&amp;quot;active&amp;quot; id=&amp;quot;nav-documents&amp;quot;&amp;gt;Documents&amp;lt;/a&amp;gt;
+    &amp;lt;a href=&amp;quot;#&amp;quot;&amp;gt;Cases&amp;lt;/a&amp;gt;
+    &amp;lt;a href=&amp;quot;#&amp;quot;&amp;gt;Clients&amp;lt;/a&amp;gt;
+    &amp;lt;a href=&amp;quot;#&amp;quot;&amp;gt;Settings&amp;lt;/a&amp;gt;
+  &amp;lt;/aside&amp;gt;
+  &amp;lt;div class=&amp;quot;main&amp;quot;&amp;gt;
+    &amp;lt;header class=&amp;quot;topbar&amp;quot; id=&amp;quot;topbar&amp;quot;&amp;gt;
+      &amp;lt;input placeholder=&amp;quot;Search…&amp;quot; aria-label=&amp;quot;Search&amp;quot;&amp;gt;
+      &amp;lt;div class=&amp;quot;avatar&amp;quot;&amp;gt;MR&amp;lt;/div&amp;gt;
+    &amp;lt;/header&amp;gt;
+    &amp;lt;main class=&amp;quot;content&amp;quot;&amp;gt;
+      &amp;lt;h1&amp;gt;Documents&amp;lt;/h1&amp;gt;
+      &amp;lt;p class=&amp;quot;sub&amp;quot;&amp;gt;Upload and organise the documents of your cases.&amp;lt;/p&amp;gt;
+      &amp;lt;section class=&amp;quot;card&amp;quot; id=&amp;quot;upload-card&amp;quot;&amp;gt;
+        &amp;lt;div class=&amp;quot;dropzone&amp;quot; id=&amp;quot;dropzone&amp;quot;&amp;gt;
+          &amp;lt;strong&amp;gt;Drag your files here&amp;lt;/strong&amp;gt;
+          or
+          &amp;lt;br&amp;gt;
+          &amp;lt;button class=&amp;quot;btn secondary&amp;quot; id=&amp;quot;choose-file&amp;quot; type=&amp;quot;button&amp;quot;&amp;gt;Choose a file&amp;lt;/button&amp;gt;
+        &amp;lt;/div&amp;gt;
+        &amp;lt;div class=&amp;quot;file-row&amp;quot; id=&amp;quot;file-row&amp;quot; hidden&amp;gt;
+          &amp;lt;span class=&amp;quot;badge&amp;quot;&amp;gt;PDF&amp;lt;/span&amp;gt;
+          &amp;lt;span class=&amp;quot;name&amp;quot; id=&amp;quot;file-name&amp;quot;&amp;gt;contract-2024.pdf&amp;lt;/span&amp;gt;
+          &amp;lt;span class=&amp;quot;size&amp;quot;&amp;gt;1.2 MB&amp;lt;/span&amp;gt;
+        &amp;lt;/div&amp;gt;
+        &amp;lt;div class=&amp;quot;field&amp;quot; id=&amp;quot;title-field&amp;quot; hidden&amp;gt;
+          &amp;lt;label for=&amp;quot;doc-title&amp;quot;&amp;gt;Document title&amp;lt;/label&amp;gt;
+          &amp;lt;input id=&amp;quot;doc-title&amp;quot; placeholder=&amp;quot;e.g. Service contract&amp;quot;&amp;gt;
+        &amp;lt;/div&amp;gt;
+        &amp;lt;div class=&amp;quot;progress&amp;quot; id=&amp;quot;progress&amp;quot; hidden&amp;gt;&amp;lt;div id=&amp;quot;progress-bar&amp;quot;&amp;gt;&amp;lt;/div&amp;gt;&amp;lt;/div&amp;gt;
+        &amp;lt;button class=&amp;quot;btn disabled&amp;quot; id=&amp;quot;upload-btn&amp;quot; type=&amp;quot;button&amp;quot;&amp;gt;Upload&amp;lt;/button&amp;gt;
+        &amp;lt;div class=&amp;quot;toast&amp;quot; id=&amp;quot;toast&amp;quot; hidden&amp;gt;✓ Upload complete — the document is in your archive.&amp;lt;/div&amp;gt;
+      &amp;lt;/section&amp;gt;
+    &amp;lt;/main&amp;gt;
+  &amp;lt;/div&amp;gt;
+&amp;lt;/body&amp;gt;
+&amp;lt;/html&amp;gt;&quot; style=&quot;width: 1280px; height: 720px;&quot;&gt;&lt;/iframe&gt;&lt;div class=&quot;cf-ring&quot; style=&quot;opacity: 0;&quot;&gt;&lt;/div&gt;&lt;div class=&quot;cf-cursor&quot; style=&quot;opacity: 0;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;p class=&quot;cf-subs&quot; aria-live=&quot;polite&quot; hidden=&quot;&quot;&gt;&lt;span&gt;To upload a document, open the Documents section from the menu on the left.&lt;/span&gt;&lt;/p&gt;&lt;button class=&quot;cf-big&quot; aria-label=&quot;Play&quot;&gt;&lt;svg viewBox=&quot;0 0 24 24&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M9.33 7.4V16.6L17.33 12Z&quot; fill=&quot;currentColor&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;3&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/button&gt;&lt;p class=&quot;cf-veil-text&quot; aria-hidden=&quot;true&quot;&gt;&lt;strong&gt;Play the video&lt;/strong&gt;&lt;span&gt;With voice and captions&lt;/span&gt;&lt;/p&gt;&lt;a class=&quot;cf-brand&quot; href=&quot;https://github.com/Byte42-it/cueflow&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot; title=&quot;Made with Cueflow&quot;&gt;&lt;svg viewBox=&quot;160 150 925 960&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M894 365A366 366 0 1 0 894 891&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;208&quot; stroke-linecap=&quot;round&quot;&gt;&lt;/path&gt;&lt;path d=&quot;M830 525V755L1035 640Z&quot; fill=&quot;currentColor&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;80&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;span&gt;cueflow&lt;/span&gt;&lt;/a&gt;&lt;/div&gt;&lt;div class=&quot;cf-caption&quot; aria-live=&quot;polite&quot;&gt;To upload a document, open the Documents section from the menu on the left.&lt;/div&gt;&lt;div class=&quot;cf-sl-notes&quot; aria-live=&quot;polite&quot; hidden=&quot;&quot;&gt;&lt;/div&gt;&lt;div class=&quot;cf-bar&quot;&gt;&lt;button class=&quot;cf-play&quot; aria-label=&quot;Play&quot;&gt;&lt;svg viewBox=&quot;0 0 24 24&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M9.33 7.4V16.6L17.33 12Z&quot; fill=&quot;currentColor&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;3&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/button&gt;&lt;button class=&quot;cf-restart&quot; aria-label=&quot;Replay this step&quot; title=&quot;Replay this step&quot;&gt;↺&lt;/button&gt;&lt;button class=&quot;cf-sl-prev&quot; type=&quot;button&quot; hidden=&quot;&quot; aria-label=&quot;Previous&quot; title=&quot;Previous&quot;&gt;‹&lt;/button&gt;&lt;span class=&quot;cf-sl-count&quot; hidden=&quot;&quot;&gt;&lt;/span&gt;&lt;button class=&quot;cf-sl-next&quot; type=&quot;button&quot; hidden=&quot;&quot; aria-label=&quot;Next&quot; title=&quot;Next&quot;&gt;›&lt;/button&gt;&lt;div class=&quot;cf-track&quot;&gt;&lt;div class=&quot;cf-fill&quot; style=&quot;width: 0%;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;cf-chapters&quot; role=&quot;group&quot; aria-label=&quot;Steps&quot;&gt;&lt;button type=&quot;button&quot; class=&quot;cf-chap cf-now&quot; title=&quot;Where documents live&quot; aria-label=&quot;Step 1: Where documents live&quot; aria-current=&quot;step&quot;&gt;&lt;i&gt;&lt;b style=&quot;width: 0%;&quot;&gt;&lt;/b&gt;&lt;/i&gt;&lt;small&gt;1 · Where documents live&lt;/small&gt;&lt;/button&gt;&lt;button type=&quot;button&quot; class=&quot;cf-chap&quot; title=&quot;Choose the file&quot; aria-label=&quot;Step 2: Choose the file&quot;&gt;&lt;i&gt;&lt;b&gt;&lt;/b&gt;&lt;/i&gt;&lt;small&gt;2 · Choose the file&lt;/small&gt;&lt;/button&gt;&lt;button type=&quot;button&quot; class=&quot;cf-chap&quot; title=&quot;Give it a title&quot; aria-label=&quot;Step 3: Give it a title&quot;&gt;&lt;i&gt;&lt;b&gt;&lt;/b&gt;&lt;/i&gt;&lt;small&gt;3 · Give it a title&lt;/small&gt;&lt;/button&gt;&lt;button type=&quot;button&quot; class=&quot;cf-chap&quot; title=&quot;Upload&quot; aria-label=&quot;Step 4: Upload&quot;&gt;&lt;i&gt;&lt;b&gt;&lt;/b&gt;&lt;/i&gt;&lt;small&gt;4 · Upload&lt;/small&gt;&lt;/button&gt;&lt;/div&gt;&lt;button class=&quot;cf-speed&quot; title=&quot;Speed&quot;&gt;1×&lt;/button&gt;&lt;button class=&quot;cf-cc&quot; aria-pressed=&quot;true&quot; title=&quot;Captions&quot;&gt;CC&lt;/button&gt;&lt;button class=&quot;cf-voice&quot; aria-pressed=&quot;true&quot; title=&quot;Voice&quot;&gt;Voice&lt;/button&gt;&lt;select class=&quot;cf-lang&quot; title=&quot;Language&quot;&gt;&lt;option value=&quot;en&quot;&gt;EN&lt;/option&gt;&lt;option value=&quot;it&quot;&gt;IT&lt;/option&gt;&lt;/select&gt;&lt;button class=&quot;cf-sl-notes-btn&quot; type=&quot;button&quot; aria-pressed=&quot;false&quot; hidden=&quot;&quot;&gt;Notes&lt;/button&gt;&lt;button class=&quot;cf-sl-full&quot; type=&quot;button&quot; hidden=&quot;&quot; aria-label=&quot;Full screen&quot; title=&quot;Full screen&quot;&gt;&lt;svg viewBox=&quot;0 0 24 24&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2.2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/button&gt;&lt;/div&gt;&lt;details class=&quot;cf-transcript&quot;&gt;&lt;summary&gt;&lt;span class=&quot;cf-tr-title&quot;&gt;Transcript&lt;/span&gt;&lt;button class=&quot;cf-download&quot; type=&quot;button&quot;&gt;Download (.txt)&lt;/button&gt;&lt;/summary&gt;&lt;ol&gt;&lt;li&gt;&lt;b&gt;Where documents live&lt;/b&gt; To upload a document, open the Documents section from the menu on the left. &lt;a href=&quot;#step-1&quot; data-step=&quot;0&quot;&gt;Watch this step&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Choose the file&lt;/b&gt; Drag a file into the box, or press Choose a file and pick it from your computer. The file appears in the list. &lt;a href=&quot;#step-2&quot; data-step=&quot;1&quot;&gt;Watch this step&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Give it a title&lt;/b&gt; Type a clear title, so you can find the document later. &lt;a href=&quot;#step-3&quot; data-step=&quot;2&quot;&gt;Watch this step&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Upload&lt;/b&gt; Press Upload. A progress bar shows how it is going, and when it is done you get a confirmation: the document is now in your archive. &lt;a href=&quot;#step-4&quot; data-step=&quot;3&quot;&gt;Watch this step&lt;/a&gt;&lt;/li&gt;&lt;/ol&gt;&lt;/details&gt;&lt;/div&gt;&lt;/div&gt;
+
+
+
+
+
+&lt;/body&gt;&lt;/html&gt;" sandbox=""></iframe></div>
+        </section>
+        <aside class="panel">
+          <div class="tabs" role="tablist">
+            <button data-tab="narration" class="on">Narration</button>
+            <button data-tab="actions" class="">Actions</button>
+            <button data-tab="voice" class="">Voice</button>
+          </div>
+          <div class="body" id="panel"><h3>Step 1 · intro</h3><label class="lab">Title (chapter name, in “en”)<input type="text" placeholder="Chapter name" value="Where documents live"></label><p>What is said, and shown as captions, in “en”. One idea, one or two sentences.</p><textarea id="narr" lang="en">To upload a document, open the Documents section from the menu on the left.</textarea><div class="row"><button class="btn primary">Save</button><button class="btn icon" title="Listen with the voice of this tutorial"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"></path><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"></path></svg><span>Listen</span></button></div><div class="msg"></div></div>
+        </aside>
+      </div>
+      <div class="strip" id="strip" aria-label="Timeline"><div class="stripbar"><span class="transport"><button class="tp" title="Previous step" aria-label="Previous step"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h2.5v16H5zM19 4.5v15L8.5 12z"></path></svg></button><button class="tp" title="Play (space)" aria-label="Play (space)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5l12 7.5-12 7.5z"></path></svg></button><button class="tp" title="Next step" aria-label="Next step"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 4H19v16h-2.5zM5 4.5l10.5 7.5L5 19.5z"></path></svg></button><span class="tptime">0:00 / 0:27</span></span><b>How to upload a document</b>· 0:27 (estimated where there is no audio yet)<span style="flex:1"></span><span>Drag a step to change the order</span><button class="wide" title="Add a step after the selected one">+ Step</button><button class="wide" title="Delete the selected step">Delete</button><button title="Zoom out">−</button><button title="Zoom in">+</button></div><div class="scroll"><div class="lanes" style="width:1786px"><div class="ruler" title="Drag to move through the video"><i style="left:0px">0:00</i><i style="left:300px">0:05</i><i style="left:600px">0:10</i><i style="left:900px">0:15</i><i style="left:1200px">0:20</i><i style="left:1500px">0:25</i></div><div class="lanewrap"><div class="dropline" hidden=""></div><div class="lane"><span class="lbl">Steps</span><div class="blk step on" data-i="0" draggable="true" style="left:0px;width:326.5px" title="Where documents live — drag to move">1 · Where documents live</div><div class="blk step" data-i="1" draggable="true" style="left:328.5px;width:463px" title="Choose the file — drag to move">2 · Choose the file</div><div class="blk step" data-i="2" draggable="true" style="left:793.5px;width:248.5px" title="Give it a title — drag to move">3 · Give it a title</div><div class="blk step" data-i="3" draggable="true" style="left:1044px;width:561.5799999999999px" title="Upload — drag to move">4 · Upload</div></div><div class="lane"><span class="lbl">Text</span><div class="blk narr on" data-i="0" draggable="true" style="left:0px;width:290.5px" title="To upload a document, open the Documents section from the menu on the left.">To upload a document, open the Documents section from the menu on the left.</div><div class="blk narr" data-i="1" draggable="true" style="left:328.5px;width:427px" title="Drag a file into the box, or press Choose a file and pick it from your computer. The file appears in the list.">Drag a file into the box, or press Choose a file and pick it from your computer. The file appears in the list.</div><div class="blk narr" data-i="2" draggable="true" style="left:793.5px;width:212.5px" title="Type a clear title, so you can find the document later.">Type a clear title, so you can find the document later.</div><div class="blk narr" data-i="3" draggable="true" style="left:1044px;width:512.8px" title="Press Upload. A progress bar shows how it is going, and when it is done you get a confirmation: the document is now in your archive.">Press Upload. A progress bar shows how it is going, and when it is done you get a confirmation: the document is now in your archive.</div></div></div><div class="lane"><span class="lbl">Voice</span><div class="blk vo" data-i="0" style="left:0px;width:290.5px" title="Auto · Browser voice — no audio yet: it is generated when you build — click to change"><span class="vlbl">Auto · Browser voice</span></div><div class="blk vo" data-i="1" style="left:328.5px;width:427px" title="Auto · Browser voice — no audio yet: it is generated when you build — click to change"><span class="vlbl">Auto · Browser voice</span></div><div class="blk vo" data-i="2" style="left:793.5px;width:212.5px" title="Auto · Browser voice — no audio yet: it is generated when you build — click to change"><span class="vlbl">Auto · Browser voice</span></div><div class="blk vo" data-i="3" style="left:1044px;width:512.8px" title="Auto · Browser voice — no audio yet: it is generated when you build — click to change"><span class="vlbl">Auto · Browser voice</span></div></div><div class="lane"><span class="lbl">Actions</span><div class="mk move on bar" data-i="0" style="left:58.5px;width:54px" title="move at 20% · 900 ms — click to edit">M</div><div class="mk highlight on bar" data-i="0" style="left:102.375px;width:108px" title="highlight at 35% · 1800 ms — click to edit">H</div><div class="mk move bar" data-i="1" style="left:328.5px;width:54px" title="move at 0 ms · 900 ms — click to edit">M</div><div class="mk click" data-i="1" style="left:478.65px" title="click at 35% — click to edit">C</div><div class="mk show" data-i="1" style="left:521.55px" title="show at 45% · 300 ms — click to edit">S</div><div class="mk show" data-i="1" style="left:521.55px" title="show at 45% · 300 ms — click to edit">S</div><div class="mk set" data-i="1" style="left:521.55px" title="set at 45% — click to edit">S</div><div class="mk move bar" data-i="2" style="left:793.5px;width:42px" title="move at 0 ms · 700 ms — click to edit">M</div><div class="mk click" data-i="2" style="left:836.4px" title="click at 20% — click to edit">C</div><div class="mk type bar" data-i="2" style="left:857.85px;width:108px" title="type at 30% · 1800 ms — click to edit">T</div><div class="mk move bar" data-i="3" style="left:1044px;width:48px" title="move at 0 ms · 800 ms — click to edit">M</div><div class="mk set" data-i="3" style="left:1172.7px" title="set at 25% — click to edit">S</div><div class="mk click" data-i="3" style="left:1172.7px" title="click at 25% — click to edit">C</div><div class="mk show" data-i="3" style="left:1198.44px" title="show at 30% · 300 ms — click to edit">S</div><div class="mk tween bar" data-i="3" style="left:1198.44px;width:132px" title="tween at 30% · 2200 ms — click to edit">T</div><div class="mk show" data-i="3" style="left:1481.58px" title="show at 85% · 300 ms — click to edit">S</div><div class="mk camera bar" data-i="3" style="left:1486.7279999999998px;width:42px" title="camera at 86% · 700 ms — click to edit">C</div><div class="mk highlight bar" data-i="3" style="left:1481.58px;width:90px" title="highlight at 85% · 1500 ms — click to edit">H</div></div><div class="playhead" style="left: 78px;"></div></div></div></div>
+    </section>
+
+    <!-- VOICE: who reads this tutorial -->
+    <section class="page wide" id="page-voice" hidden=""><div class="body" id="voice-body"></div></section>
+
+    <!-- PREVIEW: the tutorial as the viewer sees it -->
+    <section class="page previewpage" id="page-preview" hidden="">
+      <div class="bar" id="prev-bar"></div>
+      <div class="stage"></div>
+    </section>
+
+    <!-- EXPORT: check and build this tutorial -->
+    <section class="page wide" id="page-export" hidden=""><div class="body" id="export-body"></div></section>
+
+    <!-- WRITTEN GUIDES: tools for text, not for video -->
+    <section class="docpage write" id="doc-write" hidden="">
+      <nav class="outline" id="doc-outline" aria-label="Sections of the guide"></nav>
+      <section class="writer">
+        <div class="tools" id="doc-tools" role="toolbar" aria-label="Text formatting"></div>
+        <div class="paper" id="doc-paper"></div>
+      </section>
+    </section>
+    <section class="docpage wide" id="doc-details" hidden=""><div class="body" id="doc-details-body"></div></section>
+    <section class="docpage reader" id="doc-preview" hidden="">
+      <div class="bar" id="doc-prev-bar"></div>
+      <div class="paper"></div>
+    </section>
+  </div>
+</div>
+
+<footer class="pagebar videobar" role="tablist" aria-label="Pages of this tutorial">
+  <button data-page="media"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"></rect><path d="M3 15l5-4 4 3 3-2 6 4"></path></svg><span>Media</span></button>
+  <button data-page="timeline" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h10M3 12h18M3 18h14"></path><circle cx="16" cy="6" r="1.6"></circle><circle cx="20" cy="18" r="1.6"></circle></svg><span>Timeline</span></button>
+  <button data-page="voice"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg><span>Voice</span></button>
+  <button data-page="preview"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2"></rect><path d="M10 9l5 2.5-5 2.5zM8 21h8"></path></svg><span>Preview</span></button>
+  <button data-page="export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"></path></svg><span>Export</span></button>
+</footer>
+
+<footer class="pagebar docbar" role="tablist" aria-label="Pages of this written guide">
+  <button data-docpage="write" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"></path><path d="M13.5 6.5l4 4"></path></svg><span>Write</span></button>
+  <button data-docpage="details"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M8 9h8M8 13h8M8 17h5"></path></svg><span>Details</span></button>
+  <button data-docpage="preview"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg><span>Preview</span></button>
+</footer>
+
+<dialog id="dlg" class="" open="" style="position: fixed; left: 360px; top: 179.969px; width: 560px; height: 360.062px; margin: 0px; max-height: none; max-width: none; overflow: auto; z-index: 2147483000; box-shadow: rgba(0, 0, 0, 0.55) 0px 0px 0px 100vmax; display: none;"><h3>Build everything</h3><div><p>Builds every tutorial (1) and the dashboard that gathers them: the home with all the videos, one page per tutorial. The files go to /home/you/my-project/cueflow-dist.</p><label class="lab"><input type="checkbox"> Make a cover picture for each tutorial (needs a browser, Playwright)</label><div class="row"><button class="btn primary" data-cue="all-go">Build</button><button class="btn">Close</button></div><div class="result" data-cue="all-result" style="display: none;"><div class="msg ok">✓ 1 tutorial(s) and 3 dashboard page(s) built.</div><div class="msg warn">! item "sharing": no pages/it/sharing.html, the en article is shown</div><a href="#" target="_blank" rel="noopener" class="btn">Open the dashboard</a></div></div></dialog>
+
+
+
+</body></html>

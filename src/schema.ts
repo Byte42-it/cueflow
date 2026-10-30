@@ -140,6 +140,11 @@ export const StepVoice = z.union([
 ]);
 export type StepVoice = z.infer<typeof StepVoice>;
 
+/** What the voice reads in a language: the step's own spoken text, else its narration. Captions always show the narration. */
+export function spokenOf(step: { narration: Record<string, string>; speech?: Record<string, string> | undefined }, lang: string): string {
+  return step.speech?.[lang]?.trim() || step.narration[lang] || "";
+}
+
 export const Step = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/i).describe("unique within the guide"),
   title: Localized.optional().describe("chapter name, shown on the progress bar and in the transcript"),
@@ -147,6 +152,10 @@ export const Step = z.object({
   camera: Camera.optional().describe("framing at the start of the step; omitted = keep the previous framing"),
   actions: z.array(Action).default([]),
   narration: z.record(z.string()).default({}).describe("text read aloud and shown as caption, per language code; in slides, the speaker's notes (never read, never on the slide)"),
+  speech: z
+    .record(z.string())
+    .optional()
+    .describe("per language: what the voice reads when it must differ from the caption (a word spelled for the voice, a term in another language); absent = it reads the narration"),
   hold: z.number().min(0).default(600).describe("pause after the step, in ms"),
   voice: z.record(StepVoice).optional().describe("per language: the voice of this step only (provider browser, none = muted, fantastico, say, command, or file). Absent = the project's voice (Auto)")
 });

@@ -16,7 +16,10 @@
           "wait": 800
         }
       ],
-      "script": "capture/inline-frames.js"
+      "script": "capture/inline-frames.js",
+      "hide": [
+        "#dlg"
+      ]
     },
     {
       "name": "studio-timeline",
@@ -175,7 +178,13 @@
           "wait": 1000
         }
       ],
-      "script": "capture/inline-frames.js"
+      "script": "capture/inline-frames.js",
+      "hide": [
+        "#dlg"
+      ],
+      "cues": {
+        "dash-category": "#dlg input >> nth=1"
+      }
     },
     {
       "name": "studio-project",
@@ -191,29 +200,197 @@
           "wait": 1000
         }
       ],
+      "script": "capture/inline-frames.js",
+      "hide": [
+        "#dlg"
+      ],
+      "cues": {
+        "voice-browser": "#dlg .lvl label:has-text(\"Browser voice\")",
+        "brief-who": "#dlg > div > .fields label >> nth=0 >> input",
+        "brief-rules": "#dlg > div > .fields textarea >> nth=0"
+      }
+    },
+    {
+      "name": "studio-check",
+      "script": "capture/inline-frames.js",
+      "url": "/",
+      "steps": [
+        {
+          "wait": 800
+        },
+        {
+          "click": "[data-page=export]"
+        },
+        {
+          "wait": 800
+        },
+        {
+          "click": "text=Check this video"
+        },
+        {
+          "wait": 2500
+        }
+      ],
+      "cues": {
+        "result": "#export-body > div > .result"
+      },
+      "hide": [
+        "#export-body > div > .result"
+      ]
+    },
+    {
+      "name": "studio-built-video",
+      "script": "capture/inline-frames.js",
+      "url": "/",
+      "steps": [
+        {
+          "wait": 800
+        },
+        {
+          "click": "[data-page=export]"
+        },
+        {
+          "wait": 800
+        },
+        {
+          "click": "text=Build this video"
+        },
+        {
+          "waitFor": "text=Open it"
+        },
+        {
+          "wait": 800
+        }
+      ],
+      "cues": {
+        "result": "#export-body > div > .result"
+      },
+      "hide": [
+        "#export-body > div > .result"
+      ]
+    },
+    {
+      "name": "studio-built",
+      "script": "capture/inline-frames.js",
+      "url": "/",
+      "steps": [
+        {
+          "wait": 800
+        },
+        {
+          "click": "[data-page=export]"
+        },
+        {
+          "wait": 800
+        },
+        {
+          "click": "text=Build the whole site"
+        },
+        {
+          "waitFor": "text=Open it"
+        },
+        {
+          "wait": 800
+        }
+      ],
+      "cues": {
+        "result": "#export-body > div > .result",
+        "built-msg": "#export-body .msg.ok:has-text(\"Built\")"
+      },
+      "hide": [
+        "#export-body > div > .result"
+      ]
+    },
+    {
+      "name": "studio-actions",
+      "script": "capture/inline-frames.js",
+      "url": "/",
+      "steps": [
+        {
+          "wait": 800
+        },
+        {
+          "click": "#page-timeline button:has-text(\"Actions\")"
+        },
+        {
+          "wait": 1000
+        }
+      ],
+      "cues": {
+        "act-at": ".act >> nth=0 >> input >> nth=1"
+      }
+    },
+    {
+      "name": "studio-buildall",
+      "script": "capture/inline-frames.js",
+      "url": "/",
+      "steps": [
+        {
+          "wait": 800
+        },
+        {
+          "click": "#exportall"
+        },
+        {
+          "wait": 800
+        },
+        {
+          "click": "#dlg .btn.primary"
+        },
+        {
+          "waitFor": "text=Open the dashboard"
+        },
+        {
+          "wait": 800
+        }
+      ],
+      "cues": {
+        "all-result": "#dlg .result",
+        "all-go": "#dlg .btn.primary"
+      },
+      "hide": [
+        "#dlg",
+        "#dlg .result"
+      ]
+    },
+    {
+      "name": "studio-speech",
+      "url": "/",
+      "steps": [
+        {
+          "wait": 800
+        },
+        {
+          "click": "#page-timeline .tabs button:has-text(\"Voice\")"
+        },
+        {
+          "wait": 1000
+        }
+      ],
       "script": "capture/inline-frames.js"
+    },
+    {
+      "name": "site-home",
+      "url": "/out/site/index.html",
+      "steps": [
+        {
+          "wait": 1200
+        }
+      ]
     }
   ],
   "replace": [
     {
-      "text": "<cueflow-folder>",
-      "with": "/path/to/cueflow"
+      "text": "${STUDIO_PROJECT}",
+      "with": "/home/you/my-project"
     },
     {
-      "text": "<temp-folder>/demo/dist",
-      "with": "/home/you/my-project/cueflow-dist"
-    },
-    {
-      "text": "<temp-folder>/demo",
-      "with": "/home/you/my-project/.cueflow"
-    },
-    {
-      "text": "<studio-session-key>",
+      "text": "${STUDIO_KEY}",
       "with": "YOUR-SESSION-KEY"
     },
     {
-      "text": "<studio-session-key>",
-      "with": "YOUR-SESSION-KEY"
+      "text": "localhost:4399",
+      "with": "localhost:4310"
     }
   ]
 }

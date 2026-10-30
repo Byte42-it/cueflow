@@ -553,7 +553,8 @@
     titleIn.addEventListener("input", function () { S.dirty = true; });
     p.appendChild(h("h3", null, "Step " + (S.step + 1) + " · " + step.id));
     p.appendChild(h("label", { class: "lab" }, "Title (chapter name, in “" + S.lang + "”)", titleIn));
-    p.appendChild(h("p", null, "What is said, and shown as captions, in “" + S.lang + "”. One idea, one or two sentences."));
+    var ownSpeech = step.speech && step.speech[S.lang];
+    p.appendChild(h("p", null, (ownSpeech ? "What is shown as captions, in “" + S.lang + "”. The voice reads its own text: see Voice." : "What is said, and shown as captions, in “" + S.lang + "”.") + " One idea, one or two sentences."));
     p.appendChild(area);
     if (S.focusNarr) { S.focusNarr = false; setTimeout(function () { area.focus(); }, 0); }
     p.appendChild(h("div", { class: "row" },
@@ -652,6 +653,31 @@
       if (Object.keys(m).length) st.voice = m; else delete st.voice;
     }).then(function (r) { S.audioRev = (S.audioRev || 0) + 1; S.msg = { kind: r.warnings.length ? "warn" : "ok", text: voice ? "Saved: this step has its own voice." : "This step follows the tutorial's voice again." }; renderPanel(); renderStrip(); });
   }
+  /* what the voice reads: starts as the caption; only a different text is stored, so a caption edited later is followed */
+  function speechForm(p, st, lang) {
+    var caption = text(st.narration, lang), mine = st.speech && st.speech[lang];
+    var area = h("textarea", { id: "speech", lang: lang }); area.value = mine || caption;
+    area.addEventListener("input", function () { S.dirty = true; });
+    var msg = h("div", { class: "msg" });
+    var store = function (value) {
+      var i = S.step;
+      return save(function (g) {
+        var one = g.steps[i], m = Object.assign({}, one.speech || {});
+        if (value && value !== (one.narration[lang] || "").trim()) m[lang] = value; else delete m[lang];
+        if (Object.keys(m).length) one.speech = m; else delete one.speech;
+      }).then(function () { S.audioRev = (S.audioRev || 0) + 1; S.msg = { kind: "ok", text: value && value !== caption.trim() ? "Saved: the voice reads this text, the caption stays as it is." : "Saved: the voice reads the caption." }; renderPanel(); renderStrip(); })
+        .catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
+    };
+    p.appendChild(h("h4", null, "What the voice reads"));
+    p.appendChild(h("p", null, "Change a word here to correct how it sounds, such as a term in another language. Captions and transcript keep the text of the Narration tab."));
+    p.appendChild(area);
+    var buttons = h("div", { class: "row" },
+      h("button", { class: "btn primary", onclick: function () { store(area.value.trim()); } }, "Save"),
+      listenButton(function () { return area.value; }, msg));
+    if (mine) buttons.appendChild(h("button", { class: "btn", onclick: function () { store(""); } }, "Use the caption again"));
+    p.appendChild(buttons);
+    p.appendChild(msg);
+  }
   function voiceTab(p) {
     if (!S.guide || !S.guide.steps.length) { p.appendChild(h("p", { class: "empty" }, "Select a video with steps.")); return; }
     if (!S.voices) { p.appendChild(h("p", { class: "empty" }, "Loading…")); api("/api/voices").then(function (v) { S.voices = v; if (S.tab === "voice") renderPanel(); }); return; }
@@ -659,6 +685,7 @@
     p.appendChild(h("h3", null, "Voice · step " + (S.step + 1) + " · “" + lang + "”"));
     autoVoiceForm(p, S.voices, { scope: "step", guide: g.id, language: lang }, own, saveStepVoice, function () {});
     if (own && own.provider === "file") p.appendChild(h("audio", { controls: true, src: "/api/step-audio/" + enc(g.id) + "/" + enc(st.id) + "/" + enc(lang) + "?t=" + (S.audioRev || 0), style: "width:100%" }));
+    if (!(own && (own.provider === "file" || own.provider === "none"))) speechForm(p, st, lang);
     if (S.msg) p.appendChild(h("div", { class: "msg " + S.msg.kind }, S.msg.text));
   }
 
@@ -917,6 +944,7 @@
     p.appendChild(h("div", { class: "row" },
       btn(S.guide.format === "slides" ? "Build this presentation (to present it)" : "Build this video", "", function () { runBuild({ target: "guide", guide: id }); }),
       btn("Build the whole site", "", function () { runBuild({ target: "site" }); })));
+    checkResults(p, busy); // right under the buttons: further down it is out of sight on a small screen
     if (S.guide.format === "slides") {
       // slides: no voice to generate, no MP4, no page for phones; the file built above is the one to present, the PDF the one to send
       p.appendChild(h("h3", null, "PDF"));
@@ -924,7 +952,7 @@
       p.appendChild(h("button", { id: "export-pdf", class: "btn primary", disabled: !!busy || !!(pdfExports[id + "|" + S.lang] && pdfExports[id + "|" + S.lang].running), onclick: function () { runPdf(id, S.lang); } }, "Export PDF"));
       p.appendChild(h("div", { id: "pdf-result", class: "result", "data-key": id + "|" + S.lang }));
       paintPdf(id, S.lang);
-      return checkResults(p, busy);
+      return;
     }
     if (external.length) p.appendChild(h("p", { class: "msg warn" }, "Building generates audio with the external voice chosen for this video (" + external.map(function (r) { return r.language + ": " + r.provider; }).join(", ") + "): the narration text is sent to that service, and it may cost. Texts already generated are not paid again."));
     p.appendChild(h("h3", null, "MP4 video"));
@@ -952,7 +980,6 @@
       S.share.warnings.forEach(function (x) { sh.appendChild(h("div", { class: "msg warn" }, "! " + x)); });
       p.appendChild(sh);
     }
-    checkResults(p, busy);
   }
   /* what the last check or build said, under the export section */
   function checkResults(p, busy) {
@@ -1329,7 +1356,7 @@
   S.wave = S.wave || {};
   function waveKey(i) {
     var st = S.guide.steps[i];
-    return [S.guide.id, st.id, S.lang, S.version, S.audioRev || 0, S.voicesRev || 0, JSON.stringify(st.voice && st.voice[S.lang] || null), st.narration && st.narration[S.lang] || ""].join("|");
+    return [S.guide.id, st.id, S.lang, S.version, S.audioRev || 0, S.voicesRev || 0, JSON.stringify(st.voice && st.voice[S.lang] || null), st.narration && st.narration[S.lang] || "", st.speech && st.speech[S.lang] || ""].join("|");
   }
   var waveOf = function (i) { var w = S.wave[waveKey(i)]; return w && w.peaks ? w : null; };
   function loadWaves() {
@@ -1408,7 +1435,7 @@
       lSteps.appendChild(drag("step", "left:" + x * px + "px;width:" + Math.max(8, tm.total * px - 2) + "px", (i + 1) + " · " + (text(st.title, S.lang) || st.id), (text(st.title, S.lang) || st.id) + " — drag to move"));
       lNarr.appendChild(drag("narr", "left:" + x * px + "px;width:" + Math.max(4, tm.narration * px - 2) + "px", text(st.narration, S.lang), text(st.narration, S.lang), "narration"));
       var own = full && full.steps[i].voice && full.steps[i].voice[S.lang], vs = own || (S.voices ? tutorialVoice(g.id, S.lang).spec : null), wv = waveOf(i);
-      var vtxt = !vs ? "Auto" : vs.provider === "none" ? "Muted" : vs.provider === "file" ? "Audio file" : (own ? "" : "Auto · ") + label(vs);
+      var vtxt = !vs ? "Auto" : vs.provider === "none" ? "Muted" : vs.provider === "file" ? "Audio file" : (own ? "" : "Auto · ") + label(vs) + (full && full.steps[i].speech && full.steps[i].speech[S.lang] ? " · own text" : "");
       var vbar = h("div", { class: "blk vo" + (wv ? " has" : "") + (vs && vs.provider === "none" ? " muted" : ""), "data-i": i, style: "left:" + x * px + "px;width:" + Math.max(4, tm.narration * px - 2) + "px", title: vtxt + (wv ? "" : " — no audio yet: it is generated when you build") + " — click to change", onclick: function (e) { clickAt(e, i, "voice"); } });
       if (wv) { var cv = h("canvas"); vbar.appendChild(cv); vbar._wave = { cv: cv, peaks: wv.peaks }; }
       vbar.appendChild(h("span", { class: "vlbl" }, vtxt));

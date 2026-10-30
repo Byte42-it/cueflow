@@ -83,6 +83,7 @@ Player model worth knowing before touching it:
   section pager, hence the other name. Both links add `?play=1`: the page that receives it mounts with `autoplay`
   and cleans its address. If the browser refuses sound without a click (`NotAllowedError` on the first audio), the
   player goes back to its untouched state with the play button, never a silent run.
+- **What the voice reads** (`step.speech`, per language, optional; 2026-10-30): the audio, the browser voice and the length estimate use `spokenOf(step, lang)`, captions and transcript always the narration. Studio stores it only when it differs from the caption (Voice tab of a step, "What the voice reads"), so a caption edited later is followed. For a word that recurs everywhere, the brief's pronunciation is still the place.
 - **Slides** (`guide.format: "slides"`, default `"video"`): the same steps, scenes, cameras and actions, one slide per
   step, but no voice, no captions, no transcript, no speed (build skips TTS, validate asks for no narration and no
   length; the narration is optional **speaker's notes**, key N or the Notes button). Advanced by hand, one press per

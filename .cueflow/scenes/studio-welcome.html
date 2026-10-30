@@ -10,12 +10,15 @@
 <header class="top">
   <div class="brand"><svg viewBox="152 152 950 950" width="22" height="22" aria-hidden="true"><g fill="none" stroke="#ff7a59" stroke-linecap="round" stroke-linejoin="round"><path d="M880 370A338 338 0 1 0 880 890" stroke-width="210"></path><path d="M830 525L1040 640L830 755Z" fill="#ff7a59" stroke-width="70"></path></g></svg><b>Cueflow</b> <span>Studio</span></div>
   <div class="current" id="current"></div>
-  <div class="where" id="where">/home/you/my-project/.cueflow  →  output: /home/you/my-project/cueflow-dist</div>
+  <div class="where" id="where" title="The project. Its Cueflow files are in /home/you/my-project/.cueflow">/home/you/my-project</div>
+  <button class="btn" id="undo" title="Nothing to undo" disabled="">↶ Undo</button>
+  <button class="btn" id="redo" title="Nothing to redo" disabled="">↷ Redo</button>
   <label class="lang">Language <select id="lang"></select></label>
+  <button class="btn chip" id="update" title="A newer Cueflow is available" hidden=""></button>
   <button class="btn chip" id="notes" title="Hand edits the assistant has not read yet" hidden="">✎ 0 notes for the assistant</button>
   <button class="btn ai" id="ai" title="A prompt for your AI assistant: carry on in a new session without starting over"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9l10-5 10 5-10 5z"></path><path d="M6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5M22 9v6"></path></svg><span>AI</span><i class="dot" id="aidot" title="No assistant connected"></i></button>
   <button class="btn" id="dashboard" title="The titles and descriptions of the dashboard">Dashboard</button>
-  <button class="btn" id="project" title="Audience, tone, languages, rules, pronunciation">Project</button>
+  <button class="btn" id="project" title="Settings: audio, audience, tone, languages, rules, pronunciation">Settings</button>
   <button class="themebtn" id="theme" title="Dark / light" aria-label="Dark or light">◐</button>
   <button class="btn primary" id="exportall" title="Build every tutorial and the dashboard that gathers them">Build</button>
 </header>
@@ -36,31 +39,7 @@
           <li>Paste this prompt and answer its questions.</li>
           <li>The first tutorial appears here by itself.</li>
         </ol>
-        <pre id="welcome-prompt">I am making narrated UI tutorials with Cueflow, and Cueflow Studio is open on this kit: it shows what you change as you change it.
-
-Kit: /home/you/my-project/.cueflow
-Output: /home/you/my-project/cueflow-dist
-
-HOW TO WORK WITH CUEFLOW. Pick the way that works for you.
-
-A) Studio's own door (nothing to install; it works while Studio runs, on this computer only). Use curl (on Windows PowerShell: curl.exe; to send JSON write it to a file and use -d @file.json):
-   how it works:  curl -s -H "Authorization: Bearer YOUR-SESSION-KEY" http://localhost:4398/agent/help
-   the tools:     curl -s -H "Authorization: Bearer YOUR-SESSION-KEY" http://localhost:4398/agent/tools
-   call a tool:   curl -s -H "Authorization: Bearer YOUR-SESSION-KEY" -H "Content-Type: application/json" -d '{"…":"…"}' http://localhost:4398/agent/call/&lt;tool&gt;
-   LISTEN to what I ask in Studio — run this in the BACKGROUND so that you are woken when it returns, and run it again each time:
-                  curl -s -H "Authorization: Bearer YOUR-SESSION-KEY" "http://localhost:4398/agent/next?wait=540"
-   When it returns {"task":{…}}: do what it says with the tools, tell me how it goes and finish, then listen again:
-   progress:      curl -s -H "Authorization: Bearer YOUR-SESSION-KEY" -H "Content-Type: application/json" -d '{"text":"…"}' http://localhost:4398/agent/say
-   finished:      curl -s -H "Authorization: Bearer YOUR-SESSION-KEY" -H "Content-Type: application/json" -d '{"task":"&lt;id&gt;","summary":"…"}' http://localhost:4398/agent/done
-
-B) As an MCP server, if you can add one. Command line: claude mcp add cueflow -- node "/path/to/cueflow/src/cli.ts" mcp --kit "/home/you/my-project/.cueflow"
-   Without the claude command (VS Code, other tools): in .mcp.json at the project root: {"mcpServers":{"cueflow":{"command":"node","args":["/path/to/cueflow/src/cli.ts","mcp","--kit","/home/you/my-project/.cueflow"]}}}
-
-There is no tutorial yet. Start from the beginning:
-1. Read the method (get_method, or GET /agent/method) and then the state of the kit (get_brief).
-2. Ask me which site the tutorials are for: a folder on this computer, or a live address. Do not look at anything before that.
-3. Study it, propose the tutorials worth making (one idea each) and agree the brief with me before writing anything.
-Talk to me in my language. Use synthetic data only; never real customer data.</pre>
+        <pre id="welcome-prompt">Read the instructions at http://localhost:4310/agent/instructions/YOUR-SESSION-KEY (fetch it with curl or your web tool) and follow them. They are Cueflow's: I am making narrated tutorials and Cueflow Studio is open.</pre>
         <div class="row"><button class="btn primary" id="welcome-copy">Copy the prompt</button><button class="btn" id="welcome-new">or create an empty tutorial yourself</button></div>
         <p class="msg" id="welcome-msg"></p>
       </div>
@@ -83,7 +62,7 @@ Talk to me in my language. Use synthetic data only; never real customer data.</p
           <div class="bar">
             <div class="seg" role="tablist">
               <button id="m-video" class="on">Video</button>
-              <button id="m-pick">Pick an element</button>
+              <button id="m-pick">Edit</button>
             </div>
             <div class="pick" id="pickinfo" hidden=""></div>
           </div>
@@ -93,7 +72,7 @@ Talk to me in my language. Use synthetic data only; never real customer data.</p
           <div class="tabs" role="tablist">
             <button data-tab="narration" class="on">Narration</button>
             <button data-tab="actions" class="">Actions</button>
-            <button data-tab="assistant" class="">Assistant</button>
+            <button data-tab="voice" class="">Voice</button>
           </div>
           <div class="body" id="panel"><p class="empty">Select a video with steps.</p></div>
         </aside>

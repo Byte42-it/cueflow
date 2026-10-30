@@ -5,7 +5,7 @@ import { listGuides, loadGuide, openKit, type Kit } from "./kit.ts";
 import { migrateVoiceSettings, resolveVoice, Settings, settingsFile, VoiceSpec as VoiceSpecSchema, type VoiceSource, type VoiceSpec } from "./settings.ts";
 import { audioMime, cachedNarration, defaultProvider, narrationAudio, providerFromSpec, spokenText, type TtsProvider } from "./tts.ts";
 import { loadBrief } from "./brief.ts";
-import type { Guide, Step } from "./schema.ts";
+import { spokenOf, type Guide, type Step } from "./schema.ts";
 
 export type ResolvedVoice = { spec: VoiceSpec; source: VoiceSource; provider: TtsProvider | null; browser: boolean };
 
@@ -152,7 +152,7 @@ async function kitAudioFile(kit: Kit, file: string): Promise<{ data: Buffer; mim
 export async function stepAudio(kit: Kit, guide: Guide, step: Step, lang: string, provider?: TtsProvider | null): Promise<{ data: Buffer; mime: string } | null> {
   const own = step.voice?.[lang];
   if (own?.provider === "file") return kitAudioFile(kit, own.file);
-  const text = step.narration[lang]?.trim();
+  const text = spokenOf(step, lang).trim();
   if (!text || own?.provider === "none" || own?.provider === "browser") return null;
   const preview = provider === null;
   let p: TtsProvider | null;

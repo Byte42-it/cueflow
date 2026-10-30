@@ -76,7 +76,9 @@ A tutorial is its narration; motion shows what the words say and never decorates
 ## 7. Check
 validate_guide (with layout) must pass without errors; read the warnings. Then preview_frame at the key moments of
 every step and look at the image: is the right thing framed, is the cursor where it should be? Fix, repeat.
-Listen to the voice before publishing: it may misread names, acronyms and numbers; add them to the pronunciation.
+Listen to the voice before publishing: it may misread names, acronyms and numbers; add them to the pronunciation. A word that
+is misread in one step only, or a foreign word in a sentence of another language: give that step its own spoken text (set_narration
+with speech); the caption stays as written.
 
 ## 8. Build
 build_guide per tutorial, then the catalog: write site.json (items, rows, featured), a short written guide per item in

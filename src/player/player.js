@@ -607,7 +607,8 @@
       var text = st.narration[lang] || "";
       var url = audioUrl(i);
       var info = url ? await audioDuration(url) : { audio: null, ms: null };
-      var narrDur = info.ms != null ? info.ms : estimate(text);
+      var said = (st.speech && st.speech[lang] && st.speech[lang].trim()) || text; // the caption stays the narration
+      var narrDur = info.ms != null ? info.ms : estimate(said);
       var actions = st.actions.map(function (a) { return { a: a, at: atMs(a, narrDur), started: false, done: false }; });
       var lastEnd = 0;
       st.actions.forEach(function (a) { lastEnd = Math.max(lastEnd, endOf(a, narrDur)); });
@@ -621,7 +622,7 @@
       applyCamera(st.camera || cam, instant ? 0 : 700);
       if (!instant && playing) {
         if (cur.audio) { cur.audio.currentTime = 0; playSound(cur.audio); }
-        else if (!cur.mute) speak(cur, text);
+        else if (!cur.mute) speak(cur, said);
       }
       paintChapters();
     }

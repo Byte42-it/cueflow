@@ -53,6 +53,9 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
       if (!narration) warnings.push(`${where}: no narration in "${lang}"`);
       else if ((narration.match(/[.!?…]+(\s|$)/g)?.length ?? 1) > 2) warnings.push(`${where}: more than two sentences in "${lang}": a step carries one idea, split it`);
     }
+    for (const lang of Object.keys(step.speech ?? {})) {
+      if (!guide.languages.includes(lang)) warnings.push(`${where}: spoken text in "${lang}", which is not a language of the guide`);
+    }
     for (const lang of Object.keys(step.narration)) {
       if (!guide.languages.includes(lang)) warnings.push(`${where}: narration in "${lang}", which is not a language of the guide`);
     }

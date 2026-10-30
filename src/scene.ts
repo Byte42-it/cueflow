@@ -97,6 +97,16 @@ export const expandShared = (html: string, shared: Shared) =>
  * The scene as one standalone HTML string: local stylesheets, scripts and images are inlined. With `shared`, the
  * linked stylesheets and the images go there instead (once per content) and the scene keeps placeholders.
  */
+/**
+ * The document as HTML. linkedom writes attributes back escaping only the quote: a srcdoc holding another srcdoc would lose
+ * one level of escaping and be cut at its first quote, so "&" is escaped here. This mutates the document: call it last.
+ */
+export function serializeDocument(document: Document): string {
+  for (const el of document.querySelectorAll("*"))
+    for (const { name, value } of [...el.attributes]) if (value.includes("&")) el.setAttribute(name, value.replace(/&/g, "&amp;"));
+  return "<!doctype html>\n" + document.documentElement.outerHTML;
+}
+
 export async function inlineScene(kit: Kit, scene: string, lang?: string, shared?: Shared): Promise<string> {
   const file = await sceneFileFor(kit, scene, lang);
   const baseDir = path.dirname(file);
@@ -128,7 +138,7 @@ export async function inlineScene(kit: Kit, scene: string, lang?: string, shared
   for (const el of [...document.querySelectorAll("[style*='url(']")]) {
     el.setAttribute("style", await inlineCssUrls(el.getAttribute("style")!, baseDir));
   }
-  return "<!doctype html>\n" + document.documentElement.outerHTML;
+  return serializeDocument(document as unknown as Document);
 }
 
 export type SceneElement = { selector: string; tag: string; text: string; role?: string; hidden: boolean };

@@ -1,3 +1,4 @@
+import { serializeDocument } from "./scene.ts";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { parseHTML } from "linkedom";
@@ -103,7 +104,7 @@ export async function editSceneElement(kit: Kit, scene: string, lang: string, se
   if (!changes.length) return { file: target, changed: 0 };
   if (path.resolve(source) !== path.resolve(target)) moveDeeper(document); // first edit in this language: a copy of the base screen
   await mkdir(path.dirname(target), { recursive: true });
-  await writeAtomic(target, "<!doctype html>\n" + document.documentElement.outerHTML);
+  await writeAtomic(target, serializeDocument(document as unknown as Document));
   const rel = path.relative(kit.root, target).split(path.sep).join("/");
   for (const c of changes) await recordChange(kit, { ...c, lang, scene, tutorial, file: rel });
   return { file: target, changed: changes.length };

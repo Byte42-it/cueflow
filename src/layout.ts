@@ -27,7 +27,6 @@ export async function checkLayout(kit: Kit, id: string, opts: { lang?: string } 
         const label = `action ${j + 1} (${a.do})`;
         if (["move", "click", "highlight", "type", "select", "value", "check"].includes(a.do) && "to" in a) add(a.at, label, a.to);
         else if (a.do === "camera" && typeof a.target === "string") add(a.at, label, a.target);
-        else if (a.do === "scroll") add(a.at, label, a.to);
       }
       for (const { at, checks } of looks.values()) {
         await session.seek(i, at);

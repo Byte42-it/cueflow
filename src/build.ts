@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { distFile, loadGuide, sceneFile, sceneFileFor, type Kit } from "./kit.ts";
 import { inlineScene, type Shared } from "./scene.ts";
-import { orientedGuide, type Guide } from "./schema.ts";
+import { orientedGuide, spokenOf, type Guide } from "./schema.ts";
 import { loadTheme } from "./theme.ts";
 import { stepAudio, voiceFor } from "./voices.ts";
 import type { TtsProvider } from "./tts.ts";
@@ -93,7 +93,7 @@ const MS_PER_CHAR = 65; // as in the player: narration length estimate when ther
  * its narration (estimated from its length) or until its last action ends, whichever is later, plus its hold.
  */
 export function estimateStepDuration(step: Guide["steps"][number], lang: string): { narration: number; total: number } {
-  const text = step.narration[lang] ?? "";
+  const text = spokenOf(step, lang);
   const narr = Math.max(1500, text.length * MS_PER_CHAR);
   let end = 0;
   for (const a of step.actions) {

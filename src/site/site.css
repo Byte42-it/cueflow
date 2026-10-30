@@ -84,6 +84,7 @@
 .cf-spacer { flex: 1; }
 /* language of the whole site */
 .cf-lang-code { font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+.cf-lang { position: relative; display: flex; }
 .cf-lang-menu { position: absolute; left: 56px; bottom: 0; z-index: 70; min-width: 170px; padding: 6px; background: var(--cf-site-card); border: 1px solid var(--cf-site-line);
   border-radius: 8px; box-shadow: 0 18px 40px rgba(0, 0, 0, .16); display: grid; gap: 2px; }
 .cf-lang-menu[hidden] { display: none; }

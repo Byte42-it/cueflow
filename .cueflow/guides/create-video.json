@@ -2,10 +2,32 @@
   "id": "create-video",
   "title": "Create a video tutorial",
   "scene": "studio-timeline",
+  "vertical": false,
+  "format": "video",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "stage": {
+    "width": 640,
+    "height": 360
+  },
   "languages": [
     "en",
     "it"
   ],
+  "player": {
+    "captions": "below",
+    "chapters": true,
+    "speeds": [
+      1,
+      1.5
+    ],
+    "transcript": true,
+    "brand": "stage",
+    "fallbackVoice": "none"
+  },
+  "pronunciation": {},
   "steps": [
     {
       "id": "overview",
@@ -13,35 +35,87 @@
         "en": "Three areas",
         "it": "Tre zone"
       },
+      "scene": "studio-timeline",
       "camera": {
-        "target": "#film",
-        "padding": 60
+        "target": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 720
+        },
+        "padding": 0
       },
       "actions": [
         {
+          "do": "hide",
+          "to": ".lanes .blk",
+          "at": 0,
+          "effect": "none",
+          "duration": 0,
+          "stagger": 0
+        },
+        {
+          "do": "hide",
+          "to": ".lanes .mk",
+          "at": 0,
+          "effect": "none",
+          "duration": 0,
+          "stagger": 0
+        },
+        {
+          "do": "move",
+          "to": ".tile.on",
+          "at": "20%",
+          "duration": 800
+        },
+        {
+          "do": "highlight",
+          "to": ".tile.on",
+          "at": "28%",
+          "duration": 1300
+        },
+        {
           "do": "move",
           "to": "#view",
-          "at": "10%",
-          "duration": 1000
+          "at": "42%",
+          "duration": 800
         },
         {
           "do": "highlight",
           "to": "#view",
-          "at": "30%",
-          "duration": 2200
+          "at": "48%",
+          "duration": 1300
         },
         {
-          "do": "highlight",
-          "to": "#strip",
-          "at": "60%",
-          "duration": 2200
+          "do": "camera",
+          "at": "70%",
+          "target": "#strip",
+          "padding": 8,
+          "duration": 1000,
+          "easing": "ease-in-out"
+        },
+        {
+          "do": "show",
+          "to": ".lanes .blk",
+          "at": "72%",
+          "effect": "slide-left",
+          "duration": 260,
+          "stagger": 30
+        },
+        {
+          "do": "show",
+          "to": ".lanes .mk",
+          "at": "84%",
+          "effect": "scale",
+          "duration": 200,
+          "stagger": 40
         }
       ],
       "narration": {
         "en": "A video is a list of steps. The list of tutorials is on the left, the live preview in the middle, and the timeline of steps at the bottom.",
         "it": "Un video è un elenco di passi. A sinistra l'elenco dei tutorial, al centro l'anteprima, in basso la linea del tempo dei passi."
       },
-      "scene": "studio-timeline"
+      "hold": 600
     },
     {
       "id": "narration",
@@ -49,29 +123,66 @@
         "en": "Narration",
         "it": "Narrazione"
       },
+      "scene": "studio-timeline",
       "camera": {
         "target": "#panel",
-        "padding": 20
+        "padding": 12
       },
       "actions": [
         {
           "do": "move",
-          "to": "#panel",
-          "at": "10%",
-          "duration": 900
+          "to": "#narr",
+          "at": "6%",
+          "duration": 800
         },
         {
-          "do": "highlight",
-          "to": "#panel",
-          "at": "35%",
-          "duration": 2200
+          "do": "click",
+          "to": "#narr",
+          "at": "20%"
+        },
+        {
+          "do": "value",
+          "to": "#narr",
+          "value": "",
+          "at": "22%",
+          "animate": 200
+        },
+        {
+          "do": "type",
+          "to": "#narr",
+          "text": {
+            "en": "To upload a document, open the Documents section.",
+            "it": "Per caricare un documento, apri la sezione Documenti."
+          },
+          "at": "26%",
+          "duration": 2300
+        },
+        {
+          "do": "move",
+          "to": "#panel .btn.primary",
+          "at": "74%",
+          "duration": 500
+        },
+        {
+          "do": "click",
+          "to": "#panel .btn.primary",
+          "at": "86%"
+        },
+        {
+          "do": "set",
+          "to": "#panel > .msg:last-child",
+          "at": "88%",
+          "text": "Saved.",
+          "add": [
+            "ok"
+          ]
         }
       ],
       "narration": {
-        "en": "Each step has a narration, spoken and shown as captions. Change it here and press Save.",
-        "it": "Ogni passo ha una narrazione, letta e mostrata come sottotitolo. Cambiala qui e premi Save."
+        "en": "Each step has a narration, spoken and shown as captions. Write it here and press Save.",
+        "it": "Ogni passo ha una narrazione, letta e mostrata come sottotitolo. Scrivila qui e premi Save."
       },
-      "scene": "studio-timeline"
+      "hold": 600
     },
     {
       "id": "actions",
@@ -79,59 +190,126 @@
         "en": "Actions",
         "it": "Azioni"
       },
+      "scene": "studio-actions",
       "camera": {
-        "target": "#strip",
-        "padding": 20
+        "target": "#panel",
+        "padding": 8
       },
       "actions": [
         {
+          "do": "hide",
+          "to": "#panel .act",
+          "at": 0,
+          "effect": "none",
+          "duration": 0,
+          "stagger": 0
+        },
+        {
+          "do": "show",
+          "to": "#panel .act",
+          "at": "3%",
+          "effect": "slide-up",
+          "duration": 340,
+          "stagger": 140
+        },
+        {
           "do": "move",
-          "to": "#strip",
-          "at": "10%",
-          "duration": 900
+          "to": "[data-cue=act-at]",
+          "at": "36%",
+          "duration": 800
         },
         {
           "do": "highlight",
-          "to": "#strip",
-          "at": "35%",
-          "duration": 2600
+          "to": "[data-cue=act-at]",
+          "at": "44%",
+          "duration": 1300
+        },
+        {
+          "do": "value",
+          "to": "[data-cue=act-at]",
+          "value": "40%",
+          "at": "52%",
+          "animate": 250
+        },
+        {
+          "do": "camera",
+          "at": "72%",
+          "target": {
+            "x": 216,
+            "y": 560,
+            "width": 720,
+            "height": 100
+          },
+          "padding": 16,
+          "duration": 1000,
+          "easing": "ease-in-out"
         }
       ],
       "narration": {
-        "en": "Under the steps, the actions: the cursor moves, clicks, types and highlights. Each one is placed as a percentage of the narration, so it stays in sync in every language.",
-        "it": "Sotto i passi, le azioni: il cursore si muove, clicca, scrive ed evidenzia. Ognuna è posta come percentuale della narrazione, così resta sincronizzata in ogni lingua."
+        "en": "Under Actions, the cursor moves, clicks and types, and the screen builds itself. Each action is placed as a percentage of the narration, so it stays in sync in every language.",
+        "it": "In Actions il cursore si muove, clicca e scrive, e lo schermo si costruisce. Ogni azione è posta come percentuale della narrazione, così resta sincronizzata in ogni lingua."
       },
-      "scene": "studio-timeline"
+      "hold": 600
     },
     {
       "id": "media",
       "title": {
-        "en": "Scenes",
-        "it": "Scene"
+        "en": "Screens",
+        "it": "Schermate"
       },
+      "scene": "studio-media",
       "camera": {
-        "target": "#media-side",
-        "padding": 20
+        "target": {
+          "x": 216,
+          "y": 52,
+          "width": 690,
+          "height": 603
+        },
+        "padding": 0
       },
       "actions": [
         {
-          "do": "move",
-          "to": "#media-side",
-          "at": "10%",
-          "duration": 900
+          "do": "hide",
+          "to": "#media-side .mitem",
+          "at": 0,
+          "effect": "none",
+          "duration": 0,
+          "stagger": 0
         },
         {
-          "do": "highlight",
-          "to": "#media-side",
-          "at": "35%",
-          "duration": 2200
+          "do": "show",
+          "to": "#media-side .mitem",
+          "at": "5%",
+          "effect": "scale",
+          "duration": 320,
+          "stagger": 200
+        },
+        {
+          "do": "move",
+          "to": "#media-side .media-sec:first-child .mitem",
+          "at": "16%",
+          "duration": 800
+        },
+        {
+          "do": "camera",
+          "at": "60%",
+          "target": "#mstage",
+          "padding": 12,
+          "duration": 1000,
+          "easing": "ease-in-out"
+        },
+        {
+          "do": "move",
+          "to": "#mstage",
+          "at": "66%",
+          "duration": 800
         }
       ],
       "narration": {
-        "en": "The Media page holds the scenes, plain pages with made-up data, so no real document ever appears in a tutorial.",
-        "it": "La pagina Media contiene le scene, semplici pagine con dati inventati, così nei tutorial non compare mai un documento vero."
+        "en": "The Media page holds the screens, plain pages with made-up data, so no real document ever appears in a tutorial. Click an element to change its text.",
+        "it": "La pagina Media contiene le schermate, semplici pagine con dati inventati, così nei tutorial non compare mai un documento vero. Clicca un elemento per cambiarne il testo."
       },
-      "scene": "studio-media"
+      "hold": 600
     },
     {
       "id": "voice",
@@ -139,34 +317,58 @@
         "en": "Voice",
         "it": "Voce"
       },
+      "scene": "studio-speech",
       "camera": {
-        "target": {
-          "x": 298,
-          "y": 52,
-          "width": 900,
-          "height": 560
-        },
-        "padding": 30
+        "target": "#panel",
+        "padding": 8
       },
       "actions": [
         {
           "do": "move",
-          "to": "#voice-body > :first-child",
-          "at": "10%",
-          "duration": 900
+          "to": "#panel .voice-auto",
+          "at": "6%",
+          "duration": 800
         },
         {
           "do": "highlight",
-          "to": "#voice-body > :first-child",
-          "at": "35%",
-          "duration": 2200
+          "to": "#panel .voice-auto",
+          "at": "14%",
+          "duration": 1500
+        },
+        {
+          "do": "move",
+          "to": "#speech",
+          "at": "50%",
+          "duration": 600
+        },
+        {
+          "do": "click",
+          "to": "#speech",
+          "at": "57%"
+        },
+        {
+          "do": "value",
+          "to": "#speech",
+          "value": "",
+          "at": "58%",
+          "animate": 200
+        },
+        {
+          "do": "type",
+          "to": "#speech",
+          "text": {
+            "en": "To up-load a document, open the Documents section.",
+            "it": "Per caricare un documento, apri la sezione Dòcumenti."
+          },
+          "at": "60%",
+          "duration": 1800
         }
       ],
       "narration": {
-        "en": "In Voice you choose who reads it, and the default is the viewer's browser voice. An external voice is always your choice.",
-        "it": "In Voice scegli chi legge, e quella predefinita è la voce del browser di chi guarda. Una voce esterna è sempre una tua scelta."
+        "en": "In the Voice tab each step follows the project's voice, the viewer's browser by default. If a word sounds wrong, correct it here: the caption does not change.",
+        "it": "Nella scheda Voice ogni passo segue la voce del progetto, quella del browser di chi guarda se non scegli altro. Se una parola suona male, correggila qui: il sottotitolo non cambia."
       },
-      "scene": "studio-voice"
+      "hold": 600
     },
     {
       "id": "check",
@@ -174,29 +376,72 @@
         "en": "Check it",
         "it": "Controllalo"
       },
+      "scene": "studio-check",
       "camera": {
-        "target": "#export-body",
-        "padding": 60
+        "target": {
+          "x": 300,
+          "y": 280,
+          "width": 840,
+          "height": 240
+        },
+        "padding": 0
       },
       "actions": [
         {
           "do": "move",
-          "to": "#export-body",
+          "to": "#export-body .btn.primary",
           "at": "10%",
-          "duration": 900
+          "duration": 800
+        },
+        {
+          "do": "click",
+          "to": "#export-body .btn.primary",
+          "at": "26%"
+        },
+        {
+          "do": "show",
+          "to": "[data-cue=result]",
+          "at": "28%",
+          "effect": "slide-up",
+          "duration": 340
         },
         {
           "do": "highlight",
-          "to": "#export-body",
-          "at": "35%",
-          "duration": 2200
+          "to": "[data-cue=result]",
+          "at": "36%",
+          "duration": 1500
+        },
+        {
+          "do": "camera",
+          "at": "70%",
+          "target": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 720
+          },
+          "padding": 0,
+          "duration": 1000,
+          "easing": "ease-in-out"
+        },
+        {
+          "do": "move",
+          "to": "[data-page=preview]",
+          "at": "78%",
+          "duration": 700
+        },
+        {
+          "do": "highlight",
+          "to": "[data-page=preview]",
+          "at": "88%",
+          "duration": 800
         }
       ],
       "narration": {
         "en": "On Export, press Check this video: it finds selectors that do not exist and languages without narration. Then watch the result in Preview.",
         "it": "In Export premi Check this video: trova selettori che non esistono e lingue senza narrazione. Poi guarda il risultato in Preview."
       },
-      "scene": "studio-export"
+      "hold": 600
     }
   ]
 }

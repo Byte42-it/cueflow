@@ -1,20 +1,25 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Terminal</title>
 <style>
-*{box-sizing:border-box}body{margin:0;width:1280px;height:720px;overflow:hidden;background:#1b1d23;font:22px/1.7 ui-monospace,Consolas,monospace;color:#e6e6e6}
+*{box-sizing:border-box}body{margin:0;width:1280px;height:720px;overflow:hidden;background:#1b1d23;font:22px/1.6 ui-monospace,Consolas,monospace;color:#e6e6e6}
 .top{background:#2b2e36;padding:12px 24px;font:16px system-ui;color:#aab}
-.term{padding:28px 40px}
-.line{white-space:pre-wrap;min-height:38px}
-.p{color:#6fcf97}.c{color:#fff;display:inline-block;min-width:10px;min-height:1.4em;vertical-align:bottom}.o{color:#8b93a1}
+.term{padding:24px 40px}
+.line{white-space:pre-wrap;min-height:35px}
+.p{color:#6fcf97}.c{color:#fff;display:inline-block;min-width:10px;min-height:1.4em;vertical-align:bottom}.o{color:#8b93a1}.url{color:#7db4ff}
 
 </style></head><body>
 <div class="top">Terminal</div>
 <div class="term">
-<div class="line"><span class="p">you@laptop:~$ </span><span class="c" id="c-clone"></span></div>
-<div class="line"><span class="p">you@laptop:~$ </span><span class="c" id="c-cd"></span></div>
-<div class="line"><span class="p">you@laptop:~/cueflow$ </span><span class="c" id="c-install"></span></div>
-<div class="line"><span class="p">you@laptop:~/cueflow$ </span><span class="c" id="c-studio"></span></div>
-<div class="line o" id="o-studio" hidden>Cueflow Studio: http://localhost:4310/</div>
-<div class="line"><span class="p">you@laptop:~/my-project$ </span><span class="c" id="c-own"></span></div>
+<div class="line" id="l-clone"><span class="p">you@laptop:~$ </span><span class="c" id="c-clone"></span></div>
+<div class="line o" id="o-cloning" hidden>Cloning into 'cueflow'...</div>
+<div class="line o" id="o-receiving" hidden>Receiving objects: <span id="n-recv">0</span>%</div>
+<div class="line" id="l-cd" hidden><span class="p">you@laptop:~$ </span><span class="c" id="c-cd"></span></div>
+<div class="line" id="l-install" hidden><span class="p">you@laptop:~/cueflow$ </span><span class="c" id="c-install"></span></div>
+<div class="line o" id="o-install" hidden>added <span id="n-pkg">0</span> packages in 9s</div>
+<div class="line" id="l-studio" hidden><span class="p">you@laptop:~/cueflow$ </span><span class="c" id="c-studio"></span></div>
+<div class="line o" id="o-studio" hidden>Cueflow Studio: <span class="url">http://localhost:4310/</span></div>
+<div class="line" id="l-own" hidden><span class="p">you@laptop:~/my-project$ </span><span class="c" id="c-own"></span></div>
+<div class="line o own-out" id="o-own" hidden>Cueflow Studio: <span class="url">http://localhost:4310/</span></div>
+<div class="line o own-out" id="o-kit" hidden>Kit: /home/you/my-project/.cueflow</div>
 </div>
 </body></html>

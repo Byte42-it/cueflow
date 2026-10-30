@@ -270,19 +270,22 @@
       return '<button type="button" data-lang="' + esc(l) + '"' + (l === lang ? ' aria-current="true"' : "") + ' lang="' + esc(l) + '"><b>' + esc(l.toUpperCase()) + "</b>" + esc(native(l)) + "</button>";
     }).join(""));
     menu.hidden = true;
-    langBtn.appendChild(menu);
-    langBtn.addEventListener("click", function (e) {
+    // side by side, not nested: a button inside a button is invalid HTML and falls apart in a saved copy of the page
+    var langBox = el("div", "cf-lang");
+    langBox.appendChild(langBtn);
+    langBox.appendChild(menu);
+    menu.addEventListener("click", function (e) {
       var pickBtn = e.target.closest && e.target.closest("[data-lang]");
-      if (pickBtn) {
-        try { localStorage.setItem(LANG_KEY, pickBtn.getAttribute("data-lang")); } catch (err) { /* this visit only */ }
-        if (pickBtn.getAttribute("data-lang") !== lang) location.reload();
-        return;
-      }
+      if (!pickBtn) return;
+      try { localStorage.setItem(LANG_KEY, pickBtn.getAttribute("data-lang")); } catch (err) { /* this visit only */ }
+      if (pickBtn.getAttribute("data-lang") !== lang) location.reload();
+    });
+    langBtn.addEventListener("click", function () {
       menu.hidden = !menu.hidden;
       langBtn.setAttribute("aria-expanded", String(!menu.hidden));
     });
-    document.addEventListener("click", function (e) { if (!langBtn.contains(e.target)) { menu.hidden = true; langBtn.setAttribute("aria-expanded", "false"); } });
-    bar.appendChild(langBtn);
+    document.addEventListener("click", function (e) { if (!langBox.contains(e.target)) { menu.hidden = true; langBtn.setAttribute("aria-expanded", "false"); } });
+    bar.appendChild(langBox);
   }
   var pdfBtn = null;
   if (current) { pdfBtn = railBtn("button", ICON.print, L("pdf")); bar.appendChild(pdfBtn); }

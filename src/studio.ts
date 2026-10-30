@@ -288,6 +288,7 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
         if (!o) continue;
         for (const lang of guide.languages) {
           await recordChange(kit, { kind: "narration", tutorial: id, lang, target: st.id, before: o.narration[lang] ?? "", after: st.narration[lang] ?? "" });
+          await recordChange(kit, { kind: "speech", tutorial: id, lang, target: st.id, before: o.speech?.[lang] ?? "", after: st.speech?.[lang] ?? "" });
           await recordChange(kit, { kind: "title", tutorial: id, lang, target: st.id, before: pick(o.title, lang) ?? "", after: pick(st.title, lang) ?? "" });
         }
       }

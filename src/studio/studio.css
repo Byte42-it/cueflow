@@ -150,7 +150,7 @@ a.btn { display: inline-block; text-decoration: none; width: fit-content; }
 .dropline[hidden] { display: none; }
 .blk.dragging { opacity: .35; }
 .blk[draggable="true"] { cursor: grab; }
-.strip .stripbar button.wide { width: auto; padding: 0 10px; }
+.strip .stripbar button.wide { width: auto; padding: 0 10px; white-space: nowrap; flex: none; }
 .strip .stripbar button:disabled { opacity: .4; }
 .page.previewpage { display: flex; flex-direction: column; padding: 14px; gap: 10px; }
 .page.previewpage .stage { flex: 1; min-height: 0; }

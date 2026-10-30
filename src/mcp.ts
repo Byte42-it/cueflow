@@ -290,14 +290,20 @@ export function createServer(kit: Kit): McpServer {
   server.registerTool(
     "set_narration",
     {
-      description: "Set or change the narration of one step in one language (also use it to translate: one call per step and language). Add the language to the guide if needed.",
-      inputSchema: { guide: guideId, step_id: z.string(), lang: z.string().min(2), text: z.string() }
+      description: "Set or change the narration of one step in one language (also use it to translate: one call per step and language). Add the language to the guide if needed. `speech` is what the voice reads when it must differ from the caption (a foreign word spelled for the voice, an acronym): \"\" removes it. For a word that recurs everywhere, use the brief's pronunciation instead.",
+      inputSchema: { guide: guideId, step_id: z.string(), lang: z.string().min(2), text: z.string().optional().describe("the narration: read aloud and shown as caption"), speech: z.string().optional() }
     },
-    safe(async ({ guide, step_id, lang, text: narration }) => {
+    safe(async ({ guide, step_id, lang, text: narration, speech }) => {
       const g = await loadGuide(kit, guide);
       const step = g.steps.find((s) => s.id === step_id);
       if (!step) throw new Error(`no step "${step_id}" in guide "${guide}"`);
-      step.narration[lang] = narration;
+      if (narration == null && speech == null) throw new Error("nothing to set: pass text (the narration), speech (what the voice reads), or both");
+      if (narration != null) step.narration[lang] = narration;
+      if (speech != null) {
+        const own = { ...step.speech };
+        if (speech.trim()) own[lang] = speech; else delete own[lang];
+        if (Object.keys(own).length) step.speech = own; else delete step.speech;
+      }
       if (!g.languages.includes(lang)) g.languages.push(lang);
       await saveGuide(kit, g);
       return text({ languages: g.languages });

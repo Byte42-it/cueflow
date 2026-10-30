@@ -147,6 +147,13 @@ function freezePage(o: { lang: string; nativeInputs: boolean; replace: { text: s
   const imgs: string[] = [];
   for (const i of Array.from(document.querySelectorAll<HTMLImageElement>("img[src]"))) if (!i.src.startsWith("data:")) (twin.get(i)!.setAttribute("src", i.src), imgs.push(i.src));
 
+  // a modal is drawn by the browser's top layer, which a copy does not have: keep where it was, and its dim backdrop
+  for (const d of Array.from(document.querySelectorAll("dialog"))) {
+    if (!d.matches(":modal")) continue;
+    const r = d.getBoundingClientRect(), veil = getComputedStyle(d, "::backdrop").backgroundColor, overflow = getComputedStyle(d).overflowY;
+    const c = twin.get(d) as HTMLElement;
+    c.style.cssText += `;position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;margin:0;max-height:none;max-width:none;overflow:${overflow};z-index:2147483000;box-shadow:0 0 0 100vmax ${veil}`;
+  }
   for (const e of Array.from(root.querySelectorAll("[data-cf-remove]"))) e.remove();
   for (const e of Array.from(root.querySelectorAll<HTMLElement>("[data-cf-hide]"))) (e.style.display = "none", e.removeAttribute("data-cf-hide"));
   // an iframe with srcdoc is page content (a capture script put it there); it stays, but sandboxed so nothing in it runs

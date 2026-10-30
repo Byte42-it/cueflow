@@ -2,10 +2,32 @@
   "id": "publish",
   "title": "Publish the project",
   "scene": "studio-export",
+  "vertical": false,
+  "format": "video",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "stage": {
+    "width": 640,
+    "height": 360
+  },
   "languages": [
     "en",
     "it"
   ],
+  "player": {
+    "captions": "below",
+    "chapters": true,
+    "speeds": [
+      1,
+      1.5
+    ],
+    "transcript": true,
+    "brand": "stage",
+    "fallbackVoice": "none"
+  },
+  "pronunciation": {},
   "steps": [
     {
       "id": "build",
@@ -13,59 +35,190 @@
         "en": "Build one video",
         "it": "Costruisci un video"
       },
+      "scene": "studio-built-video",
       "camera": {
-        "target": "#export-body",
-        "padding": 60
+        "target": {
+          "x": 300,
+          "y": 280,
+          "width": 840,
+          "height": 240
+        },
+        "padding": 0
       },
       "actions": [
         {
           "do": "move",
-          "to": "#export-body",
-          "at": "10%",
-          "duration": 900
+          "to": "#export-body > div:not(.row):not(.result) > div.row:nth-of-type(2) > .btn:first-child",
+          "at": "12%",
+          "duration": 800
+        },
+        {
+          "do": "click",
+          "to": "#export-body > div:not(.row):not(.result) > div.row:nth-of-type(2) > .btn:first-child",
+          "at": "32%"
+        },
+        {
+          "do": "show",
+          "to": "[data-cue=result]",
+          "at": "34%",
+          "effect": "slide-up",
+          "duration": 340
         },
         {
           "do": "highlight",
-          "to": "#export-body",
-          "at": "35%",
-          "duration": 2200
+          "to": "[data-cue=result]",
+          "at": "62%",
+          "duration": 1400
         }
       ],
       "narration": {
-        "en": "From Export you can check and build one video. Nothing is sent anywhere: the result is a single H T M L file.",
-        "it": "Da Export puoi controllare e costruire un video. Non viene inviato niente: il risultato è un solo file H T M L."
+        "en": "From Export you can check and build one video. Nothing is sent anywhere: the result is a single HTML file.",
+        "it": "Da Export puoi controllare e costruire un video. Non viene inviato niente: il risultato è un solo file HTML."
       },
-      "scene": "studio-export"
+      "hold": 600
+    },
+    {
+      "id": "formats",
+      "title": {
+        "en": "Other formats",
+        "it": "Altri formati"
+      },
+      "scene": "studio-export",
+      "camera": {
+        "target": "#mp4-size",
+        "padding": 90
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#mp4-size",
+          "at": "10%",
+          "duration": 800
+        },
+        {
+          "do": "select",
+          "to": "#mp4-size",
+          "option": "Large · 1920 × 1080",
+          "at": "32%",
+          "animate": 250
+        },
+        {
+          "do": "highlight",
+          "to": "#export-mp4",
+          "at": "42%",
+          "duration": 1000
+        },
+        {
+          "do": "scroll",
+          "to": "#export-body > div:not(.row):not(.result) > div.row:last-of-type",
+          "in": "#page-export",
+          "at": "58%",
+          "margin": 40,
+          "duration": 500
+        },
+        {
+          "do": "camera",
+          "at": "64%",
+          "target": "#export-body > div:not(.row):not(.result) > div.row:last-of-type",
+          "padding": 110,
+          "duration": 1000,
+          "easing": "ease-in-out"
+        },
+        {
+          "do": "move",
+          "to": "#export-body > div:not(.row):not(.result) > div.row:last-of-type > .btn",
+          "at": "68%",
+          "duration": 700
+        }
+      ],
+      "narration": {
+        "en": "The same page exports an MP4 in the size you choose, and a page for phones, ready to send.",
+        "it": "La stessa pagina esporta un MP4 della dimensione che scegli, e una pagina per i telefoni, pronta da inviare."
+      },
+      "hold": 600
     },
     {
       "id": "dashboard",
       "title": {
         "en": "The dashboard",
-        "it": "La pagina iniziale"
+        "it": "La dashboard"
       },
+      "scene": "studio-dashboard",
       "camera": {
-        "target": "#dlg",
-        "padding": 20
+        "target": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 720
+        },
+        "padding": 0
       },
       "actions": [
         {
+          "do": "hide",
+          "to": "#dlg > div > div",
+          "at": 0,
+          "effect": "none",
+          "duration": 0,
+          "stagger": 0
+        },
+        {
           "do": "move",
+          "to": "#dashboard",
+          "at": "6%",
+          "duration": 800
+        },
+        {
+          "do": "click",
+          "to": "#dashboard",
+          "at": "18%"
+        },
+        {
+          "do": "show",
           "to": "#dlg",
-          "at": "10%",
+          "at": "20%",
+          "effect": "scale",
+          "duration": 300
+        },
+        {
+          "do": "show",
+          "to": "#dlg > div > div",
+          "at": "24%",
+          "effect": "slide-up",
+          "duration": 320,
+          "stagger": 110
+        },
+        {
+          "do": "value",
+          "to": "[data-cue=dash-category]",
+          "value": "",
+          "at": "52%",
+          "animate": 200
+        },
+        {
+          "do": "type",
+          "to": "[data-cue=dash-category]",
+          "text": {
+            "en": "Getting started",
+            "it": "Per iniziare"
+          },
+          "at": "54%",
           "duration": 900
         },
         {
-          "do": "highlight",
-          "to": "#dlg",
-          "at": "35%",
-          "duration": 2200
+          "do": "scroll",
+          "to": "#dlg > div > div:nth-of-type(2)",
+          "in": "#dlg",
+          "at": "78%",
+          "margin": 40,
+          "duration": 700
         }
       ],
       "narration": {
         "en": "The Dashboard decides what the home page of the help site says: titles, categories and descriptions, one language at a time.",
         "it": "Dashboard decide cosa dice la home del sito di aiuto: titoli, categorie e descrizioni, una lingua alla volta."
       },
-      "scene": "studio-dashboard"
+      "hold": 600
     },
     {
       "id": "project",
@@ -73,11 +226,12 @@
         "en": "The project",
         "it": "Il progetto"
       },
+      "scene": "studio-project",
       "camera": {
         "target": {
-          "x": 360,
+          "x": 0,
           "y": 0,
-          "width": 560,
+          "width": 1280,
           "height": 720
         },
         "padding": 0
@@ -85,22 +239,60 @@
       "actions": [
         {
           "do": "move",
-          "to": "#dlg > :first-child",
-          "at": "10%",
-          "duration": 900
+          "to": "#project",
+          "at": "5%",
+          "duration": 800
+        },
+        {
+          "do": "click",
+          "to": "#project",
+          "at": "15%"
+        },
+        {
+          "do": "show",
+          "to": "#dlg",
+          "at": "17%",
+          "effect": "scale",
+          "duration": 300
+        },
+        {
+          "do": "move",
+          "to": "[data-cue=voice-browser]",
+          "at": "24%",
+          "duration": 600
         },
         {
           "do": "highlight",
-          "to": "#dlg > :first-child",
-          "at": "35%",
-          "duration": 2200
+          "to": "[data-cue=voice-browser]",
+          "at": "30%",
+          "duration": 1200
+        },
+        {
+          "do": "scroll",
+          "to": "[data-cue=brief-rules]",
+          "in": "#dlg",
+          "at": "48%",
+          "margin": 24,
+          "duration": 800
+        },
+        {
+          "do": "move",
+          "to": "[data-cue=brief-who]",
+          "at": "58%",
+          "duration": 600
+        },
+        {
+          "do": "highlight",
+          "to": "[data-cue=brief-who]",
+          "at": "64%",
+          "duration": 1300
         }
       ],
       "narration": {
-        "en": "Project holds the brief: who the tutorials are for, their tone, languages and the words the voice must pronounce differently.",
-        "it": "Project contiene il brief: per chi sono i tutorial, il tono, le lingue e le parole che la voce deve pronunciare diversamente."
+        "en": "Settings holds the default voice and the brief: who the tutorials are for, their tone, languages and the words the voice must pronounce differently.",
+        "it": "Settings contiene la voce predefinita e il brief: per chi sono i tutorial, il tono, le lingue e le parole che la voce deve pronunciare diversamente."
       },
-      "scene": "studio-project"
+      "hold": 600
     },
     {
       "id": "all",
@@ -108,29 +300,71 @@
         "en": "Build everything",
         "it": "Costruisci tutto"
       },
+      "scene": "studio-buildall",
       "camera": {
-        "target": "#exportall",
-        "padding": 200
+        "target": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 720
+        },
+        "padding": 0
       },
       "actions": [
         {
           "do": "move",
           "to": "#exportall",
-          "at": "10%",
-          "duration": 900
+          "at": "6%",
+          "duration": 800
         },
         {
-          "do": "highlight",
+          "do": "click",
           "to": "#exportall",
-          "at": "35%",
-          "duration": 2200
+          "at": "22%"
+        },
+        {
+          "do": "show",
+          "to": "#dlg",
+          "at": "24%",
+          "effect": "scale",
+          "duration": 300
+        },
+        {
+          "do": "move",
+          "to": "[data-cue=all-go]",
+          "at": "32%",
+          "duration": 600
+        },
+        {
+          "do": "click",
+          "to": "[data-cue=all-go]",
+          "at": "44%"
+        },
+        {
+          "do": "show",
+          "to": "[data-cue=all-result]",
+          "at": "48%",
+          "effect": "slide-up",
+          "duration": 320
+        },
+        {
+          "do": "count",
+          "to": "#dlg .result .msg.ok",
+          "at": "50%",
+          "from": 0,
+          "end": 3,
+          "duration": 1100,
+          "format": {
+            "prefix": "✓ 1 tutorial(s) and ",
+            "suffix": " dashboard page(s) built."
+          }
         }
       ],
       "narration": {
         "en": "Build in the header does it all: every video, the written guides and the home page, in one go.",
         "it": "Build nell'intestazione fa tutto: ogni video, le guide scritte e la pagina iniziale, in un colpo solo."
       },
-      "scene": "studio-timeline"
+      "hold": 600
     },
     {
       "id": "output",
@@ -138,29 +372,79 @@
         "en": "Where it ends up",
         "it": "Dove finisce"
       },
+      "scene": "site-home",
       "camera": {
-        "target": "#where",
-        "padding": 120
+        "target": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 720
+        },
+        "padding": 0
       },
       "actions": [
         {
+          "do": "hide",
+          "to": ".cf-bb-text > *",
+          "at": 0,
+          "effect": "none",
+          "duration": 0,
+          "stagger": 0
+        },
+        {
+          "do": "set",
+          "to": ".cf-quick",
+          "at": 0,
+          "attr": {
+            "style": "min-height:140px"
+          }
+        },
+        {
+          "do": "hide",
+          "to": ".cf-qk",
+          "at": 0,
+          "effect": "none",
+          "duration": 0,
+          "stagger": 0
+        },
+        {
+          "do": "show",
+          "to": ".cf-bb-text > *",
+          "at": "3%",
+          "effect": "slide-up",
+          "duration": 400,
+          "stagger": 130
+        },
+        {
+          "do": "show",
+          "to": ".cf-qk",
+          "at": "28%",
+          "effect": "scale",
+          "duration": 320,
+          "stagger": 120
+        },
+        {
           "do": "move",
-          "to": "#where",
-          "at": "10%",
-          "duration": 900
+          "to": ".cf-btns a:first-child",
+          "at": "52%",
+          "duration": 800
         },
         {
           "do": "highlight",
-          "to": "#where",
-          "at": "35%",
-          "duration": 2200
+          "to": ".cf-btns a:first-child",
+          "at": "62%",
+          "duration": 1400
         }
       ],
       "narration": {
-        "en": "The files land in the cueflow dist folder, next to dot cueflow. Open the home page in a browser, or put the folder on any static server, or inside an iframe of your own help.",
-        "it": "I file finiscono nella cartella cueflow dist, accanto a punto cueflow. Apri la home in un browser, oppure metti la cartella su un server statico, o in un iframe del tuo aiuto."
+        "en": "The files land in the cueflow-dist folder, next to .cueflow. Open the home page in a browser, put the folder on any static server, or inside an iframe of your own help.",
+        "it": "I file finiscono nella cartella cueflow-dist, accanto a .cueflow. Apri la home in un browser, metti la cartella su un server statico, o in un iframe del tuo aiuto."
       },
-      "scene": "studio-welcome"
+      "speech": {
+        "en": "The files land in the cueflow dist folder, next to dot cueflow. Open the home page in a browser, put the folder on any static server, or inside an iframe of your own help.",
+        "it": "I file finiscono nella cartella cueflow dist, accanto a punto cueflow. Apri la home in un browser, metti la cartella su un server statico, o in un iframe del tuo aiuto."
+      },
+      "hold": 600
     }
   ]
 }

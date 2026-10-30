@@ -2,10 +2,32 @@
   "id": "setup",
   "title": "Set up Cueflow and connect your assistant",
   "scene": "repo-page",
+  "vertical": false,
+  "format": "video",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "stage": {
+    "width": 640,
+    "height": 360
+  },
   "languages": [
     "en",
     "it"
   ],
+  "player": {
+    "captions": "below",
+    "chapters": true,
+    "speeds": [
+      1,
+      1.5
+    ],
+    "transcript": true,
+    "brand": "stage",
+    "fallbackVoice": "none"
+  },
+  "pronunciation": {},
   "steps": [
     {
       "id": "repo",
@@ -13,6 +35,7 @@
         "en": "Get the code",
         "it": "Prendi il codice"
       },
+      "scene": "repo-page",
       "camera": {
         "target": {
           "x": 0,
@@ -26,31 +49,41 @@
         {
           "do": "move",
           "to": "#code-btn",
-          "at": "5%",
+          "at": "22%",
           "duration": 800
         },
         {
           "do": "click",
           "to": "#code-btn",
-          "at": "30%"
+          "at": "42%"
         },
         {
           "do": "show",
           "to": "#clone-box",
-          "at": "32%"
+          "at": "44%",
+          "effect": "scale",
+          "duration": 280
+        },
+        {
+          "do": "camera",
+          "at": "52%",
+          "target": "#clone-box",
+          "padding": 40,
+          "duration": 1000,
+          "easing": "ease-in-out"
         },
         {
           "do": "highlight",
           "to": "#clone-url",
-          "at": "50%",
-          "duration": 2400
+          "at": "72%",
+          "duration": 1200
         }
       ],
       "narration": {
         "en": "Cueflow is open source. Open its repository on GitHub, press Code, and copy the address.",
         "it": "Cueflow è open source. Apri il suo repository su GitHub, premi Code e copia l'indirizzo."
       },
-      "scene": "repo-page"
+      "hold": 600
     },
     {
       "id": "clone",
@@ -58,10 +91,11 @@
         "en": "Clone it",
         "it": "Clonalo"
       },
+      "scene": "terminal",
       "camera": {
         "target": {
           "x": 0,
-          "y": 30,
+          "y": 40,
           "width": 1000,
           "height": 562
         },
@@ -72,22 +106,51 @@
           "do": "type",
           "to": "#c-clone",
           "text": "git clone https://github.com/Byte42-it/cueflow",
-          "at": "15%",
-          "duration": 2200
+          "at": "8%",
+          "duration": 1500
+        },
+        {
+          "do": "show",
+          "to": "#o-cloning",
+          "at": "42%",
+          "effect": "slide-up",
+          "duration": 320
+        },
+        {
+          "do": "show",
+          "to": "#o-receiving",
+          "at": "48%",
+          "effect": "slide-up",
+          "duration": 320
+        },
+        {
+          "do": "count",
+          "to": "#n-recv",
+          "at": "50%",
+          "from": 0,
+          "end": 100,
+          "duration": 1000
+        },
+        {
+          "do": "show",
+          "to": "#l-cd",
+          "at": "76%",
+          "effect": "slide-up",
+          "duration": 320
         },
         {
           "do": "type",
           "to": "#c-cd",
           "text": "cd cueflow",
-          "at": "70%",
-          "duration": 700
+          "at": "78%",
+          "duration": 500
         }
       ],
       "narration": {
         "en": "In a terminal, run git clone with that address, then move into the new folder.",
         "it": "In un terminale esegui git clone con quell'indirizzo, poi entra nella nuova cartella."
       },
-      "scene": "terminal"
+      "hold": 600
     },
     {
       "id": "install",
@@ -95,10 +158,11 @@
         "en": "Install",
         "it": "Installa"
       },
+      "scene": "terminal",
       "camera": {
         "target": {
           "x": 0,
-          "y": 30,
+          "y": 40,
           "width": 1000,
           "height": 562
         },
@@ -106,18 +170,40 @@
       },
       "actions": [
         {
+          "do": "show",
+          "to": "#l-install",
+          "at": "4%",
+          "effect": "slide-up",
+          "duration": 320
+        },
+        {
           "do": "type",
           "to": "#c-install",
           "text": "npm install",
-          "at": "30%",
-          "duration": 900
+          "at": "8%",
+          "duration": 800
+        },
+        {
+          "do": "show",
+          "to": "#o-install",
+          "at": "42%",
+          "effect": "slide-up",
+          "duration": 320
+        },
+        {
+          "do": "count",
+          "to": "#n-pkg",
+          "at": "44%",
+          "from": 0,
+          "end": 133,
+          "duration": 1300
         }
       ],
       "narration": {
         "en": "Install the dependencies with npm install. You need Node 22 or newer.",
         "it": "Installa le dipendenze con npm install. Serve Node 22 o più recente."
       },
-      "scene": "terminal"
+      "hold": 600
     },
     {
       "id": "example",
@@ -125,10 +211,11 @@
         "en": "See the example",
         "it": "Guarda l'esempio"
       },
+      "scene": "terminal",
       "camera": {
         "target": {
           "x": 0,
-          "y": 30,
+          "y": 40,
           "width": 1000,
           "height": 562
         },
@@ -136,29 +223,38 @@
       },
       "actions": [
         {
+          "do": "show",
+          "to": "#l-studio",
+          "at": "4%",
+          "effect": "slide-up",
+          "duration": 320
+        },
+        {
           "do": "type",
           "to": "#c-studio",
           "text": "npm run studio",
-          "at": "25%",
+          "at": "10%",
           "duration": 1000
         },
         {
           "do": "show",
           "to": "#o-studio",
-          "at": "60%"
+          "at": "52%",
+          "effect": "slide-up",
+          "duration": 320
         },
         {
           "do": "highlight",
           "to": "#o-studio",
-          "at": "70%",
-          "duration": 2200
+          "at": "58%",
+          "duration": 1800
         }
       ],
       "narration": {
         "en": "To see an example, run npm run studio inside the cueflow folder. Studio opens on the tutorials that explain Cueflow itself.",
         "it": "Per vedere un esempio, esegui npm run studio dentro la cartella cueflow. Si apre sui tutorial che spiegano Cueflow."
       },
-      "scene": "terminal"
+      "hold": 600
     },
     {
       "id": "own",
@@ -166,10 +262,11 @@
         "en": "Use it on your project",
         "it": "Usalo sul tuo progetto"
       },
+      "scene": "terminal",
       "camera": {
         "target": {
           "x": 0,
-          "y": 30,
+          "y": 40,
           "width": 1000,
           "height": 562
         },
@@ -177,18 +274,33 @@
       },
       "actions": [
         {
+          "do": "show",
+          "to": "#l-own",
+          "at": "4%",
+          "effect": "slide-up",
+          "duration": 320
+        },
+        {
           "do": "type",
           "to": "#c-own",
           "text": "node ../cueflow/src/cli.ts studio",
-          "at": "25%",
+          "at": "12%",
           "duration": 1800
+        },
+        {
+          "do": "show",
+          "to": ".own-out",
+          "at": "70%",
+          "effect": "slide-up",
+          "duration": 300,
+          "stagger": 160
         }
       ],
       "narration": {
         "en": "To make tutorials for your own product, run Studio from your project's folder instead, and point to Cueflow's cli. Studio then creates its kit there.",
         "it": "Per i tutorial del tuo prodotto, avvia invece Studio dalla cartella del progetto, indicando il cli di Cueflow. Lì crea il suo kit."
       },
-      "scene": "terminal"
+      "hold": 600
     },
     {
       "id": "kit",
@@ -196,6 +308,7 @@
         "en": "One folder, one project",
         "it": "Una cartella, un progetto"
       },
+      "scene": "studio-welcome",
       "camera": {
         "target": "#where",
         "padding": 120
@@ -204,21 +317,38 @@
         {
           "do": "move",
           "to": "#where",
-          "at": "10%",
-          "duration": 900
+          "at": "12%",
+          "duration": 800
         },
         {
           "do": "highlight",
           "to": "#where",
           "at": "30%",
           "duration": 2200
+        },
+        {
+          "do": "camera",
+          "at": "76%",
+          "target": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 720
+          },
+          "padding": 0,
+          "duration": 1100,
+          "easing": "ease-in-out"
         }
       ],
       "narration": {
-        "en": "Cueflow keeps your tutorials as data, in a folder called dot cueflow inside your project. Run cueflow init once to create it.",
-        "it": "Cueflow conserva i tutorial come dati, in una cartella chiamata punto cueflow dentro il tuo progetto. Esegui cueflow init una volta per crearla."
+        "en": "Cueflow keeps your tutorials as data, in a folder called .cueflow inside your project. Studio creates it the first time.",
+        "it": "Cueflow conserva i tutorial come dati, in una cartella chiamata .cueflow dentro il tuo progetto. Studio la crea la prima volta."
       },
-      "scene": "studio-welcome"
+      "speech": {
+        "en": "Cueflow keeps your tutorials as data, in a folder called dot cueflow inside your project. Studio creates it the first time.",
+        "it": "Cueflow conserva i tutorial come dati, in una cartella chiamata punto cueflow dentro il tuo progetto. Studio la crea la prima volta."
+      },
+      "hold": 600
     },
     {
       "id": "studio",
@@ -226,29 +356,53 @@
         "en": "Open Studio",
         "it": "Apri Studio"
       },
+      "scene": "studio-welcome",
       "camera": {
-        "target": "#welcome",
-        "padding": 30
+        "target": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 720
+        },
+        "padding": 0
       },
       "actions": [
         {
-          "do": "move",
-          "to": "#welcome-prompt",
-          "at": "20%",
-          "duration": 900
+          "do": "hide",
+          "to": ".wbox > *",
+          "at": 0,
+          "effect": "none",
+          "duration": 0,
+          "stagger": 0
+        },
+        {
+          "do": "show",
+          "to": ".wbox > *",
+          "at": "4%",
+          "effect": "slide-up",
+          "duration": 340,
+          "stagger": 110
+        },
+        {
+          "do": "camera",
+          "at": "58%",
+          "target": "#welcome-prompt",
+          "padding": 70,
+          "duration": 1000,
+          "easing": "ease-in-out"
         },
         {
           "do": "highlight",
           "to": "#welcome-prompt",
-          "at": "35%",
-          "duration": 2200
+          "at": "72%",
+          "duration": 1400
         }
       ],
       "narration": {
-        "en": "Then run cueflow studio from your project's folder: it finds the kit by itself and opens in the browser. The kit is empty, so Studio offers a prompt for your assistant.",
-        "it": "Poi esegui cueflow studio dalla cartella del progetto: trova il kit da solo e si apre nel browser. Il kit è vuoto, quindi Studio propone un prompt per il tuo assistente."
+        "en": "Studio opens in the browser and finds the kit by itself. The kit is empty, so it offers a prompt for your assistant.",
+        "it": "Studio si apre nel browser e trova il kit da solo. Il kit è vuoto, quindi propone un prompt per il tuo assistente."
       },
-      "scene": "studio-welcome"
+      "hold": 600
     },
     {
       "id": "copy",
@@ -256,34 +410,42 @@
         "en": "Copy the prompt",
         "it": "Copia il prompt"
       },
+      "scene": "studio-welcome",
       "camera": {
         "target": "#welcome-copy",
-        "padding": 160
+        "padding": 130
       },
       "actions": [
         {
           "do": "move",
           "to": "#welcome-copy",
-          "at": "10%",
-          "duration": 900
+          "at": "8%",
+          "duration": 800
         },
         {
           "do": "click",
           "to": "#welcome-copy",
-          "at": "35%"
+          "at": "26%"
+        },
+        {
+          "do": "set",
+          "to": "#welcome-copy",
+          "at": "28%",
+          "text": "Copied",
+          "animate": 200
         },
         {
           "do": "highlight",
           "to": "#welcome-copy",
-          "at": "40%",
-          "duration": 2200
+          "at": "30%",
+          "duration": 1300
         }
       ],
       "narration": {
-        "en": "Press Copy the prompt, open your assistant in the project's folder, and paste it. Claude Code works well, and so does any assistant that can run curl or use M C P.",
-        "it": "Premi Copy the prompt, apri il tuo assistente nella cartella del progetto e incollalo. Va bene Claude Code, ma anche ogni assistente che sa eseguire curl o usare M C P."
+        "en": "Press Copy the prompt, open your assistant in the project's folder, and paste it. Claude Code works well, and so does any assistant that can run curl or use MCP.",
+        "it": "Premi Copy the prompt, apri il tuo assistente nella cartella del progetto e incollalo. Va bene Claude Code, ma anche ogni assistente che sa eseguire curl o usare MCP."
       },
-      "scene": "studio-welcome"
+      "hold": 600
     },
     {
       "id": "door",
@@ -291,64 +453,109 @@
         "en": "Studio's own door",
         "it": "La porta di Studio"
       },
+      "scene": "studio-ai",
       "camera": {
-        "target": "#dlg",
-        "padding": 20
+        "target": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 720
+        },
+        "padding": 0
       },
       "actions": [
         {
           "do": "move",
           "to": "#ai",
-          "at": "5%",
-          "duration": 900
+          "at": "6%",
+          "duration": 800
         },
         {
           "do": "click",
           "to": "#ai",
-          "at": "25%"
+          "at": "20%"
+        },
+        {
+          "do": "show",
+          "to": "#dlg",
+          "at": "22%",
+          "effect": "scale",
+          "duration": 320
+        },
+        {
+          "do": "camera",
+          "at": "30%",
+          "target": "#dlg",
+          "padding": 24,
+          "duration": 1000,
+          "easing": "ease-in-out"
         },
         {
           "do": "highlight",
-          "to": "#dlg",
-          "at": "45%",
-          "duration": 2600
+          "to": "#dlg pre.prompt",
+          "at": "48%",
+          "duration": 2200
         }
       ],
       "narration": {
-        "en": "The prompt gives the assistant Studio's own door: a few curl commands that work while Studio runs, on this computer only. You can also add Cueflow as an M C P server.",
-        "it": "Il prompt dà all'assistente la porta di Studio: pochi comandi curl che funzionano finché Studio è aperto, solo su questo computer. Puoi anche aggiungere Cueflow come server M C P."
+        "en": "The prompt gives the assistant Studio's own door: a few curl commands that work while Studio runs, on this computer only. You can also add Cueflow as an MCP server.",
+        "it": "Il prompt dà all'assistente la porta di Studio: pochi comandi curl che funzionano finché Studio è aperto, solo su questo computer. Puoi anche aggiungere Cueflow come server MCP."
       },
-      "scene": "studio-ai"
+      "hold": 600
     },
     {
       "id": "connected",
       "title": {
         "en": "Talk to it from Studio",
-        "it": "Parlaci da Studio"
+        "it": "Parlagli da Studio"
       },
+      "scene": "studio-timeline",
       "camera": {
         "target": "#film",
-        "padding": 40
+        "padding": 30
       },
       "actions": [
         {
-          "do": "move",
-          "to": "#film",
-          "at": "10%",
-          "duration": 900
+          "do": "hide",
+          "to": "#film .tilewrap",
+          "at": 0,
+          "effect": "none",
+          "duration": 0,
+          "stagger": 0
         },
         {
-          "do": "highlight",
-          "to": "#film",
-          "at": "40%",
-          "duration": 2200
+          "do": "show",
+          "to": "#film .tilewrap",
+          "at": "42%",
+          "effect": "slide-up",
+          "duration": 380,
+          "stagger": 180
+        },
+        {
+          "do": "move",
+          "to": "#film .tilewrap:nth-of-type(3)",
+          "at": "58%",
+          "duration": 800
+        },
+        {
+          "do": "camera",
+          "at": "80%",
+          "target": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 720
+          },
+          "padding": 0,
+          "duration": 1000,
+          "easing": "ease-in-out"
         }
       ],
       "narration": {
         "en": "Once connected, what you ask in Studio goes straight to the assistant, and the tutorials it makes appear here by themselves.",
         "it": "Una volta collegato, quello che chiedi in Studio arriva direttamente all'assistente, e i tutorial che crea compaiono qui da soli."
       },
-      "scene": "studio-timeline"
+      "hold": 600
     }
   ]
 }
