@@ -2,7 +2,7 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseHTML } from "linkedom";
-import { buildGuide, embed, escapeHtml, estimateDuration, guideBundle, playerAssets, writeAtomic } from "./build.ts";
+import { buildGuide, embed, escapeHtml, estimateDuration, guideBundle, playerAssets, writeAtomic, type GuideBundle } from "./build.ts";
 import { loadBrief } from "./brief.ts";
 import { recordChange } from "./changes.ts";
 import { listGuides, loadGuide, type Kit } from "./kit.ts";
@@ -167,6 +167,48 @@ function durationLabel(guide: Parameters<typeof estimateDuration>[0], languages:
 
 export type SiteResult = { dir: string; pages: string[]; posters: string[]; warnings: string[] };
 
+/** A data URI as a file: its bytes and an extension for its type. */
+function fromDataUri(uri: string): { bytes: Buffer; ext: string } | null {
+  const m = /^data:([^;,]+)(;base64)?,(.*)$/s.exec(uri);
+  if (!m) return null;
+  const mime = m[1]!.toLowerCase();
+  const ext = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/svg+xml": "svg", "image/webp": "webp", "image/x-icon": "ico", "image/avif": "avif",
+    "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/wav": "wav", "audio/x-wav": "wav", "audio/ogg": "ogg",
+    "font/woff2": "woff2", "font/woff": "woff", "font/ttf": "ttf", "font/otf": "otf" }[mime] ?? mime.split("/")[1]!.replace(/[^a-z0-9]/g, "") ?? "bin";
+  return { bytes: m[2] ? Buffer.from(m[3]!, "base64") : Buffer.from(decodeURIComponent(m[3]!), "utf8"), ext };
+}
+
+/**
+ * The guide's data for a page of the site: the stylesheets and images shared by the scenes, and the audio, become
+ * files under assets/ (once per content across the whole site), and the page carries their addresses. A guide built on
+ * its own (dist/<id>.html) stays one self-contained file; this is only for the site, where the parts repeat from page
+ * to page. The player takes `{ url }` where it took content.
+ */
+async function externalize(data: GuideBundle["data"], out: string, guideId: string, written: Set<string>): Promise<GuideBundle["data"]> {
+  const shared: Record<string, string | { url: string }> = {};
+  for (const [hash, content] of Object.entries(data.shared)) {
+    const file = fromDataUri(content);
+    const name = file ? `${hash}.${file.ext}` : `${hash}.css`;
+    if (!written.has(name)) {
+      // :hover rules answer to .cf-hover in a scene (the player does this for inline stylesheets, see `hoverable`)
+      await writeAtomic(path.join(out, "assets", "shared", name), file ? file.bytes : content.replace(/:hover\b/g, ".cf-hover"));
+      written.add(name);
+    }
+    shared[hash] = { url: `../assets/shared/${name}` };
+  }
+  const audio: Record<string, Record<string, string>> = {};
+  for (const [lang, steps] of Object.entries(data.audio)) {
+    for (const [stepId, uri] of Object.entries(steps)) {
+      const file = fromDataUri(uri);
+      if (!file) { (audio[lang] ??= {})[stepId] = uri; continue; }
+      const rel = `audio/${guideId}/${lang}/${stepId}.${file.ext}`;
+      if (!written.has(rel)) { await writeAtomic(path.join(out, "assets", rel), file.bytes); written.add(rel); }
+      (audio[lang] ??= {})[stepId] = `../assets/${rel}`;
+    }
+  }
+  return { ...data, shared: shared as GuideBundle["data"]["shared"], audio };
+}
+
 export async function buildSite(kit: Kit, opts: { provider?: TtsProvider | null; posters?: boolean }): Promise<SiteResult> {
   const site = await loadSite(kit);
   const report = await validateSite(kit, site);
@@ -216,9 +258,12 @@ export async function buildSite(kit: Kit, opts: { provider?: TtsProvider | null;
   const durations: Record<string, Localized> = {};
   const formats: Record<string, "video" | "slides"> = {};
   const bundles: Record<string, Awaited<ReturnType<typeof guideBundle>>> = {};
+  const external: Record<string, GuideBundle["data"]> = {}; // the same bundle with its heavy parts as files
+  const written = new Set<string>();
   for (const it of site.items) {
     if (!it.guide || it.status === "soon") continue;
     const b = (bundles[it.guide] ??= await guideBundle(kit, it.guide, opts.provider));
+    external[it.guide] ??= await externalize(b.data, out, it.guide, written);
     warnings.push(...b.warnings.map((w) => `${it.guide}: ${w}`));
     chapters[it.id] = b.guide.steps.map((s, i) => s.title ?? `${i + 1}`);
     formats[it.id] = b.guide.format;
@@ -319,7 +364,7 @@ ${body}
       item: it.id,
       articles,
       next: nextOf(it.id),
-      guide: b ? { ...b.data, labels: theme.labels } : undefined
+      guide: b ? { ...external[it.guide!]!, labels: theme.labels } : undefined
     };
     await writeAtomic(path.join(out, it.id, "index.html"), page(`${name(it.title)} · ${name(site.title)}`, "../", body, data));
     pages.push(`${it.id}/index.html`);

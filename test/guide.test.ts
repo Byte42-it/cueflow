@@ -121,7 +121,8 @@ describe("build", () => {
     const r = await buildGuide(kit, "upload", null);
     assert.equal(r.silent, true);
     const html = await readFile(r.file, "utf8");
-    assert.ok(!/<link[^>]+stylesheet/.test(html), "stylesheets are inlined");
+    const markup = html.replace(/<script[\s\S]*?<\/script>/g, ""); // the player's source mentions <link> for the docs site
+    assert.ok(!/<link[^>]+stylesheet/.test(markup), "stylesheets are inlined");
     assert.match(html, /Cueflow\.mount/);
     assert.match(html, /How to upload a document/);
   });

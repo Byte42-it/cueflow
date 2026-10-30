@@ -218,12 +218,16 @@
     function $all(sel) { try { return Array.prototype.slice.call(doc().querySelectorAll(sel)); } catch (e) { return []; } }
 
     /* stylesheets and images shared by the scenes travel once in DATA.shared; the scenes keep placeholders */
+    /* a shared part is its content (a guide built on its own) or { url } (a docs site, where the parts are files) */
     function withShared(html) {
       var shared = DATA.shared || {};
       return String(html)
-        .replace(/<style data-cf-style="([0-9a-f]+)"><\/style>/g, function (_, h) { return "<style>" + hoverable(shared[h] || "") + "</style>"; })
+        .replace(/<style data-cf-style="([0-9a-f]+)"><\/style>/g, function (_, h) {
+          var v = shared[h];
+          return v && v.url ? '<link rel="stylesheet" href="' + v.url + '">' : "<style>" + hoverable(v || "") + "</style>";
+        })
         .replace(/<style([^>]*)>([\s\S]*?)<\/style>/g, function (_, attrs, css) { return "<style" + attrs + ">" + hoverable(css) + "</style>"; })
-        .replace(/cf-shared:([0-9a-f]+)/g, function (_, h) { return shared[h] || ""; });
+        .replace(/cf-shared:([0-9a-f]+)/g, function (_, h) { var v = shared[h]; return v && v.url ? v.url : v || ""; });
     }
     /* the scene never sees a real pointer: its :hover rules answer to .cf-hover, which the hover action sets */
     function hoverable(css) { return css.replace(/:hover\b/g, ".cf-hover"); }

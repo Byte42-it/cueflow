@@ -177,8 +177,12 @@ that is not installed: use `CUEFLOW_CHROMIUM=~/Library/Caches/ms-playwright/chro
 7. ~~UI translation of the scene itself~~ done: `scenes/<lang>/<scene>.html`, texts per language, one language per docs site.
 8. Publish: TypeScript build step (`tsc` emit or tsdown), publish `@byte-42/cueflow` on npm, CI, `.github` templates, an
    English-first README with a GIF of the demo.
-9. Site: serve `shared/` as files next to the site's assets instead of embedding it in every item page (each page
-   now carries its guide's shared parts once; across pages they repeat).
+9. ~~Site: serve `shared/` as files next to the site's assets~~ done (2026-10-30): `externalize` in `site.ts` writes
+   the scenes' shared stylesheets/images to `assets/shared/<hash>.<ext>` and the audio to
+   `assets/audio/<guide>/<lang>/<step>.<ext>`, once per content for the whole site; item pages carry `{ url }` in
+   `DATA.shared` and addresses in `DATA.audio`, and the player's `withShared` links instead of inlining (a `<link>` for
+   a stylesheet; `:hover` → `.cf-hover` is applied when the file is written). A guide built on its own
+   (`dist/<id>.html`, the phone page) stays one self-contained file. This is also what an avatar's clips will use.
 
 ## Conventions
 

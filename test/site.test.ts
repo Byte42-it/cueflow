@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
-import { openKit, type Kit } from "../src/kit.ts";
+import { loadGuide, openKit, saveGuide, type Kit } from "../src/kit.ts";
 import { Site } from "../src/schema.ts";
 import { buildSite, checkEndpoint, loadSite, siteFile, validateSite } from "../src/site.ts";
 
@@ -66,6 +66,33 @@ describe("site", () => {
     assert.ok(r.warnings.some((w) => /item "sharing": no pages\/it\/sharing\.html/.test(w)));
     const sharing = pageData(await readFile(path.join(r.dir, "sharing", "index.html"), "utf8"));
     assert.deepEqual(Object.keys(sharing.articles), ["en"], "an untranslated article is stored once, in the original");
+  });
+
+  it("keeps the scenes' shared parts and the audio as files under assets, once for the whole site", async () => {
+    // a step with its own audio file: the page must link it, not carry it
+    const g = await loadGuide(kit, "upload");
+    await mkdir(path.join(kit.root, "media", "upload", "voice"), { recursive: true });
+    await writeFile(path.join(kit.root, "media", "upload", "voice", "a.en.mp3"), Buffer.from("ID3fake"));
+    g.steps[0]!.voice = { en: { provider: "file", file: "media/upload/voice/a.en.mp3" } };
+    await saveGuide(kit, g);
+    try {
+      const r = await buildSite(kit, { provider: null });
+      const item = pageData(await readFile(path.join(r.dir, "upload", "index.html"), "utf8"));
+      const shared = Object.values(item.guide.shared) as { url: string }[];
+      assert.ok(shared.length >= 1);
+      for (const v of shared) {
+        assert.match(v.url, /^\.\.\/assets\/shared\/[0-9a-f]{16}\.(css|png|jpg|gif|svg|webp)$/);
+        assert.ok(await stat(path.join(r.dir, "upload", v.url)).then((s) => s.isFile()), v.url);
+      }
+      const css = await readFile(path.join(r.dir, "upload", shared.find((v) => v.url.endsWith(".css"))!.url), "utf8");
+      assert.match(css, /\.btn\.cf-hover/, "hover rules answer to the hover action, as inline ones do");
+      assert.equal(item.guide.audio.en[g.steps[0]!.id], "../assets/audio/upload/en/intro.mp3");
+      assert.equal((await readFile(path.join(r.dir, "assets", "audio", "upload", "en", "intro.mp3"))).toString(), "ID3fake");
+      assert.doesNotMatch(await readFile(path.join(r.dir, "upload", "index.html"), "utf8"), /data:audio/, "no audio inline in a page of the site");
+    } finally {
+      delete g.steps[0]!.voice;
+      await saveGuide(kit, g);
+    }
   });
 
   it("ships one stylesheet with site, player and kit theme in that order", async () => {
