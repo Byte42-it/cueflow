@@ -1,0 +1,344 @@
+{
+  "id": "studio-tour",
+  "title": "Meet Cueflow Studio",
+  "scene": "studio-timeline",
+  "vertical": false,
+  "format": "video",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "stage": {
+    "width": 640,
+    "height": 360
+  },
+  "languages": [
+    "en",
+    "it"
+  ],
+  "player": {
+    "captions": "below",
+    "chapters": true,
+    "speeds": [
+      1,
+      1.5
+    ],
+    "transcript": true,
+    "brand": "stage",
+    "fallbackVoice": "none",
+    "avatar": {
+      "provider": "svg",
+      "position": "bottom-right",
+      "size": 0.24,
+      "shape": "round",
+      "background": "#1f2a44"
+    }
+  },
+  "pronunciation": {},
+  "steps": [
+    {
+      "id": "intro",
+      "title": {
+        "en": "A tutorial is data",
+        "it": "Un tutorial è un dato"
+      },
+      "camera": {
+        "target": "#page-timeline",
+        "padding": 0
+      },
+      "actions": [
+        {
+          "do": "hide",
+          "to": "#film, #page-timeline > div:nth-of-type(1) > aside, #strip",
+          "at": 0,
+          "effect": "none",
+          "duration": 200,
+          "stagger": 0
+        },
+        {
+          "do": "show",
+          "to": "#film, #page-timeline > div:nth-of-type(1) > aside, #strip",
+          "at": "12%",
+          "effect": "slide-up",
+          "duration": 500,
+          "stagger": 160
+        }
+      ],
+      "narration": {
+        "en": "This is Cueflow Studio. A tutorial here is data, not a recording: your tutorials on the left, the screen in the middle, what is said on the right.",
+        "it": "Questo è Cueflow Studio. Qui un tutorial è un dato, non una registrazione: a sinistra i tuoi tutorial, al centro lo schermo, a destra quello che viene detto."
+      },
+      "hold": 600
+    },
+    {
+      "id": "films",
+      "title": {
+        "en": "Your tutorials",
+        "it": "I tuoi tutorial"
+      },
+      "camera": {
+        "target": "#film",
+        "padding": 24
+      },
+      "actions": [
+        {
+          "do": "hover",
+          "to": "#film > div:nth-of-type(2) > button:nth-of-type(1)",
+          "at": "20%",
+          "duration": 1200
+        },
+        {
+          "do": "highlight",
+          "to": "#film > div:nth-of-type(2) > button:nth-of-type(1)",
+          "at": "25%",
+          "duration": 2200,
+          "style": "glow"
+        },
+        {
+          "do": "highlight",
+          "to": "#film > div:nth-of-type(3) > button:nth-of-type(1)",
+          "at": "70%",
+          "duration": 1600,
+          "style": "ring"
+        }
+      ],
+      "narration": {
+        "en": "Every tutorial is a file in your project: the video, its written part, and what is announced for later.",
+        "it": "Ogni tutorial è un file nel tuo progetto: il video, la sua parte scritta e ciò che è annunciato per dopo."
+      },
+      "hold": 600
+    },
+    {
+      "id": "words",
+      "title": {
+        "en": "Change a word, the voice follows",
+        "it": "Cambia una parola, la voce segue"
+      },
+      "camera": {
+        "target": "#page-timeline > div:nth-of-type(1) > aside",
+        "padding": 20
+      },
+      "actions": [
+        {
+          "do": "highlight",
+          "to": "#narr",
+          "at": "15%",
+          "duration": 2400,
+          "style": "ring"
+        },
+        {
+          "do": "move",
+          "to": "#panel > div:nth-of-type(1) > button:nth-of-type(2)",
+          "at": "60%",
+          "duration": 800
+        },
+        {
+          "do": "hover",
+          "to": "#panel > div:nth-of-type(1) > button:nth-of-type(2)",
+          "at": "75%",
+          "duration": 1400
+        },
+        {
+          "do": "highlight",
+          "to": "#panel > div:nth-of-type(1) > button:nth-of-type(2)",
+          "at": "75%",
+          "duration": 1600,
+          "style": "glow"
+        }
+      ],
+      "narration": {
+        "en": "The narration is text. Fix a word, press Listen, and the voice reads the new sentence: nothing to record again.",
+        "it": "La narrazione è testo. Correggi una parola, premi Ascolta, e la voce legge la frase nuova: niente da registrare di nuovo."
+      },
+      "hold": 600
+    },
+    {
+      "id": "actions",
+      "title": {
+        "en": "What moves on screen",
+        "it": "Cosa si muove sullo schermo"
+      },
+      "scene": "studio-actions",
+      "camera": {
+        "target": "#panel",
+        "padding": 16
+      },
+      "actions": [
+        {
+          "do": "hide",
+          "to": "#panel .act",
+          "at": 0,
+          "effect": "none",
+          "duration": 200,
+          "stagger": 0
+        },
+        {
+          "do": "show",
+          "to": "#panel .act",
+          "at": "10%",
+          "effect": "slide-up",
+          "duration": 450,
+          "stagger": 140
+        },
+        {
+          "do": "hover",
+          "to": "#panel > div:nth-of-type(1) > div:nth-of-type(2) > label:nth-of-type(3) > select",
+          "at": "60%",
+          "duration": 1500
+        },
+        {
+          "do": "highlight",
+          "to": "#panel > div:nth-of-type(1) > div:nth-of-type(2) > label:nth-of-type(3) > select",
+          "at": "60%",
+          "duration": 1800,
+          "style": "glow"
+        }
+      ],
+      "narration": {
+        "en": "What moves on screen is a list of actions: a cursor, a click, a highlight, each with its moment and its easing.",
+        "it": "Ciò che si muove sullo schermo è una lista di azioni: un cursore, un click, un'evidenziazione, ognuna con il suo momento e il suo easing."
+      },
+      "hold": 600
+    },
+    {
+      "id": "timeline",
+      "title": {
+        "en": "The timeline",
+        "it": "La timeline"
+      },
+      "scene": "studio-timeline",
+      "camera": {
+        "target": "#strip",
+        "padding": 12
+      },
+      "actions": [
+        {
+          "do": "hide",
+          "to": "#strip .mk",
+          "at": 0,
+          "effect": "none",
+          "duration": 200,
+          "stagger": 0
+        },
+        {
+          "do": "show",
+          "to": "#strip .mk",
+          "at": "20%",
+          "effect": "scale",
+          "duration": 350,
+          "stagger": 90
+        },
+        {
+          "do": "highlight",
+          "to": "#strip",
+          "at": "65%",
+          "duration": 1800,
+          "style": "spotlight"
+        }
+      ],
+      "narration": {
+        "en": "The timeline shows every step and when each action plays, so you can judge the rhythm before anyone hears it.",
+        "it": "La timeline mostra ogni passo e quando parte ogni azione, così giudichi il ritmo prima che qualcuno lo ascolti."
+      },
+      "hold": 600
+    },
+    {
+      "id": "preview",
+      "title": {
+        "en": "Preview",
+        "it": "Anteprima"
+      },
+      "scene": "studio-preview",
+      "camera": {
+        "target": "#page-preview",
+        "padding": 10
+      },
+      "actions": [
+        {
+          "do": "move",
+          "to": "#prev-bar > button:nth-of-type(1)",
+          "at": "10%",
+          "duration": 800
+        },
+        {
+          "do": "hover",
+          "to": "#prev-bar > button:nth-of-type(1)",
+          "at": "28%",
+          "duration": 900
+        },
+        {
+          "do": "click",
+          "to": "#prev-bar > button:nth-of-type(1)",
+          "at": "40%"
+        },
+        {
+          "do": "highlight",
+          "to": "#prev-view",
+          "at": "50%",
+          "duration": 2600,
+          "style": "spotlight"
+        }
+      ],
+      "narration": {
+        "en": "Preview plays exactly what viewers will get: scenes, camera, cursor, captions.",
+        "it": "L'anteprima riproduce esattamente ciò che vedranno gli spettatori: scene, camera, cursore, sottotitoli."
+      },
+      "hold": 600
+    },
+    {
+      "id": "site",
+      "title": {
+        "en": "Build, and it is online",
+        "it": "Costruisci, ed è online"
+      },
+      "scene": "site-home",
+      "camera": {
+        "target": "#cf-home",
+        "padding": 0
+      },
+      "actions": [
+        {
+          "do": "hide",
+          "to": "#cf-home > section:nth-of-type(1), .cf-quick > *",
+          "at": 0,
+          "effect": "none",
+          "duration": 200,
+          "stagger": 0
+        },
+        {
+          "do": "show",
+          "to": "#cf-home > section:nth-of-type(1), .cf-quick > *",
+          "at": "10%",
+          "effect": "slide-up",
+          "duration": 500,
+          "stagger": 160
+        },
+        {
+          "do": "camera",
+          "at": "55%",
+          "target": "#cf-home > section:nth-of-type(2)",
+          "padding": 24,
+          "duration": 900
+        },
+        {
+          "do": "hover",
+          "to": ".cf-quick > a:nth-of-type(1)",
+          "at": "72%",
+          "duration": 1600
+        },
+        {
+          "do": "highlight",
+          "to": ".cf-quick > a:nth-of-type(1)",
+          "at": "72%",
+          "duration": 1800,
+          "style": "glow"
+        }
+      ],
+      "narration": {
+        "en": "Press Build and the help site is ready: a home, one page per tutorial, transcript included. No camera and no editing, just data and a voice.",
+        "it": "Premi Build e il sito di aiuto è pronto: una home, una pagina per tutorial, trascrizione inclusa. Niente telecamera e niente montaggio, solo dati e una voce."
+      },
+      "hold": 600
+    }
+  ]
+}
