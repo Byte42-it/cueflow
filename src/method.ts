@@ -108,9 +108,10 @@ x/y), side (a half-bust panel at the left or right), band (bottom or top), full 
 conclusion), off. Offer it only when the person asks for a presenter; keep it where it covers nothing the step points
 at (a step can go off or move it), and never on slides. A real person: "image" (a picture they upload, or
 generate_portrait from words) with provider image (the picture sways as it speaks, free) or fantastico (at build, a
-video of that person saying every step that shows the narrator with the tutorial's own voice — HeyGen Avatar IV
-through Fantastico, paid with its key, about $0.05 per second: say so, and keep the narrator off where it is not
-needed). Previews show the picture.
+video of that person saying every step that shows the narrator, with one of the model's own voices ("voices" per
+language; none chosen → the first export picks one and keeps it in the project, the person can change it in Studio) —
+HeyGen Avatar IV through Fantastico, paid with its key, about $0.05 per second: say so, and keep the narrator off where
+it is not needed). Previews show the picture.
 
 ## What the person edits by hand
 The person can change texts in Studio themselves (a button, a description, a narration, a file). get_brief says how

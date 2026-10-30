@@ -38,7 +38,7 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
     const levels = [kit.settings.avatar, guide.player.avatar, ...guide.steps.map((s) => s.avatar)];
     const hasVoice = (lang: string) => levels.some((a) => a?.voices?.[lang]);
     const generated = levels.some((a) => isGenerated(a?.provider)) && levels.some((a) => a?.image);
-    if (generated && guide.format !== "slides") for (const lang of guide.languages) if (!hasVoice(lang)) warnings.push(`avatar: the generated narrator has no voice for "${lang}" (set \`voices.${lang}\` in Studio's Avatar page, or with set_avatar): no clip is generated in this language, the picture is shown and the usual voice reads it`);
+    if (generated && guide.format !== "slides") for (const lang of guide.languages) if (!hasVoice(lang)) warnings.push(`avatar: the generated narrator has no voice for "${lang}" yet: the first export picks one of the model's voices and keeps it in cueflow.json (avatar.voices.${lang}); set it yourself in Studio's Avatar page or with set_avatar to choose`);
   }
   for (const p of pictures) {
     if (p.file.split(/[\\/]/).includes("..")) errors.push(`${p.where}: "${p.file}" must be inside the kit`);

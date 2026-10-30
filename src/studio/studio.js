@@ -1168,7 +1168,7 @@
           var langs = (video() && video().languages) || Object.keys(S.state.brief && S.state.brief.languages ? S.state.brief.languages.reduce(function (o, l) { o[l] = 1; return o; }, {}) : { en: 1 });
           var vrow = h("div", { class: "pickrow" });
           langs.forEach(function (l) {
-            var inp = h("input", { type: "text", placeholder: "model's default", style: "width:140px" }); inp.value = (v.voices && v.voices[l]) || "";
+            var inp = h("input", { type: "text", placeholder: "auto: picked at the first export", style: "width:140px" }); inp.value = (v.voices && v.voices[l]) || "";
             inp.addEventListener("change", function () { var m = Object.assign({}, v.voices || {}); if (inp.value.trim()) m[l] = inp.value.trim(); else delete m[l]; if (Object.keys(m).length) v.voices = m; else delete v.voices; store(); });
             vrow.appendChild(h("label", { class: "lab" }, "Voice id · " + l + ((!v.voices || !v.voices[l]) && above.voices && above.voices[l] ? " (Auto: " + above.voices[l] + ")" : ""), inp));
           });

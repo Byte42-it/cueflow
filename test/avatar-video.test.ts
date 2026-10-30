@@ -20,7 +20,7 @@ const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
 let dir: string;
 let kit: Kit;
 let clipBytes: Buffer = Buffer.from("not really a video");
-const seen: { mints: number; jobs: Record<string, unknown>[]; portraits: unknown[]; refuseNext: boolean } = { mints: 0, jobs: [], portraits: [], refuseNext: false };
+const seen: { mints: number; jobs: Record<string, unknown>[]; portraits: unknown[]; refuseNext: boolean; refused: number } = { mints: 0, jobs: [], portraits: [], refuseNext: false, refused: 0 };
 let pending = 0;
 const server = createServer(async (req, res) => {
   const body = await new Promise<string>((r) => { let s = ""; req.on("data", (c) => (s += c)); req.on("end", () => r(s)); });
@@ -32,7 +32,7 @@ const server = createServer(async (req, res) => {
   if (!/^Bearer rk-\d+$/.test(auth)) return json(401, { error: "bad key" });
   if (seen.refuseNext) { seen.refuseNext = false; return json(401, { error: "key expired" }); }
   if (url === "/or/chat/completions" && req.method === "POST") { seen.portraits.push(JSON.parse(body)); return json(200, { choices: [{ message: { content: "", images: [{ image_url: { url: `data:image/png;base64,${PNG.toString("base64")}` } }] } }] }); }
-  if (url === "/or/videos" && req.method === "POST") { seen.jobs.push(JSON.parse(body)); pending = 2; return json(202, { id: "job1", status: "pending", polling_url: "/or/videos/job1" }); }
+  if (url === "/or/videos" && req.method === "POST") { const j = JSON.parse(body); if (!j.provider?.options?.heygen?.voice_id) { seen.refused += 1; return json(400, { error: { message: "avatar-iv requires provider.options.heygen.voice_id when using a text prompt (script); supply an audio input reference instead, or pick a voice such as: 16a09e4706f74997ba4ed05ea1e3d3ea, 1bd001e7e50f421d891986aad5158bc8", code: 400 } }); } seen.jobs.push(j); pending = 2; return json(202, { id: "job1", status: "pending", polling_url: "/or/videos/job1" }); }
   if (url === "/or/videos/job1") return json(200, pending-- > 0 ? { id: "job1", status: "in_progress" } : { id: "job1", status: "completed", unsigned_urls: [`http://127.0.0.1:${port}/or/videos/job1/content?index=0`], usage: { cost: 0.15 } });
   if (url.startsWith("/or/videos/job1/content")) { res.writeHead(200, { "content-type": "video/mp4" }); return res.end(clipBytes); }
   res.writeHead(404); res.end();
@@ -114,9 +114,12 @@ describe("the generated narrator", () => {
     await withEnv(async () => {
       const jobs = seen.jobs.length;
       const b = await guideBundle(kit, "dashboard");
-      assert.equal(b.clips, 1, "English has a voice; Italian has none, so no clip there (a warning), the usual voice instead");
-      assert.equal(b.clipsMade, 1);
-      assert.match(b.warnings.join("\n"), /in "it": the narrator has no voice for this language/);
+      assert.equal(b.clips, 2, "English has a voice; Italian has none, so the model is asked for one and the clip made with it");
+      assert.equal(b.clipsMade, 2);
+      assert.equal(seen.refused, 1, "one job without a voice, refused before anything is paid");
+      assert.match(b.warnings.join("\n"), /no voice was chosen for "it": "16a09e4706f74997ba4ed05ea1e3d3ea" from the model's own voices is now the narrator's/);
+      assert.equal(openKit(dir).settings.avatar?.voices?.it, "16a09e4706f74997ba4ed05ea1e3d3ea", "kept in cueflow.json, where Studio shows it");
+      assert.equal(kit.settings.avatar?.voices?.it, "16a09e4706f74997ba4ed05ea1e3d3ea", "and the kit in hand sees it");
       assert.match(b.data.avatarVideo.en!.figures!, /^data:video\/mp4;base64,/);
       assert.match(b.data.audio.en!.figures!, /^data:audio\/wav;base64,/, "the step's audio is the clip's voice");
       assert.equal(b.data.avatarVideo.en!.intro, undefined, "hidden there: no clip, no credit");
@@ -128,7 +131,7 @@ describe("the generated narrator", () => {
       assert.equal(twice.clipsMade, 0, "nothing paid again");
       const preview = await guideBundle(kit, "dashboard", null);
       assert.equal(preview.clipsMade, 0);
-      assert.equal(preview.clips, 1, "a preview takes what the cache has, never generates");
+      assert.equal(preview.clips, 2, "a preview takes what the cache has, never generates");
     });
   });
 

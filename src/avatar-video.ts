@@ -53,6 +53,8 @@ export type AvatarVideoProvider = {
   animate(req: ClipRequest): Promise<Clip>;
   /** a portrait from words (the service only): the picture then lives in the kit like an uploaded one */
   portrait?(prompt: string, style?: string): Promise<Clip>;
+  /** a voice of the model for the language when none was chosen: an id to keep in the kit, or null when the model offers none */
+  suggestVoice?(lang: string): Promise<string | null>;
 };
 
 export const avatarVideoDir = (kit: Kit) => path.join(kit.root, "avatar");
@@ -86,6 +88,8 @@ export async function runtimeKey(env: NodeJS.ProcessEnv, f: typeof fetch, fresh 
 
 /* ---- the models' video API behind Fantastico, with the minted key: submit, poll, download ---- */
 export const DEFAULT_AVATAR_MODEL = "heygen/avatar-iv";
+/** a 1×1 png: the picture of a job sent only to hear which voices the model offers */
+const BLANK_PIXEL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
 export const DEFAULT_PORTRAIT_MODEL = "google/gemini-2.5-flash-image";
 export function fantasticoAvatarProvider(env: NodeJS.ProcessEnv = process.env, options: { model?: string; portraitModel?: string; fetchImpl?: typeof fetch; pollMs?: number } = {}): AvatarVideoProvider | null {
   const apiKey = env.FANTASTICO_API_KEY;
@@ -126,8 +130,21 @@ export function fantasticoAvatarProvider(env: NodeJS.ProcessEnv = process.env, o
         return { data: Buffer.from(m[2]!, "base64"), mime: m[1]! };
       });
     },
+    /* the model names a few of its voices when a job comes without one ("pick a voice such as: id, id…"); the job is refused
+       before anything is made or paid, so asking costs nothing. The first id is kept in the kit: a choice to change, not to make. */
+    async suggestVoice(lang) {
+      const body = { model, prompt: `Hello (${lang})`, input_references: [{ type: "image_url", image_url: { url: BLANK_PIXEL } }], provider: { options: { [model.split("/")[0]!]: {} } } };
+      const text = await withKey(async (headers) => {
+        const r = await f(`${or}/videos`, { method: "POST", headers, body: JSON.stringify(body) });
+        if (r.status === 401 || r.status === 402) throw new RefusedKey(`Fantastico refused the key (${r.status})`);
+        return r.text().catch(() => "");
+      });
+      const list = /such as:?\s*([^."]+)/i.exec(text)?.[1] ?? "";
+      const ids = list.split(/[\s,]+/).map((v) => v.trim()).filter((v) => /^[\w-]{6,}$/.test(v));
+      return ids[0] ?? null;
+    },
     async animate(req) {
-      if (!req.voice) throw new Error(`the narrator needs a voice for "${req.lang}": set \`voices.${req.lang}\` (a HeyGen voice id) on the narrator — Studio's Avatar page or set_avatar; the model's own error lists some ids when it refuses`);
+      if (!req.voice) throw new Error(`the narrator needs a voice for "${req.lang}": set \`voices.${req.lang}\` on the narrator (Studio's Avatar page or set_avatar), or let the export pick one`);
       const modelOptions: Record<string, unknown> = { voice_id: req.voice, ...(req.background === "transparent" ? { remove_background: true } : { background: req.background }) };
       const body = {
         model,

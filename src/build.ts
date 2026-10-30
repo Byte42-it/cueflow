@@ -1,4 +1,4 @@
-import { avatarImages, stepAvatar } from "./avatars.ts";
+import { avatarImages, setAvatar, stepAvatar } from "./avatars.ts";
 import { avatarVideoProviderFor, clipAspect, imageMimeOf, stepClip, type AvatarVideoProvider } from "./avatar-video.ts";
 import { spokenText } from "./tts.ts";
 import { loadBrief } from "./brief.ts";
@@ -105,12 +105,24 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
       let clip: Awaited<ReturnType<typeof stepClip>> = null;
       const image = p ? await readFile(path.join(kit.root, av.image!)).catch(() => null) : null; // missing: validate reports it
       const text = spokenText(spokenOf(step, lang).trim(), { ...(await loadBrief(kit)).pronunciation, ...guide.pronunciation });
-      if (p && image && p.voiced && text && !av.voices?.[lang]) {
-        warnings.push(`step "${step.id}" in "${lang}": the narrator has no voice for this language (voices.${lang}, a HeyGen voice id): no clip, the usual voice reads it`);
-        p = null;
+      let voice: string | undefined = av.voices?.[lang];
+      if (p && image && p.voiced && text && !voice) {
+        // no voice chosen for the language: a real build asks the model for one and keeps it in cueflow.json, so the choice
+        // is made once, shows in Studio and can be changed there; a preview (no generation) just reads the picture
+        if (provider !== null && p.suggestVoice) {
+          try { voice = (await p.suggestVoice(lang)) ?? undefined; } catch (e) { warnings.push(`avatar: could not ask for a voice for "${lang}": ${(e as Error).message}`); }
+          if (voice) {
+            await setAvatar(kit, { scope: "global" }, { ...kit.settings.avatar, voices: { ...kit.settings.avatar?.voices, [lang]: voice } });
+            warnings.push(`avatar: no voice was chosen for "${lang}": "${voice}" from the model's own voices is now the narrator's (cueflow.json avatar.voices.${lang}, change it in Studio's Avatar page if it does not fit)`);
+          }
+        }
+        if (!voice) {
+          warnings.push(`step "${step.id}" in "${lang}": the narrator has no voice for this language (voices.${lang}): no clip, the picture is shown and the usual voice reads it`);
+          p = null;
+        }
       }
       if (p && image && p.voiced && text) {
-        const req = { image, imageMime: imageMimeOf(av.image!), text, lang, voice: av.voices?.[lang], silenceAfterMs: step.hold, background: av.background, aspect: clipAspect(av.mode) };
+        const req = { image, imageMime: imageMimeOf(av.image!), text, lang, voice, silenceAfterMs: step.hold, background: av.background, aspect: clipAspect(av.mode) };
         clip = await stepClip(kit, p, req, { previewOnly: provider === null });
         sound = clip?.audio ?? (provider === null ? await stepAudio(kit, guide, step, lang, provider) : null); // a preview without the clip yet: the usual voice
       } else {
