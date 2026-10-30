@@ -23,9 +23,11 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
   if (!available.has(scene)) errors.push(`guide scene "${scene}" does not exist`);
   if (guide.steps.length === 0) warnings.push("the guide has no steps");
 
+  // slides are advanced by hand and say nothing: no length to keep, and the narration is optional speaker's notes
+  const slides = guide.format === "slides";
   // one idea per tutorial, one or two sentences per step: longer ones are better split
   const { maxSeconds } = await loadBrief(kit);
-  for (const lang of guide.languages) {
+  for (const lang of slides ? [] : guide.languages) {
     const seconds = Math.round(estimateDuration(guide, lang) / 1000);
     if (seconds > maxSeconds) warnings.push(`the guide lasts about ${seconds} s in "${lang}", over the ${maxSeconds} s of the brief: split it into two tutorials`);
   }
@@ -46,7 +48,7 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
         else if (!(await stat(abs).then((s) => s.isFile(), () => false))) errors.push(`${where}, voice "${lang}": the audio file "${own.file}" does not exist (upload it again in the step's Voice tab)`);
       }
     }
-    for (const lang of guide.languages) {
+    for (const lang of slides ? [] : guide.languages) {
       const narration = step.narration[lang]?.trim();
       if (!narration) warnings.push(`${where}: no narration in "${lang}"`);
       else if ((narration.match(/[.!?…]+(\s|$)/g)?.length ?? 1) > 2) warnings.push(`${where}: more than two sentences in "${lang}": a step carries one idea, split it`);

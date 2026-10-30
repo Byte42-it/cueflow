@@ -110,6 +110,26 @@ html:has(> .cf-page), .cf-page { margin: 0; background: var(--cf-bg); color: var
 .cf-transcript li b { display: block; }
 .cf-transcript a { color: var(--cf-accent); font-size: 13px; white-space: nowrap; }
 
+/* slides: advanced by hand; no play/replay, no speed, no captions, no voice */
+.cf-slides .cf-play, .cf-slides .cf-restart, .cf-slides .cf-speed, .cf-slides .cf-cc, .cf-slides .cf-voice, .cf-slides .cf-caption, .cf-slides .cf-subs { display: none !important; }
+.cf-bar .cf-sl-prev, .cf-bar .cf-sl-next { min-width: 34px; font-size: 18px; line-height: 1; padding: 2px 10px; }
+.cf-bar .cf-sl-prev:disabled, .cf-bar .cf-sl-next:disabled { opacity: .4; cursor: default; }
+.cf-sl-count { flex: none; color: var(--cf-muted); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cf-bar .cf-sl-full { display: flex; align-items: center; padding: 4px 8px; }
+.cf-sl-full svg { width: 16px; height: 16px; display: block; }
+/* notes off is a choice, not a muted voice: no strike-through */
+.cf-bar .cf-sl-notes-btn[aria-pressed="false"] { text-decoration: none; }
+.cf-bar .cf-sl-notes-btn[aria-pressed="true"] { border-color: var(--cf-accent); }
+.cf-sl-notes { margin-top: 10px; padding: 10px 14px; border: 1px solid var(--cf-line); border-radius: var(--cf-control-radius); background: var(--cf-surface); color: var(--cf-fg); white-space: pre-wrap; }
+.cf-sl-notes[hidden] { display: none; }
+/* full screen: the slide as large as the screen allows, the bar and the notes over it, out of the way */
+.cf-app.cf-full { position: relative; width: 100vw; height: 100vh; max-width: none !important; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #000; }
+.cf-full .cf-stage { width: min(100vw, calc(100vh * var(--cf-aspect))); border-radius: 0; box-shadow: none; }
+.cf-full .cf-bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; margin: 0; padding: 12px 16px; background: linear-gradient(transparent, rgba(0, 0, 0, .75)); opacity: 0; transition: opacity .25s; }
+.cf-full .cf-bar:hover, .cf-full .cf-bar:focus-within { opacity: 1; }
+.cf-full .cf-sl-notes { position: absolute; left: 16px; right: 16px; bottom: 64px; z-index: 4; max-height: 30vh; overflow: auto; margin: 0; background: rgba(15, 17, 21, .92); }
+.cf-slides.cf-started:not(.cf-ended) .cf-big { display: none; }
+
 @keyframes cf-pulse { 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--cf-ring) 12%, transparent); } }
 @keyframes cf-click { 0% { opacity: .9; transform: scale(.3); } 100% { opacity: 0; transform: scale(1.4); } }
 @media (prefers-reduced-motion: reduce) {

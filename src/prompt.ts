@@ -113,6 +113,8 @@ export type NewRequest = {
   id?: string;
   scene?: string;
   vertical?: boolean;
+  /** a video tutorial made as slides instead: no voice, advanced by hand */
+  format?: "video" | "slides";
   languages?: string[];
   kicker?: string;
   desc?: string;
@@ -145,6 +147,7 @@ export async function requestPrompt(kit: Kit, req: NewRequest, ctx: { lang?: str
     req.id && `id: ${req.id}`,
     req.scene && `first screen: ${req.scene}`,
     req.kind === "video" && `vertical: ${req.vertical === true} (use this orientation in create_guide)`,
+    req.kind === "video" && req.format === "slides" && `format: slides (create_guide with format "slides": a presentation without voice, see the method)`,
     req.languages?.length && `languages: ${req.languages.join(", ")}`,
     req.kicker && `category (kicker): ${req.kicker}`,
     req.desc && `description: ${req.desc}`,

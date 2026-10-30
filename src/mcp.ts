@@ -220,6 +220,10 @@ export function createServer(kit: Kit): McpServer {
         id: guideId,
         title: z.string(),
         vertical: z.boolean().default(false).describe("true for a portrait tutorial for mobile devices"),
+        format: z
+          .enum(["video", "slides"])
+          .default("video")
+          .describe("video (narrated, plays by itself) or slides (only when the user asks for slides or a presentation: no voice, advanced by hand, full screen)"),
         scene: z.string().describe("first scene"),
         languages: z.array(z.string()).default(["en"]),
         viewport: z.object({ width: z.number(), height: z.number() }).optional().describe("native size of the scenes, default 1280x720"),

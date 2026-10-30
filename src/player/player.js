@@ -10,6 +10,8 @@
   var ICON_PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.33 7.4V16.6L17.33 12Z" fill="currentColor" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg>';
   var ICON_PAUSE = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6" width="3.6" height="12" rx="1.6" fill="currentColor"/><rect x="13.9" y="6" width="3.6" height="12" rx="1.6" fill="currentColor"/></svg>';
   var MARK = '<svg viewBox="160 150 925 960" aria-hidden="true"><path d="M894 365A366 366 0 1 0 894 891" fill="none" stroke="currentColor" stroke-width="208" stroke-linecap="round"/><path d="M830 525V755L1035 640Z" fill="currentColor" stroke="currentColor" stroke-width="80" stroke-linejoin="round"/></svg>';
+  // full screen: four corners (a font glyph like ⛶ is missing on many systems)
+  var ICON_FULL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   var MS_PER_CHAR = 65; // narration length estimate when there is no audio
 
   /* The player's own words. The interface follows the narration language; unknown languages fall back to English. */
@@ -17,19 +19,27 @@
     en: { play: "Play", pause: "Pause", replay: "Replay this step", speed: "Speed", captions: "Captions", voice: "Voice", steps: "Steps", step: "Step",
       transcript: "Transcript", download: "Download (.txt)", watch: "Watch this step", language: "Language",
       start: "Play the video", note: "With voice and captions", noteCaptions: "With captions", ended: "End of the video", again: "Click to watch it again",
-      resume: "Starts from step {n}: {title}", next: "Go to {title}" },
+      resume: "Starts from step {n}: {title}", next: "Go to {title}",
+      present: "Start the presentation", slide: "Slide", slidesNote: "{n} slides · full screen, space to go on", resumeSlide: "Starts from slide {n}: {title}",
+      endSlides: "End of the presentation", againSlides: "Click to start again", previous: "Previous", forward: "Next", notes: "Notes", fullscreen: "Full screen" },
     it: { play: "Avvia", pause: "Pausa", replay: "Ripeti il passo", speed: "Velocità", captions: "Sottotitoli", voice: "Voce", steps: "Passi", step: "Passo",
       transcript: "Trascrizione", download: "Scarica (.txt)", watch: "Guarda questo passo", language: "Lingua",
       start: "Avvia il video", note: "Con voce e sottotitoli", noteCaptions: "Con sottotitoli", ended: "Fine del video", again: "Clic per rivederlo da capo",
-      resume: "Riparte dal passo {n}: {title}", next: "Vai a {title}" },
+      resume: "Riparte dal passo {n}: {title}", next: "Vai a {title}",
+      present: "Avvia la presentazione", slide: "Slide", slidesNote: "{n} slide · a tutto schermo, spazio per avanzare", resumeSlide: "Riparte dalla slide {n}: {title}",
+      endSlides: "Fine della presentazione", againSlides: "Clic per ricominciare", previous: "Precedente", forward: "Successiva", notes: "Note", fullscreen: "Schermo intero" },
     fr: { play: "Lire", pause: "Pause", replay: "Revoir l'étape", speed: "Vitesse", captions: "Sous-titres", voice: "Voix", steps: "Étapes", step: "Étape",
       transcript: "Transcription", download: "Télécharger (.txt)", watch: "Voir cette étape", language: "Langue",
       start: "Lancer la vidéo", note: "Avec voix et sous-titres", noteCaptions: "Avec sous-titres", ended: "Fin de la vidéo", again: "Cliquez pour la revoir",
-      resume: "Reprend à l'étape {n} : {title}", next: "Aller à {title}" },
+      resume: "Reprend à l'étape {n} : {title}", next: "Aller à {title}",
+      present: "Lancer la présentation", slide: "Diapositive", slidesNote: "{n} diapositives · plein écran, espace pour avancer", resumeSlide: "Reprend à la diapositive {n} : {title}",
+      endSlides: "Fin de la présentation", againSlides: "Cliquez pour recommencer", previous: "Précédente", forward: "Suivante", notes: "Notes", fullscreen: "Plein écran" },
     de: { play: "Abspielen", pause: "Pause", replay: "Schritt wiederholen", speed: "Tempo", captions: "Untertitel", voice: "Stimme", steps: "Schritte", step: "Schritt",
       transcript: "Transkript", download: "Herunterladen (.txt)", watch: "Diesen Schritt ansehen", language: "Sprache",
       start: "Video abspielen", note: "Mit Stimme und Untertiteln", noteCaptions: "Mit Untertiteln", ended: "Ende des Videos", again: "Klicken, um es erneut anzusehen",
-      resume: "Beginnt bei Schritt {n}: {title}", next: "Weiter zu {title}" }
+      resume: "Beginnt bei Schritt {n}: {title}", next: "Weiter zu {title}",
+      present: "Präsentation starten", slide: "Folie", slidesNote: "{n} Folien · Vollbild, Leertaste zum Weiterschalten", resumeSlide: "Beginnt bei Folie {n}: {title}",
+      endSlides: "Ende der Präsentation", againSlides: "Klicken, um neu zu beginnen", previous: "Zurück", forward: "Weiter", notes: "Notizen", fullscreen: "Vollbild" }
   };
 
   /**
@@ -50,7 +60,9 @@
     var steps = guide.steps;
     var opts = guide.player || {};
     var speeds = opts.speeds && opts.speeds.length ? opts.speeds : [1];
-    var captionMode = opts.captions || "below";
+    // slides: one slide per step, advanced by hand, no voice and no captions (the narration is the speaker's notes)
+    var slides = guide.format === "slides";
+    var captionMode = slides ? "off" : opts.captions || "below";
     var pronunciation = guide.pronunciation || {};
     var vw = guide.viewport.width;
     var vh = guide.viewport.height;
@@ -64,7 +76,7 @@
     function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
     root.innerHTML =
-      '<div class="cf-app cf-captions-' + captionMode + '" tabindex="-1">' +
+      '<div class="cf-app cf-captions-' + captionMode + (slides ? " cf-slides" : "") + '" tabindex="-1">' +
       '<div class="cf-stage"><div class="cf-world">' +
       '<iframe class="cf-frame" scrolling="no" tabindex="-1"></iframe>' +
       '<div class="cf-ring"></div><div class="cf-cursor"></div>' +
@@ -75,13 +87,16 @@
       '<a class="cf-up-next" hidden></a>' +
       '<a class="cf-brand" href="' + REPO + '" target="_blank" rel="noopener" title="Made with Cueflow">' + MARK + "<span>cueflow</span></a></div>" +
       '<div class="cf-caption" aria-live="polite"></div>' +
+      '<div class="cf-sl-notes" aria-live="polite" hidden></div>' +
       '<div class="cf-bar"><button class="cf-play" aria-label="Play/Pause">' + ICON_PLAY + "</button>" +
       '<button class="cf-restart" aria-label="Replay">↺</button>' +
+      '<button class="cf-sl-prev" type="button" hidden>‹</button><span class="cf-sl-count" hidden></span><button class="cf-sl-next" type="button" hidden>›</button>' +
       '<div class="cf-track"><div class="cf-fill"></div></div><div class="cf-chapters" role="group"></div>' +
       '<button class="cf-speed" hidden></button>' +
       '<button class="cf-cc" aria-pressed="true">CC</button>' +
       '<button class="cf-voice" aria-pressed="true" hidden></button>' +
-      '<select class="cf-lang"></select></div>' +
+      '<select class="cf-lang"></select>' +
+      '<button class="cf-sl-notes-btn" type="button" aria-pressed="false" hidden></button><button class="cf-sl-full" type="button" hidden>' + ICON_FULL + "</button></div>" +
       '<details class="cf-transcript" hidden><summary><span class="cf-tr-title"></span><button class="cf-download" type="button"></button></summary><ol></ol></details>' +
       "</div>";
 
@@ -418,7 +433,7 @@
     }
 
     /* The browser's own voice, for silent builds that ask for it: a preview, it differs from machine to machine. */
-    var synth = opts.fallbackVoice === "browser" && "speechSynthesis" in window ? window.speechSynthesis : null;
+    var synth = !slides && opts.fallbackVoice === "browser" && "speechSynthesis" in window ? window.speechSynthesis : null;
     var sysVoice = null;
     function pickVoice() {
       if (!synth) return;
@@ -460,6 +475,7 @@
         mute: !!(st.voice && st.voice[lang] && st.voice[lang].provider === "none") };
       if (cur.audio) { cur.audio.playbackRate = speed; cur.audio.muted = !voiceOn; }
       showCaption(text);
+      if (slides) paintSlide();
       applyCamera(st.camera || cam, instant ? 0 : 700);
       if (!instant && playing) {
         if (cur.audio) { cur.audio.currentTime = 0; playSound(cur.audio); }
@@ -476,6 +492,8 @@
 
     function setPlaying(v) {
       playing = v;
+      // an editor playing slides along their timeline (Studio): the groups waiting for a press keep their own time
+      if (v && slides && cur) { stopAnim(); cur.actions.forEach(function (x) { if (x.at === NEVER && x.at0 != null) x.at = x.at0; }); }
       if (v) app.classList.add("cf-started"); // themes can style the untouched player (veil, poster) apart from a paused one
       app.classList.toggle("cf-playing", v);
       playBtn.innerHTML = v ? ICON_PAUSE : ICON_PLAY;
@@ -548,6 +566,7 @@
     /** Jumps to a step and plays from there (chapters, transcript links, keyboard). */
     async function jump(i) {
       i = Math.max(0, Math.min(steps.length - 1, i));
+      if (slides) { app.classList.add("cf-started"); await showSlide(i, false); return; }
       setPlaying(false);
       await goTo(i, 0);
       setPlaying(true);
@@ -577,6 +596,15 @@
     // ---- the words beside the big play button: what it does, and from where it starts ----
     function paintVeil() {
       paintNext();
+      if (slides) {
+        var endedSlides = app.classList.contains("cf-ended");
+        veilTitle.textContent = endedSlides ? L("endSlides") : L("present");
+        veilNote.textContent = endedSlides ? L("againSlides")
+          : cur && cur.i > 0 ? L("resumeSlide", { n: cur.i + 1, title: stepTitle(steps[cur.i], cur.i) })
+          : L("slidesNote", { n: steps.length });
+        big.setAttribute("aria-label", veilTitle.textContent);
+        return;
+      }
       if (app.classList.contains("cf-ended")) {
         veilTitle.textContent = L("ended");
         veilNote.textContent = L("again");
@@ -636,7 +664,7 @@
       return lines.join("\n");
     }
     function buildTranscript() {
-      if (!opts.transcript) return;
+      if (!opts.transcript || slides) return;
       transcript.hidden = false;
       transcript.querySelector(".cf-tr-title").textContent = L("transcript");
       transcript.querySelector(".cf-download").textContent = L("download");
@@ -665,8 +693,134 @@
       jump(+link.getAttribute("data-step"));
     });
 
+    // ---- slides: advanced by hand, one press per group of actions ----
+    /* A slide shows what its actions at 0 do as soon as it appears. Every other distinct `at` is one press, like an
+       animation of a presentation: the actions of that group play together, with their own durations, then the slide
+       waits. After the last group, the next press goes to the next slide. Time still flows (cur.t) so durations and
+       transitions are the ones of the video; it only stops where a press is awaited. */
+    var NEVER = Infinity; // `at` of a group not pressed yet: runDue never reaches it
+    var FAR = 1e12; // a time after every action that has been pressed
+    var anim = false, araf = 0, alast = 0, busy = false;
+    var prevBtn = $(".cf-sl-prev"), fwdBtn = $(".cf-sl-next"), countEl = $(".cf-sl-count"), notesEl = $(".cf-sl-notes"), notesBtn = $(".cf-sl-notes-btn"), fullBtn = $(".cf-sl-full");
+    var notesOn = false;
+    var hasNotes = slides && steps.some(function (st) { return Object.keys(st.narration || {}).some(function (l) { return (st.narration[l] || "").trim(); }); });
+
+    function arm() {
+      var ats = [];
+      cur.actions.forEach(function (x) { if (!x.started && ats.indexOf(x.at) < 0) ats.push(x.at); });
+      ats.sort(function (a, b) { return a - b; });
+      cur.groups = ats.map(function (t) { return cur.actions.filter(function (x) { return !x.started && x.at === t; }); });
+      cur.groups.forEach(function (g) { g.forEach(function (x) { x.at0 = x.at; x.at = NEVER; }); });
+      cur.g = 0;
+    }
+    function pending() { return cur.actions.some(function (x) { return x.at !== NEVER && !x.done; }); }
+    function startAnim() {
+      if (anim || !pending()) return;
+      anim = true; alast = performance.now();
+      araf = requestAnimationFrame(atick);
+    }
+    function atick(ts) {
+      if (!anim) return;
+      cur.t += Math.max(0, ts - alast); alast = ts;
+      runDue(cur, cur.t, { instant: false });      if (pending()) araf = requestAnimationFrame(atick); else anim = false;
+      paintSlide();
+    }
+    function stopAnim() { anim = false; cancelAnimationFrame(araf); }
+    /** Ends what is moving now, at once: a press while a group is still playing completes it, like a presentation. */
+    function finishAnim() {
+      stopAnim();
+      runDue(cur, FAR, { instant: true });
+      paintSlide();
+    }
+    /** Shows slide i: at its opening (its actions at 0 run) or complete (every group done, as when going back). */
+    async function showSlide(i, complete) {
+      busy = true;
+      stopAnim();
+      await goTo(i, complete ? FAR : 0);
+      arm();
+      busy = false;
+      startAnim(); // actions at 0 that last (a tween, typing) play out on arrival
+      paintSlide();
+    }
+    function begin() {
+      if (!cur) return;
+      if (!cur.groups) arm(); // a seek (previews) left a fresh step behind
+      app.classList.add("cf-started");
+      app.classList.remove("cf-ended");
+      startAnim();
+      paintSlide();
+      try { app.focus({ preventScroll: true }); } catch (e) { app.focus(); }
+    }
+    function slideNext() {
+      if (busy || !cur) return;
+      if (!app.classList.contains("cf-started")) return begin();
+      if (!cur.groups) arm();
+      if (app.classList.contains("cf-ended")) { if (isFull()) exitFull(); return; }
+      if (anim) return finishAnim();
+      if (cur.g < cur.groups.length) {
+        cur.groups[cur.g++].forEach(function (x) { x.at = cur.t; });
+        startAnim();
+        return paintSlide();
+      }
+      if (cur.i < steps.length - 1) return showSlide(cur.i + 1, false);
+      app.classList.add("cf-ended");
+      paintVeil(); paintChapters(); paintSlide();
+    }
+    function slidePrev() {
+      if (busy || !cur) return;
+      app.classList.add("cf-started");
+      if (app.classList.contains("cf-ended")) { app.classList.remove("cf-ended"); paintVeil(); paintChapters(); return paintSlide(); }
+      if (cur.i > 0) return showSlide(cur.i - 1, true);
+      showSlide(0, false);
+    }
+    function paintSlide() {
+      if (!slides || !cur) return;
+      countEl.textContent = (cur.i + 1) + " / " + steps.length;
+      prevBtn.disabled = cur.i === 0 && !(cur.g > 0 || app.classList.contains("cf-ended"));
+      fwdBtn.disabled = app.classList.contains("cf-ended");
+      notesEl.textContent = (steps[cur.i].narration || {})[lang] || "";
+      notesEl.hidden = !notesOn || !notesEl.textContent;
+      // the chapter of this slide fills as its groups are pressed
+      var seg = chapters.children[cur.i], within = cur.groups && cur.groups.length ? cur.g / cur.groups.length : 1;
+      if (seg) seg.firstChild.firstChild.style.width = within * 100 + "%";
+    }
+
+    // full screen: on the player itself, so the bar and the notes come along
+    function isFull() { return (document.fullscreenElement || document.webkitFullscreenElement) === app; }
+    var canFull = !!(app.requestFullscreen || app.webkitRequestFullscreen);
+    function enterFull() {
+      if (!canFull || isFull()) return;
+      try { var r = (app.requestFullscreen || app.webkitRequestFullscreen).call(app); if (r && r.catch) r.catch(function () {}); } catch (e) { /* refused: stays in the page */ }
+    }
+    function exitFull() {
+      if (!isFull()) return;
+      try { var r = (document.exitFullscreen || document.webkitExitFullscreen).call(document); if (r && r.catch) r.catch(function () {}); } catch (e) { /* already out */ }
+    }
+    function onFull() { app.classList.toggle("cf-full", isFull()); applyCamera(cam, 0); }
+    document.addEventListener("fullscreenchange", onFull);
+    document.addEventListener("webkitfullscreenchange", onFull);
+
+    if (slides) {
+      [prevBtn, countEl, fwdBtn].forEach(function (b) { b.hidden = false; });
+      notesBtn.hidden = !hasNotes;
+      fullBtn.hidden = !canFull;
+      prevBtn.onclick = slidePrev;
+      fwdBtn.onclick = slideNext;
+      notesBtn.onclick = function () { notesOn = !notesOn; notesBtn.setAttribute("aria-pressed", String(notesOn)); paintSlide(); };
+      fullBtn.onclick = function () { if (isFull()) exitFull(); else enterFull(); };
+      // in full screen a click on the picture goes on, as with a presenter's remote; in the page the buttons do
+      stage.addEventListener("click", function (e) {
+        if (!isFull() || (e.target.closest && e.target.closest("a, button"))) return;
+        slideNext();
+      });
+    }
+
     // ---- controls ----
     function labels() {
+      prevBtn.setAttribute("aria-label", L("previous")); prevBtn.title = L("previous");
+      fwdBtn.setAttribute("aria-label", L("forward")); fwdBtn.title = L("forward");
+      notesBtn.textContent = L("notes");
+      fullBtn.setAttribute("aria-label", L("fullscreen")); fullBtn.title = L("fullscreen");
       $(".cf-restart").setAttribute("aria-label", L("replay"));
       $(".cf-restart").title = L("replay");
       ccBtn.title = L("captions");
@@ -677,11 +831,17 @@
       playBtn.setAttribute("aria-label", playing ? L("pause") : L("play"));
       big.setAttribute("aria-label", L("play"));
     }
-    if (speeds.length > 1) { speedBtn.hidden = false; speedBtn.textContent = speed + "×"; }
+    if (speeds.length > 1 && !slides) { speedBtn.hidden = false; speedBtn.textContent = speed + "×"; }
     if (captionMode === "off") ccBtn.hidden = true;
     voiceBtn.hidden = !(synth || Object.keys(DATA.audio || {}).length);
 
     big.onclick = playBtn.onclick = async function () {
+      if (slides) {
+        // presenting means full screen; where the browser cannot (iPhone), the slides run in the page
+        enterFull();
+        if (app.classList.contains("cf-ended")) await showSlide(0, false);
+        return begin();
+      }
       if (playing) return setPlaying(false);
       if (!cur || app.classList.contains("cf-ended")) await restart();
       setPlaying(true);
@@ -707,13 +867,35 @@
       lang = langSel.value;
       pickVoice();
       labels(); buildChapters(); buildTranscript(); paintVeil();
+      if (slides) return showSlide(cur ? cur.i : 0, false);
       var was = playing;
       setPlaying(false);
       await goTo(cur ? cur.i : 0, 0);
       if (was) setPlaying(true);
     };
+    /* the keys of a presentation: forward with space, arrows, Page Down (what a presenter's remote sends) */
+    function slideKey(e) {
+      var k = e.key;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (k === " " || k === "ArrowRight" || k === "ArrowDown" || k === "PageDown" || k === "Enter") {
+        e.preventDefault();
+        // starting from the keyboard is presenting: full screen, like the big button (the buttons of the bar browse in the page)
+        if (!app.classList.contains("cf-started")) enterFull();
+        slideNext();
+      }
+      else if (k === "ArrowLeft" || k === "ArrowUp" || k === "PageUp" || k === "Backspace") { e.preventDefault(); slidePrev(); }
+      else if (k === "Home") { e.preventDefault(); jump(0); }
+      else if (k === "End") { e.preventDefault(); app.classList.add("cf-started"); showSlide(steps.length - 1, true); }
+      else if (k === "n" || k === "N") { if (!notesBtn.hidden) notesBtn.click(); }
+      else if (k === "f" || k === "F") { if (canFull) fullBtn.click(); }
+    }
+    if (slides) document.addEventListener("keydown", function (e) {
+      // in full screen the keys belong to the presentation even when the focus has slipped out of the player
+      if (isFull() && !(e.target && app.contains(e.target))) slideKey(e);
+    });
     app.addEventListener("keydown", function (e) {
       if (e.target.closest && e.target.closest("select, summary, a, input, textarea")) return;
+      if (slides) return slideKey(e);
       if (e.key === " ") { e.preventDefault(); playBtn.click(); }
       else if (e.key === "ArrowRight") { e.preventDefault(); jump((cur ? cur.i : 0) + 1); }
       else if (e.key === "ArrowLeft") { e.preventDefault(); jump(cur ? cur.i : 0); }
@@ -742,13 +924,17 @@
       jump(i);
     });
     var opening = goTo(stepFromHash() || 0, 0);
-    if (options.autoplay) opening.then(function () {
+    // slides wait at their opening for the first press; they never start on their own
+    if (slides) opening.then(function () { arm(); paintSlide(); paintVeil(); });
+    else if (options.autoplay) opening.then(function () {
       // a step without its own audio has nothing that could be refused: it just plays
       autoTrying = !!(cur && cur.audio);
       setPlaying(true);
     });
     return {
       seek: seek, probe: probe, restart: restart, jump: jump, transcript: transcriptText, downloadTranscript: downloadTranscript,
+      // slides: what a press of the space bar and of the back key do
+      next: slideNext, previous: slidePrev, slides: slides,
       // for an editor that draws its own transport (Studio's timeline): where we are, and play/pause from outside
       state: function () { return { step: cur ? cur.i : 0, t: cur ? cur.t : 0, total: cur ? cur.total : 0, playing: playing, loading: loading, ended: app.classList.contains("cf-ended") }; },
       play: async function () { if (playing) return; if (!cur || app.classList.contains("cf-ended")) await restart(); setPlaying(true); },

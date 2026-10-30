@@ -188,13 +188,13 @@
       shown[g.id] = true;
       var on = S.kind !== "doc" && g.id === S.guideId;
       var vp = g.viewport || { width: 1280, height: 720 };
-      var thumb = h("div", { class: "thumb", style: "aspect-ratio:" + vp.width + " / " + vp.height }, h("span", { class: "kindbadge video" }, "Video"));
+      var thumb = h("div", { class: "thumb", style: "aspect-ratio:" + vp.width + " / " + vp.height }, h("span", { class: "kindbadge video" }, g.format === "slides" ? "Slides" : "Video"));
       var fr = h("iframe", { src: "/scene/" + g.scene + "?lang=" + S.lang, loading: "lazy", tabindex: "-1", title: "" });
       fr.style.width = vp.width + "px"; fr.style.height = vp.height + "px";
       thumb.appendChild(fr);
       var total = (g.timing[S.lang] || g.timing[g.languages[0]] || []).reduce(function (n, t) { return n + t.total; }, 0);
       var tile = h("button", { class: "tile" + (on ? " on" : ""), title: text(g.title, S.lang) + " — drag to change the order", onclick: function () { selectGuide(g.id); } },
-        thumb, h("span", { class: "cap" }, text(g.title, S.lang)), h("span", { class: "sub" }, g.steps.length + " steps · " + fmt(total)));
+        thumb, h("span", { class: "cap" }, text(g.title, S.lang)), h("span", { class: "sub" }, g.format === "slides" ? g.steps.length + " slides" : g.steps.length + " steps · " + fmt(total)));
       var del = h("button", { class: "del", title: "Delete this tutorial", "aria-label": "Delete this tutorial", onclick: function (e) { e.stopPropagation(); deleteTutorialDialog(g); } }, h("span", null, "🗑"));
       place(h("div", { class: "tilewrap" }, tile, del), itemId, rowId);
       requestAnimationFrame(function () { fr.style.transform = "scale(" + thumb.clientWidth / vp.width + ")"; });
@@ -321,6 +321,8 @@
           f.scene = h("select", null, [h("option", { value: "" }, S.state.scenes.length ? "(choose, or leave it to the assistant)" : "(no screens yet: the assistant makes them)")].concat(S.state.scenes.map(function (n) { return h("option", { value: n }, n); })));
           f.vertical = h("input", { type: "checkbox" });
           fields.push(h("label", { class: "lab" }, f.vertical, "Vertical video (portrait, for mobile devices; fixed at creation)"));
+          f.slides = h("input", { type: "checkbox" });
+          fields.push(h("label", { class: "lab" }, f.slides, "Slides instead of a video (no voice, advanced by hand, full screen)"));
           fields.push(h("label", { class: "lab" }, "First screen", f.scene));
           f.langs = h("input", { type: "text" }); f.langs.value = (S.state.brief.languages.length ? S.state.brief.languages : [S.lang || "en"]).join(", ");
           fields.push(h("label", { class: "lab" }, "Languages, separated by commas", f.langs));
@@ -343,7 +345,7 @@
         label();
         body.appendChild(h("label", { class: "agentbox" }, agent, h("span", null, h("b", null, "Create it with my local assistant"), h("small", null, "Nothing is created here: you get (or send) a request for your assistant, which asks what you want to make and does it. Remembered for next time."))));
         var request = function () {
-          return { kind: kind, vertical: f.vertical ? f.vertical.checked : undefined, title: f.title.value.trim() || undefined, id: f.id.value.trim() || undefined, scene: f.scene && f.scene.value || undefined,
+          return { kind: kind, vertical: f.vertical ? f.vertical.checked : undefined, format: f.slides && f.slides.checked ? "slides" : undefined, title: f.title.value.trim() || undefined, id: f.id.value.trim() || undefined, scene: f.scene && f.scene.value || undefined,
             languages: f.langs ? f.langs.value.split(",").map(function (x) { return x.trim(); }).filter(Boolean) : undefined,
             kicker: f.kicker && f.kicker.value.trim() || undefined, desc: f.desc && f.desc.value.trim() || undefined, row: f.row && f.row.value || undefined };
         };
@@ -361,7 +363,7 @@
           var t = f.title.value.trim(), id = f.id.value.trim();
           var done = function (r, after) { close(); return loadState().then(after); };
           if (kind === "video") {
-            api("/api/guide-create", { method: "POST", body: { id: id, title: t, scene: f.scene.value, vertical: f.vertical.checked, languages: f.langs.value.split(",").map(function (x) { return x.trim(); }).filter(Boolean) } })
+            api("/api/guide-create", { method: "POST", body: { id: id, title: t, scene: f.scene.value, vertical: f.vertical.checked, format: f.slides.checked ? "slides" : "video", languages: f.langs.value.split(",").map(function (x) { return x.trim(); }).filter(Boolean) } })
               .then(function (r) { S.guideId = r.id; S.step = 0; S.kind = "video"; leaveDocMode(); return done(r, function () { showPage("timeline"); }); }).catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; });
           } else {
             api("/api/article-create", { method: "POST", body: { id: id, title: t, kicker: f.kicker.value.trim(), desc: f.desc.value.trim(), row: rows.length ? f.row.value : undefined, status: kind } })
@@ -790,6 +792,33 @@
     finally { state.running = false; paintMp4(id, lang, size); }
   }
 
+  /* slides: a PDF, one page per slide as it is left (every press done) */
+  var pdfExports = {};
+  function paintPdf(id, lang) {
+    var key = id + "|" + lang, box = $("#pdf-result"), state = pdfExports[key];
+    if (!box || box.dataset.key !== key) return;
+    box.textContent = "";
+    var button = $("#export-pdf");
+    if (button) button.disabled = !!S.busy || !!(state && state.running);
+    if (!state) return;
+    if (state.running && state.progress) progressBar(box, state.progress);
+    if (state.error) { var e = h("div"); voiceError(e, new Error(state.error)); box.appendChild(e); }
+    if (state.result) {
+      box.appendChild(h("div", { class: "msg ok" }, "✓ " + state.result.pages + " pages."));
+      box.appendChild(h("div", { class: "row" }, h("a", { class: "btn", href: state.result.url, target: "_blank", rel: "noopener" }, "Open it"), h("a", { class: "btn", href: state.result.url, download: "" }, "Download PDF")));
+    }
+  }
+  function runPdf(id, lang) {
+    var key = id + "|" + lang;
+    if (pdfExports[key] && pdfExports[key].running) return;
+    var state = pdfExports[key] = { running: true, progress: { percent: 0, phase: "Preparing…" } };
+    paintPdf(id, lang);
+    streamed("/api/export-pdf", { guide: id, lang: lang }, function (pr) { state.progress = pr; paintPdf(id, lang); })
+      .then(function (r) { state.result = r; })
+      .catch(function (e) { state.error = e.message; })
+      .then(function () { state.running = false; paintPdf(id, lang); });
+  }
+
   // a POST whose answer is lines of {progress}, then {result} or {error}; resolves with the result
   async function streamed(path, body, onProgress) {
     S.ownSave = Date.now();
@@ -827,11 +856,20 @@
     var busy = S.busy;
     var btn = function (label, kind, fn) { return h("button", { class: "btn" + (kind ? " " + kind : ""), disabled: !!busy, onclick: fn }, label); };
     p.appendChild(h("div", { class: "row" },
-      btn("Check this video", "primary", function () { runCheck(false); }),
+      btn(S.guide.format === "slides" ? "Check this presentation" : "Check this video", "primary", function () { runCheck(false); }),
       btn("Check layout (opens a browser)", "", function () { runCheck(true); })));
     p.appendChild(h("div", { class: "row" },
-      btn("Build this video", "", function () { runBuild({ target: "guide", guide: id }); }),
+      btn(S.guide.format === "slides" ? "Build this presentation (to present it)" : "Build this video", "", function () { runBuild({ target: "guide", guide: id }); }),
       btn("Build the whole site", "", function () { runBuild({ target: "site" }); })));
+    if (S.guide.format === "slides") {
+      // slides: no voice to generate, no MP4, no page for phones; the file built above is the one to present, the PDF the one to send
+      p.appendChild(h("h3", null, "PDF"));
+      p.appendChild(h("p", null, "In " + S.lang + ": one page per slide, as it is left after the last press (the steps of the animations are not pages). Pictures of the slides, so it looks exactly like the presentation. Requires Chromium."));
+      p.appendChild(h("button", { id: "export-pdf", class: "btn primary", disabled: !!busy || !!(pdfExports[id + "|" + S.lang] && pdfExports[id + "|" + S.lang].running), onclick: function () { runPdf(id, S.lang); } }, "Export PDF"));
+      p.appendChild(h("div", { id: "pdf-result", class: "result", "data-key": id + "|" + S.lang }));
+      paintPdf(id, S.lang);
+      return checkResults(p, busy);
+    }
     if (external.length) p.appendChild(h("p", { class: "msg warn" }, "Building generates audio with the external voice chosen for this video (" + external.map(function (r) { return r.language + ": " + r.provider; }).join(", ") + "): the narration text is sent to that service, and it may cost. Texts already generated are not paid again."));
     p.appendChild(h("h3", null, "MP4 video"));
     p.appendChild(h("p", null, S.guide.vertical ? "Format: vertical (portrait)." : "Format: horizontal (landscape)."));
@@ -858,6 +896,10 @@
       S.share.warnings.forEach(function (x) { sh.appendChild(h("div", { class: "msg warn" }, "! " + x)); });
       p.appendChild(sh);
     }
+    checkResults(p, busy);
+  }
+  /* what the last check or build said, under the export section */
+  function checkResults(p, busy) {
     if (busy) p.appendChild(h("p", { class: "msg" }, busy));
     if (busy && S.buildProgress) { var bar = h("div", { id: "build-progress" }); progressBar(bar, S.buildProgress); p.appendChild(bar); }
     var c = S.check;
@@ -869,7 +911,7 @@
       if (c.layoutError) box.appendChild(h("div", { class: "msg err" }, c.layoutError));
       if (c.errors && !c.errors.length && !(c.warnings || []).length && !(c.layout || []).length && !c.layoutError) box.appendChild(h("div", { class: "msg ok" }, "✓ Nothing to fix."));
       if (c.built) {
-        box.appendChild(h("div", { class: "msg ok" }, "✓ Built" + (c.built.target === "guide" ? (c.built.silent ? " (no recorded audio: the browser reads it)" : " with " + c.built.audioFiles + " audio file(s)") : " (" + c.built.pages + " pages)") + "."));
+        box.appendChild(h("div", { class: "msg ok" }, "✓ Built" + (c.built.target === "guide" ? (S.guide && S.guide.format === "slides" ? "" : c.built.silent ? " (no recorded audio: the browser reads it)" : " with " + c.built.audioFiles + " audio file(s)") : " (" + c.built.pages + " pages)") + "."));
         box.appendChild(h("a", { href: c.built.url, target: "_blank", rel: "noopener", class: "btn" }, "Open it"));
         (c.built.warnings || []).forEach(function (x) { box.appendChild(h("div", { class: "msg warn" }, "! " + x)); });
       }

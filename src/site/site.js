@@ -35,7 +35,7 @@
     labels: (src.labels && src.labels[lang]) || {},
     rows: src.rows.map(function (r) { return { id: r.id, title: P(r.title), note: P(r.note), kicker: P(r.kicker), lede: P(r.lede), band: r.band, askTile: r.askTile }; }),
     items: src.items.map(function (it) {
-      return { id: it.id, row: it.row, status: it.status, title: P(it.title), kicker: P(it.kicker), desc: P(it.desc), duration: P(it.duration),
+      return { id: it.id, row: it.row, status: it.status, slides: it.format === "slides", title: P(it.title), kicker: P(it.kicker), desc: P(it.desc), duration: P(it.duration),
         contents: P(it.contents) || [], chapters: (it.chapters || []).map(P), href: it.href, poster: P(it.poster), icon: it.icon };
     })
   };
@@ -45,6 +45,7 @@
       home: "Home", tutorials: "Tutorials", index: "Index of this guide", request: "Request a tutorial", pdf: "Create PDF",
       available: "{n} available", coming: "{n} coming", allTutorials: "All tutorials →", requestLink: "Request a tutorial →",
       tagVideo: "Video", tagGuide: "Guide", tagSoon: "Coming soon", ctaVideo: "Watch the video →", ctaGuide: "Read the guide →",
+      tagSlides: "Slides", ctaSlides: "Start the presentation →", subSlides: "Presentation", present: "Start the presentation", chipByHand: "Advanced by hand", slidesZone: "Slides",
       subVideo: "Video and guide", subGuide: "Guide · video to come", subSoon: "In preparation",
       watch: "Watch the video", readTranscript: "Read the transcript", transcript: "Transcript", guide: "Guide", readGuide: "Read the guide",
       chipVoice: "Voice and captions", chipRead: "Guide to read", chipPdf: "PDF", featured: "Featured", quick: "Quick access",
@@ -71,6 +72,7 @@
       home: "Home della guida", tutorials: "Tutorial", index: "Indice della guida", request: "Richiedi un tutorial", pdf: "Genera PDF",
       available: "{n} disponibili", coming: "{n} in arrivo", allTutorials: "Tutta la guida →", requestLink: "Richiedi un tutorial →",
       tagVideo: "Video", tagGuide: "Guida", tagSoon: "In arrivo", ctaVideo: "Guarda il video →", ctaGuide: "Leggi la guida →",
+      tagSlides: "Presentazione", ctaSlides: "Avvia la presentazione →", subSlides: "Presentazione", present: "Avvia la presentazione", chipByHand: "Si avanza a mano", slidesZone: "Slide",
       subVideo: "Video e guida", subGuide: "Guida · video in arrivo", subSoon: "In preparazione",
       watch: "Guarda il video", readTranscript: "Leggi la trascrizione", transcript: "Trascrizione", guide: "Guida", readGuide: "Leggi la guida",
       chipVoice: "Voce e sottotitoli", chipRead: "Guida da leggere", chipPdf: "PDF", featured: "In evidenza", quick: "Accesso rapido",
@@ -128,15 +130,15 @@
 
   function tile(it) {
     var video = it.status === "video", isSoon = it.status === "soon";
-    var tag = video ? '<span class="cf-tag">' + tri(9) + L("tagVideo") + (it.duration ? " · " + esc(it.duration) : "") + "</span>"
+    var tag = video ? '<span class="cf-tag">' + tri(9) + L(it.slides ? "tagSlides" : "tagVideo") + (it.duration ? " · " + esc(it.duration) : "") + "</span>"
       : isSoon ? '<span class="cf-tag cf-tag-soon">' + L("tagSoon") + "</span>" : '<span class="cf-tag cf-tag-light">' + L("tagGuide") + "</span>";
-    var cta = video ? L("ctaVideo") : isSoon ? "" : L("ctaGuide");
+    var cta = video ? L(it.slides ? "ctaSlides" : "ctaVideo") : isSoon ? "" : L("ctaGuide");
     var t = el(it.href ? "a" : "div", "cf-tile" + (isSoon ? " cf-soon" : ""));
     if (it.href) t.href = href(it, video ? "#cf-player" : ""); else t.tabIndex = 0;
     t._item = it;
     t.innerHTML = '<div class="cf-tile-media">' + media(it) + tag + (video ? '<span class="cf-tile-play" aria-hidden="true">' + ICON.tri + "</span>" : "") +
       '<div class="cf-tile-info">' + esc(it.desc) + (cta ? "<em>" + cta + "</em>" : "") + "</div></div>" +
-      '<p class="cf-tile-title">' + esc(it.title) + '</p><p class="cf-tile-sub">' + (video ? L("subVideo") : isSoon ? L("subSoon") : L("subGuide")) + "</p>";
+      '<p class="cf-tile-title">' + esc(it.title) + '</p><p class="cf-tile-sub">' + (video ? L(it.slides ? "subSlides" : "subVideo") : isSoon ? L("subSoon") : L("subGuide")) + "</p>";
     return t;
   }
   function askTile() {
@@ -168,12 +170,16 @@
   var pv = null, pvFor = null, showT = null, hideT = null;
   function buildPreview(t) {
     var it = t._item, video = it.status === "video";
-    var chips = video
+    var chips = video && it.slides
+      ? '<span class="cf-chip cf-strong">' + L("tagSlides") + (it.duration ? " · " + esc(it.duration) : "") + '</span><span class="cf-chip">' + L("chipByHand") + "</span>"
+      : video
       ? '<span class="cf-chip cf-strong">' + L("tagVideo") + (it.duration ? " · " + esc(it.duration) : "") + '</span><span class="cf-chip">' + L("chipVoice") + '</span><span class="cf-chip">' + L("transcript") + "</span>"
       : '<span class="cf-chip">' + L("chipRead") + '</span><span class="cf-chip">' + L("chipPdf") + "</span>";
     var steps = it.chapters.length ? '<ol class="cf-pv-steps">' + it.chapters.map(function (c) { return "<li>" + esc(c) + "</li>"; }).join("") + "</ol>" : "";
     var list = it.contents.length ? '<ul class="cf-pv-list">' + it.contents.map(function (c) { return "<li>" + ICON.check + "<span>" + esc(c) + "</span></li>"; }).join("") + "</ul>" : "";
-    var btns = video
+    var btns = video && it.slides
+      ? '<a class="cf-btn cf-primary" href="' + esc(href(it, "#cf-player")) + '">' + tri(12) + L("present") + '</a><a class="cf-btn" href="' + esc(href(it)) + '">' + L("guide") + "</a>"
+      : video
       ? '<a class="cf-btn cf-primary" href="' + esc(href(it, "#cf-player")) + '">' + tri(12) + L("watch") + '</a><a class="cf-btn" href="' + esc(href(it, "#transcript")) + '">' + L("transcript") + '</a><a class="cf-btn" href="' + esc(href(it)) + '">' + L("guide") + "</a>"
       : '<a class="cf-btn cf-primary" href="' + esc(href(it)) + '">' + L("readGuide") + "</a>";
     var p = el("div", "cf-pv",
@@ -364,9 +370,10 @@
       bb.setAttribute("aria-label", L("featured"));
       var video = f.status === "video";
       bb.innerHTML = (f.poster ? '<img src="' + esc(f.poster) + '" alt="">' : "") +
-        '<div class="cf-bb-text cf-pad"><p class="cf-kicker">' + L("featured") + (video ? " · " + L("tagVideo") + (f.duration ? " · " + esc(f.duration) : "") : "") + "</p>" +
+        '<div class="cf-bb-text cf-pad"><p class="cf-kicker">' + L("featured") + (video ? " · " + L(f.slides ? "tagSlides" : "tagVideo") + (f.duration ? " · " + esc(f.duration) : "") : "") + "</p>" +
         "<h1>" + esc(f.title) + '</h1><p class="cf-bb-desc">' + esc(f.desc) + '</p><div class="cf-btns">' +
-        (video ? '<a class="cf-btn cf-primary cf-big-btn" href="' + esc(href(f, "#cf-player")) + '">' + tri(14) + L("watch") + '</a><a class="cf-btn cf-ghost cf-big-btn" href="' + esc(href(f, "#transcript")) + '">' + L("readTranscript") + "</a>"
+        (video && f.slides ? '<a class="cf-btn cf-primary cf-big-btn" href="' + esc(href(f, "#cf-player")) + '">' + tri(14) + L("present") + "</a>"
+          : video ? '<a class="cf-btn cf-primary cf-big-btn" href="' + esc(href(f, "#cf-player")) + '">' + tri(14) + L("watch") + '</a><a class="cf-btn cf-ghost cf-big-btn" href="' + esc(href(f, "#transcript")) + '">' + L("readTranscript") + "</a>"
           : '<a class="cf-btn cf-primary cf-big-btn" href="' + esc(href(f)) + '">' + L("readGuide") + "</a>") + "</div></div>";
       main.appendChild(bb);
     }
@@ -431,7 +438,8 @@
     var gl = S.guide.guide.languages, playLang = gl.indexOf(lang) >= 0 ? lang : gl.indexOf(fallback) >= 0 ? fallback : gl[0];
     // at the end, the banner over the picture proposes the next video of the catalog (its title in the site's language)
     var nextUp = S.next ? { title: P(S.next.title), href: S.next.href + PLAY_ON_ARRIVAL } : null;
-    player = window.Cueflow.mount(document.getElementById("cf-player"), S.guide, { fluid: true, lang: playLang, langSelect: false, duration: current.duration, next: nextUp, autoplay: arrivedToPlay });
+    // slides never start on their own: presenting is the reader's gesture (and full screen needs one)
+    player = window.Cueflow.mount(document.getElementById("cf-player"), S.guide, { fluid: true, lang: playLang, langSelect: false, duration: current.duration, next: nextUp, autoplay: arrivedToPlay && !current.slides });
     if (playLang !== lang) document.getElementById("cf-player").insertAdjacentHTML("beforebegin", '<p class="cf-lang-note">' + esc(L("videoIn", { lang: langName(playLang) })) + "</p>");
     window.__cueflow = player;
     // the player's transcript becomes a printable section of the page
@@ -492,9 +500,13 @@
   var html = '<div class="cf-search"><input type="search" placeholder="' + esc(L("search")) + '" aria-label="' + esc(L("search")) + '"></div>';
   if (player) {
     var stepLinks = player.steps().map(function (t, i) { return '<li><a href="#step-' + (i + 1) + '">' + (i + 1) + " · " + esc(t) + "</a></li>"; });
-    stepLinks.push('<li><button type="button" class="cf-link-btn" data-download>' + L("downloadTranscript") + "</button></li>");
-    html += '<details class="cf-acc" data-zone="video" open><summary>' + L("video") + '</summary><ul class="cf-tree">' +
-      treeItem("transcript", L("transcriptTitle"), stepLinks) + "</ul></details>";
+    // slides have no transcript to print or download: the index lists the slides, each one a link
+    if (current.slides) html += '<details class="cf-acc" data-zone="video" open><summary>' + L("slidesZone") + '</summary><ul class="cf-tree cf-sub-tree">' + stepLinks.join("") + "</ul></details>";
+    else {
+      stepLinks.push('<li><button type="button" class="cf-link-btn" data-download>' + L("downloadTranscript") + "</button></li>");
+      html += '<details class="cf-acc" data-zone="video" open><summary>' + L("video") + '</summary><ul class="cf-tree">' +
+        treeItem("transcript", L("transcriptTitle"), stepLinks) + "</ul></details>";
+    }
   }
   if (sections.length) {
     html += '<details class="cf-acc" data-zone="deep"' + (player ? "" : " open") + "><summary>" + L("deep") + '</summary><ul class="cf-tree">' +
@@ -502,7 +514,8 @@
         return treeItem(s.id, s.title, s.subs.map(function (h) { return '<li><a href="#' + esc(h.id) + '">' + esc(h.title) + "</a></li>"; }));
       }).join("") + "</ul></details>";
   }
-  html += '<div class="cf-print-panel"><p class="cf-side-label">' + L("printTitle") + '</p><div class="cf-sel-row"><button type="button" class="cf-link-btn" data-all>' + L("selectAll") +
+  // nothing printable (slides without a written guide): no print panel offering an empty PDF
+  if (printable.length) html += '<div class="cf-print-panel"><p class="cf-side-label">' + L("printTitle") + '</p><div class="cf-sel-row"><button type="button" class="cf-link-btn" data-all>' + L("selectAll") +
     '</button><button type="button" class="cf-link-btn" data-none>' + L("selectNone") + '</button></div><button type="button" class="cf-print-btn">' + ICON.print + L("pdf") +
     '</button><details class="cf-pdf-help"><summary>' + L("howItWorks") + "</summary><p>" + L("printHint") + "</p></details></div>";
   side.innerHTML = html;
@@ -602,9 +615,11 @@
     coverEl.innerHTML = "";
   });
   function print(ids) { pending = ids; window.print(); }
-  side.querySelector(".cf-print-btn").onclick = function () { print(selected()); };
   pdfBtn.onclick = function () { print(selected()); };
-  side.querySelector("[data-all]").onclick = function () { boxes.forEach(function (c) { c.checked = true; }); };
-  side.querySelector("[data-none]").onclick = function () { boxes.forEach(function (c) { c.checked = false; }); };
+  if (side.querySelector(".cf-print-panel")) {
+    side.querySelector(".cf-print-btn").onclick = function () { print(selected()); };
+    side.querySelector("[data-all]").onclick = function () { boxes.forEach(function (c) { c.checked = true; }); };
+    side.querySelector("[data-none]").onclick = function () { boxes.forEach(function (c) { c.checked = false; }); };
+  }
   document.addEventListener("click", function (e) { var b = e.target.closest && e.target.closest("[data-print]"); if (b) print([b.getAttribute("data-print")]); });
 })();

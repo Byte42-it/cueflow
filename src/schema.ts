@@ -99,7 +99,7 @@ export const Step = z.object({
   scene: z.string().optional().describe("switch to another scene file (name without .html); default: keep the current one"),
   camera: Camera.optional().describe("framing at the start of the step; omitted = keep the previous framing"),
   actions: z.array(Action).default([]),
-  narration: z.record(z.string()).default({}).describe("text read aloud and shown as caption, per language code"),
+  narration: z.record(z.string()).default({}).describe("text read aloud and shown as caption, per language code; in slides, the speaker's notes (never read, never on the slide)"),
   hold: z.number().min(0).default(600).describe("pause after the step, in ms"),
   voice: z.record(StepVoice).optional().describe("per language: the voice of this step only (provider browser, none = muted, fantastico, say, command, or file). Absent = the project's voice (Auto)")
 });
@@ -129,6 +129,10 @@ export const Guide = z.object({
   title: z.string(),
   scene: z.string().describe("first scene (name without .html)"),
   vertical: z.boolean().default(false).describe("portrait tutorial for mobile devices; omitted or false keeps the existing landscape layout"),
+  format: z
+    .enum(["video", "slides"])
+    .default("video")
+    .describe("video: narrated, plays by itself; slides: one slide per step, no voice and no captions, advanced by hand (one press per group of actions with the same `at`, then the next slide), full screen when presented"),
   viewport: z.object({ width: z.number().default(1280), height: z.number().default(720) }).default({}),
   stage: z.object({ width: z.number().default(640), height: z.number().default(360) }).default({}).describe("size of the visible window of the 'video'"),
   languages: z.array(z.string().min(2)).min(1).default(["en"]),
@@ -149,7 +153,8 @@ export function orientedGuide(guide: Guide): Guide {
 }
 
 /** The words of the player's own interface, per language: theme/labels.json in the kit. Unknown keys are typos. */
-export const LABEL_KEYS = ["play", "pause", "replay", "speed", "captions", "voice", "steps", "step", "transcript", "download", "watch", "language", "next"] as const;
+export const LABEL_KEYS = ["play", "pause", "replay", "speed", "captions", "voice", "steps", "step", "transcript", "download", "watch", "language", "next",
+  "present", "slide", "previous", "forward", "notes", "fullscreen", "endSlides"] as const;
 export const PlayerLabels = z.record(
   z.string().min(2),
   z.object(Object.fromEntries(LABEL_KEYS.map((k) => [k, z.string().min(1).optional()])) as Record<(typeof LABEL_KEYS)[number], z.ZodOptional<z.ZodString>>).strict()

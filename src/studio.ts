@@ -9,6 +9,7 @@ import { Brief, loadBrief, updateBrief } from "./brief.ts";
 import { buildGuide, estimateStepDuration, renderGuideHtml, writeAtomic } from "./build.ts";
 import { checkLayout } from "./layout.ts";
 import { buildVideo, VIDEO_PRESETS, videoPreset } from "./video.ts";
+import { buildSlidesPdf } from "./pdf.ts";
 import { buildShare } from "./share.ts";
 import { buildSite, loadSite, setSiteText, siteFile, syncSite } from "./site.ts";
 import { loadTheme } from "./theme.ts";
@@ -114,7 +115,7 @@ async function state(kit: Kit) {
     // estimated lengths (ms) per language, as the player computes them for a silent build: the timeline is drawn from these
     const timing: Record<string, { narration: number; total: number }[]> = {};
     for (const lang of g.languages) timing[lang] = g.steps.map((s) => estimateStepDuration(s, lang));
-    guides.push({ id, title: g.title, languages: g.languages, scene: g.scene, vertical: g.vertical, viewport: orientedGuide(g).viewport, timing, steps: g.steps.map((s) => ({ id: s.id, title: s.title ?? null, narration: s.narration, actions: s.actions.map((a) => ({ do: a.do, at: "at" in a ? a.at : 0, duration: "duration" in a ? a.duration : undefined })) })) });
+    guides.push({ id, title: g.title, languages: g.languages, scene: g.scene, vertical: g.vertical, format: g.format, viewport: orientedGuide(g).viewport, timing, steps: g.steps.map((s) => ({ id: s.id, title: s.title ?? null, narration: s.narration, actions: s.actions.map((a) => ({ do: a.do, at: "at" in a ? a.at : 0, duration: "duration" in a ? a.duration : undefined })) })) });
   }
   return { videoPresets: VIDEO_PRESETS, kitRoot: kit.root, projectRoot: projectRoot(kit), outDir: kit.out, outDirShown: path.relative(projectRoot(kit), kit.out).split(path.sep).join("/") || ".", defaultOutDirShown: path.relative(projectRoot(kit), path.resolve(kit.root, defaultOutDir(kit))).split(path.sep).join("/"), brief: await loadBrief(kit), pending: (await pendingChanges(kit)).length, guides, scenes: await listScenes(kit), hasKey: Boolean(process.env.FANTASTICO_API_KEY), catalog: await catalogOverview(kit).catch((e) => ({ exists: false as const, error: e instanceof Error ? e.message : String(e) })) };
 }
@@ -468,6 +469,20 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     return json(res, { url: `/out/${encodeURIComponent(r.name)}`, warnings: r.warnings });
   }
 
+  if (p === "/api/export-pdf" && req.method === "POST") {
+    // slides only: one page per slide, complete; streamed progress like the MP4
+    const b = await readBody(req);
+    res.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "no-store", "x-accel-buffering": "no" });
+    const event = (value: unknown) => { if (!res.destroyed) res.write(JSON.stringify(value) + "\n"); };
+    try {
+      const r = await buildSlidesPdf(kit, String(b.guide), String(b.lang), (progress) => event({ progress }));
+      event({ result: { url: `/out/${encodeURIComponent(r.name)}`, pages: r.pages } });
+    } catch (e) {
+      event({ error: e instanceof Error ? e.message : String(e) });
+    }
+    return void res.end();
+  }
+
   if (p === "/api/build" && req.method === "POST") {
     // builds with the voices chosen in cueflow.json: an external voice is called here, deliberately
     const b = await readBody(req);
@@ -511,7 +526,7 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     const b = await readBody(req);
     if ((await listGuides(kit)).includes(String(b.id))) throw new HttpError(409, `a video "${b.id}" already exists`);
     if (!(await listScenes(kit)).includes(String(b.scene))) throw new HttpError(400, `the scene "${b.scene}" does not exist (available: ${(await listScenes(kit)).join(", ") || "none"})`);
-    const guide = orientedGuide(Guide.parse({ id: b.id, title: b.title, scene: b.scene, vertical: b.vertical, languages: b.languages?.length ? b.languages : ["en"], steps: [] }));
+    const guide = orientedGuide(Guide.parse({ id: b.id, title: b.title, scene: b.scene, vertical: b.vertical, format: b.format === "slides" ? "slides" : "video", languages: b.languages?.length ? b.languages : ["en"], steps: [] }));
     await saveGuide(kit, guide);
     return json(res, { id: guide.id });
   }

@@ -59,7 +59,8 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
   let audioFiles = 0;
   // `provider` undefined: each language speaks with the voice cueflow.json gives it; null: silent (previews); a provider: forced
   let browserVoice = false;
-  const langs = opts.lang ? [opts.lang] : guide.languages;
+  // slides have no voice: their narration is the speaker's notes, never read aloud
+  const langs = guide.format === "slides" ? [] : opts.lang ? [opts.lang] : guide.languages;
   const total = langs.length * guide.steps.length;
   let done = 0;
   opts.onProgress?.(0, total);

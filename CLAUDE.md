@@ -71,6 +71,19 @@ Player model worth knowing before touching it:
   section pager, hence the other name. Both links add `?play=1`: the page that receives it mounts with `autoplay`
   and cleans its address. If the browser refuses sound without a click (`NotAllowedError` on the first audio), the
   player goes back to its untouched state with the play button, never a silent run.
+- **Slides** (`guide.format: "slides"`, default `"video"`): the same steps, scenes, cameras and actions, one slide per
+  step, but no voice, no captions, no transcript, no speed (build skips TTS, validate asks for no narration and no
+  length; the narration is optional **speaker's notes**, key N or the Notes button). Advanced by hand, one press per
+  **group of actions with the same resolved `at`**: actions at 0 come with the slide, every other distinct `at` is one
+  press (PowerPoint-like builds), after the last group the next press goes to the next slide; going back shows the
+  previous slide complete. `arm()` parks the groups not pressed yet at `at = Infinity` (originals in `at0`), so
+  `runDue` stays the single engine and `seek`/previews/`checkLayout` keep the time semantics. A press while a group
+  plays completes it (`runDue(cur, 1e12, instant)`). Presenting (the big button, or Space/→/Page Down before the
+  start) goes **full screen on `.cf-app`** (`cf-full`): space, arrows, Page Up/Down (a presenter's remote), Home/End,
+  click on the picture; in the page the bar's ‹ › buttons browse without full screen. Never autoplays. If an editor
+  calls `play()` (Studio's timeline) the parked groups get their time back and the slides run like a video. Controls
+  are `cf-sl-*` (the site already uses `.cf-prev`). The site labels such items "Presentation · N slides", drops the
+  transcript section and the print panel when nothing is printable.
 - On a docs page the player fits the window by **narrowing** (`--cf-aspect`, set by `mount`, times the available
   height), never by capping the stage height: a capped stage cropped the bottom of every scene on wide screens.
 

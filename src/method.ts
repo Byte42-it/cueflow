@@ -50,6 +50,15 @@ and show them in the guide, or use another scene.
 - Camera: frame only what matters. A camera action after anything shown or hidden that changes the layout.
 - Do not show or promise what the product does not do today.
 
+## Slides (only when asked)
+When the person asks for slides or a presentation instead of a video, create_guide with format "slides". Same scenes,
+cameras and actions, one slide per step, but nothing is read aloud and there are no captions: the slides are advanced by
+hand, full screen when presented (space bar, arrows, a presenter's remote), with buttons when they stay in the page.
+- On a slide, the actions at 0 appear with it; every other distinct \`at\` is one press, in order, like the animations of
+  a presentation. Give actions that belong together the same \`at\`; there is no narration to place them against.
+- The narration of a step is optional: in slides it is the speaker's notes (key N), never shown on the slide.
+- Write the slide's own words in the scene: a slide must read on its own, without anyone talking over it.
+
 ## 6. Check
 validate_guide (with layout) must pass without errors; read the warnings. Then preview_frame at the key moments of
 every step and look at the image: is the right thing framed, is the cursor where it should be? Fix, repeat.

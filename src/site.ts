@@ -142,6 +142,17 @@ async function imageInline(kit: Kit, rel?: string): Promise<string | undefined> 
 }
 
 const ABOUT: Record<string, string> = { en: "about", it: "circa", fr: "environ", de: "etwa", es: "unos", pt: "cerca de" };
+const SLIDES: Record<string, [string, string]> = { en: ["slide", "slides"], it: ["slide", "slide"], fr: ["diapositive", "diapositives"], de: ["Folie", "Folien"], es: ["diapositiva", "diapositivas"], pt: ["slide", "slides"] };
+
+/** "12 slides" in each language of the site: a presentation has no length of its own, it goes at the presenter's pace. */
+function slidesLabel(count: number, languages: string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const lang of languages) {
+    const [one, many] = SLIDES[lang.slice(0, 2)] ?? SLIDES.en!;
+    out[lang] = `${count} ${count === 1 ? one : many}`;
+  }
+  return out;
+}
 
 /** "about 3 min" in each language of the site, from the guide's estimated length when site.json gives none. */
 function durationLabel(guide: Parameters<typeof estimateDuration>[0], languages: string[]): Record<string, string> {
@@ -203,13 +214,15 @@ export async function buildSite(kit: Kit, opts: { provider?: TtsProvider | null;
   // the catalog as the pages see it
   const chapters: Record<string, Localized[]> = {};
   const durations: Record<string, Localized> = {};
+  const formats: Record<string, "video" | "slides"> = {};
   const bundles: Record<string, Awaited<ReturnType<typeof guideBundle>>> = {};
   for (const it of site.items) {
     if (!it.guide || it.status === "soon") continue;
     const b = (bundles[it.guide] ??= await guideBundle(kit, it.guide, opts.provider));
     warnings.push(...b.warnings.map((w) => `${it.guide}: ${w}`));
     chapters[it.id] = b.guide.steps.map((s, i) => s.title ?? `${i + 1}`);
-    if (!it.duration) durations[it.id] = durationLabel(b.guide, languages);
+    formats[it.id] = b.guide.format;
+    if (!it.duration) durations[it.id] = b.guide.format === "slides" ? slidesLabel(b.guide.steps.length, languages) : durationLabel(b.guide, languages);
   }
   const catalog = {
     title: site.title,
@@ -228,6 +241,8 @@ export async function buildSite(kit: Kit, opts: { provider?: TtsProvider | null;
         id: it.id,
         row: it.row,
         status: it.status,
+        // a video item whose guide is slides: presented by hand, no voice, no transcript
+        format: formats[it.id] ?? "video",
         title: it.title,
         kicker: it.kicker,
         desc: it.desc,
@@ -293,7 +308,7 @@ ${body}
     const b = it.guide ? bundles[it.guide] : undefined;
     const body =
       `<div id="cf-print-cover"></div>\n<div class="cf-layout"><nav class="cf-side" aria-label="index"></nav><main class="cf-main">\n` +
-      `<div class="cf-video-zone"><h1></h1>${b ? '<div id="cf-player"></div><section id="transcript" class="cf-section cf-transcript-section"></section>' : ""}</div>\n` +
+      `<div class="cf-video-zone"><h1></h1>${b ? `<div id="cf-player"></div>${b.guide.format === "slides" ? "" : '<section id="transcript" class="cf-section cf-transcript-section"></section>'}` : ""}</div>\n` +
       (Object.keys(articles).length ? `<div class="cf-deep-head"></div>\n<div class="cf-article"></div>\n` : "") +
       (site.footer ? `<p class="cf-foot"></p>` : "") +
       `</main></div>`;
