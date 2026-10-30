@@ -6,8 +6,9 @@ import { z } from "zod";
  */
 export const Avatar = z
   .object({
-    provider: z.enum(["none", "svg", "image"]).optional().describe("none: no narrator; svg: a cartoon face drawn by the player, lips moving with the voice (theme/avatar.svg or the built-in one); image: a picture of the kit (`image`), swaying and nodding with the voice"),
-    image: z.string().optional().describe("provider image: path of the picture inside the kit, e.g. shared/avatar/me.png"),
+    provider: z.enum(["none", "svg", "image", "fantastico", "command"]).optional().describe("none: no narrator; svg: a cartoon face drawn by the player, lips moving with the voice (theme/avatar.svg or the built-in one); image: a picture of the kit (`image`), swaying and nodding with the voice; fantastico: a video of the person in `image` saying the narration, generated at build with the Fantastico key (credit per second of clip; only the steps that show the narrator); command: the same through a local program (CUEFLOW_AVATAR_COMMAND)"),
+    image: z.string().optional().describe("providers image, fantastico, command: path of the picture of the person inside the kit, e.g. shared/avatar/me.png (uploaded, or made from words with generate_portrait)"),
+    model: z.string().optional().describe("provider fantastico: the animation model of the service's catalogue; omitted = the service's default"),
     mode: z.enum(["off", "pip", "side", "band", "full"]).optional().describe("off: hidden; pip: small, in a corner or at x/y; side: a half-bust panel on the left or right of the picture; band: a panel at the bottom or top; full: the narrator covers the whole picture (an intro, a conclusion)"),
     position: z.enum(["bottom-right", "bottom-left", "top-right", "top-left", "custom", "left", "right", "top", "bottom"]).optional().describe("pip: a corner, or custom with x/y; side: left or right; band: bottom or top"),
     x: z.number().min(0).max(1).optional().describe("pip custom: left edge of the narrator, as a fraction of the picture's width"),
@@ -19,6 +20,8 @@ export const Avatar = z
   .default({});
 export type Avatar = z.infer<typeof Avatar>;
 export const AVATAR_DEFAULTS = { provider: "none", mode: "pip", position: "bottom-right", x: 0.7, y: 0.6, size: 0.28, shape: "round", background: "#1f2a44" } as const;
+/** A narrator that is a generated clip of a person (made at build, one per step and language). */
+export const isGenerated = (provider: string | undefined) => provider === "fantastico" || provider === "command";
 /** The narrator of one step: the step's own choices over the video's over the project's over the defaults. */
 export function resolveAvatar(...layers: (Partial<Avatar> | undefined)[]): Required<Avatar> {
   const out: Record<string, unknown> = { ...AVATAR_DEFAULTS };

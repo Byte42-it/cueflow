@@ -190,7 +190,7 @@ try {
   } else if (command === "build" && id) {
     const r = await buildGuide(kit, id);
     for (const w of r.warnings) console.log(`warning: ${w}`);
-    console.log(`${r.file}  (${r.scenes.length} scene(s), ${r.silent ? "no recorded audio: the browser reads the narration (choose a voice with `cueflow voices`)" : `${r.audioFiles} audio file(s)`})`);
+    console.log(`${r.file}  (${r.scenes.length} scene(s), ${r.silent ? "no recorded audio: the browser reads the narration (choose a voice with `cueflow voices`)" : `${r.audioFiles} audio file(s)`}${r.clips ? `, ${r.clips} narrator clip(s), ${r.clipsMade} made now` : ""})`);
   } else {
     console.log(USAGE);
     process.exitCode = 1;

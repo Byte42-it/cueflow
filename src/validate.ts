@@ -5,6 +5,7 @@ import type { Kit } from "./kit.ts";
 import { listScenes, readScene, sceneFile, sceneFileFor } from "./kit.ts";
 import { countMatches, firstText } from "./scene.ts";
 import { isKitImage } from "./avatars.ts";
+import { isGenerated } from "./avatar.ts";
 import { estimateDuration } from "./build.ts";
 import { loadBrief } from "./brief.ts";
 
@@ -28,7 +29,7 @@ export async function validateGuide(kit: Kit, guide: Guide): Promise<Report> {
   for (const [where, a] of [["cueflow.json avatar", kit.settings.avatar], ["player.avatar", guide.player.avatar], ...guide.steps.map((s, i) => [`step ${i + 1} (${s.id}) avatar`, s.avatar] as const)] as const) {
     if (isKitImage(a?.image)) pictures.push({ where, file: a.image });
     if (isKitImage(a?.background)) pictures.push({ where, file: a.background });
-    if (a?.provider === "image" && !a.image && !guide.player.avatar?.image && !kit.settings.avatar?.image) errors.push(`${where}: provider "image" needs \`image\`, the path of a picture inside the kit`);
+    if ((a?.provider === "image" || isGenerated(a?.provider)) && !a?.image && !guide.player.avatar?.image && !kit.settings.avatar?.image) errors.push(`${where}: provider "${a?.provider}" needs \`image\`, the path of a picture of the person inside the kit (upload one, or generate_portrait)`);
   }
   for (const p of pictures) {
     if (p.file.split(/[\\/]/).includes("..")) errors.push(`${p.where}: "${p.file}" must be inside the kit`);

@@ -32,6 +32,8 @@ import { validateGuide } from "./validate.ts";
 import { readFile as read } from "node:fs/promises";
 import { readRawSettings, setVoice, stepAudio, voiceFor, voiceOptions, voiceTable, writeRawSettings } from "./voices.ts";
 import { setAvatar, stepAvatar } from "./avatars.ts";
+import { fantasticoAvatarProvider } from "./avatar-video.ts";
+import { createHash } from "node:crypto";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS: Record<string, [string, string]> = {
@@ -499,7 +501,7 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     const id = String(b.guide);
     return progressive(res, b.progress === true, async (report) => {
       const r = await buildGuide(kit, id, undefined, { onProgress: (d, t) => report(t ? (d / t) * 100 : 100, "Narration " + d + " of " + t) });
-      return { target: "guide", url: `/out/${id}.html`, audioFiles: r.audioFiles, silent: r.silent, warnings: r.warnings };
+      return { target: "guide", url: `/out/${id}.html`, audioFiles: r.audioFiles, silent: r.silent, clips: r.clips, clipsMade: r.clipsMade, warnings: r.warnings };
     });
   }
 
@@ -549,6 +551,18 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     const target = b.scope === "global" ? { scope: "global" as const } : b.scope === "language" ? { scope: "language" as const, language: String(b.language) } : { scope: "video" as const, guide: String(b.guide), language: b.language ? String(b.language) : undefined };
     await setVoice(kit, target, b.voice ?? null);
     return json(res, { current: kit.settings.voices, table: await voiceTable(kit) });
+  }
+  // a portrait of the narrator from words, through Fantastico: saved in the kit like an uploaded picture
+  if (p === "/api/avatar-portrait" && req.method === "POST") {
+    const b = await readBody(req);
+    const prompt = String(b.prompt ?? "").trim();
+    if (!prompt) throw new HttpError(400, "describe the person");
+    const prov = fantasticoAvatarProvider();
+    if (!prov) throw new HttpError(400, `FANTASTICO_API_KEY is missing: connect a key in Settings, or get one at ${FANTASTICO_PORTAL}`);
+    const pic = await prov.portrait!(prompt, b.style ? String(b.style) : undefined).catch((e) => { throw new HttpError(502, e.message); });
+    const ext = pic.mime.includes("jpeg") ? "jpg" : pic.mime.includes("webp") ? "webp" : "png";
+    const name = await saveMediaFile(kit, "shared", undefined, `avatar/portrait-${createHash("sha256").update(pic.data).digest("hex").slice(0, 10)}.${ext}`, pic.data).catch((e) => { throw new HttpError(400, e.message); });
+    return json(res, { image: `shared/${name}` });
   }
   // the narrator at one level: the project (cueflow.json), a video, a step; `avatar` null = inherit from above
   if (p === "/api/avatar" && req.method === "POST") {

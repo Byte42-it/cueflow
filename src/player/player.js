@@ -760,7 +760,10 @@
     /** Puts the face where the step says. Idempotent: called at every step entry (and seek). */
     function applyAvatar(st) {
       var a = avatarOf(st);
-      var on = !slides && a.provider !== "none" && a.mode !== "off" && (a.provider !== "image" || kitImage(a.image));
+      // a generated narrator: the clip of this step in this language; without one (a preview, no key yet) the picture stands in
+      var generated = a.provider === "fantastico" || a.provider === "command";
+      var clip = generated && st && DATA.avatarVideo && DATA.avatarVideo[lang] ? DATA.avatarVideo[lang][st.id] : null;
+      var on = !slides && a.provider !== "none" && a.mode !== "off" && (!(a.provider === "image" || (generated && !clip)) || kitImage(a.image));
       app.classList.toggle("cf-av-br", on && a.mode === "pip" && a.position === "bottom-right");
       avatarEl.hidden = !on;
       if (!on) { avKey = ""; return; } // the face stays built for the next step that shows it
@@ -768,12 +771,13 @@
       if (key === avKey) return;
       avKey = key;
       // the face itself
-      var faceKey = a.provider + ":" + (a.image || "");
+      var faceKey = a.provider + ":" + (a.image || "") + ":" + (clip ? st.id + "/" + lang : "");
       if (faceEl.getAttribute("data-face") !== faceKey) {
         faceEl.setAttribute("data-face", faceKey);
-        faceEl.innerHTML = a.provider === "image" ? '<img alt="" src="' + kitImage(a.image) + '">' : (DATA.avatar || AVATAR_SVG);
-        var svg = faceEl.querySelector("svg"), img = faceEl.querySelector("img");
-        av = { svg: svg, img: img, eyes: svg ? [svg.querySelector("#eye-l"), svg.querySelector("#eye-r")] : [], mouths: svg ? { closed: svg.querySelector("#mouth-closed"), mid: svg.querySelector("#mouth-mid"), open: svg.querySelector("#mouth-open") } : {}, pulse: -1e9, bound: false, level: 0 };
+        faceEl.innerHTML = clip ? '<video muted playsinline preload="auto"></video>' : (a.provider === "image" || generated) ? '<img alt="" src="' + kitImage(a.image) + '">' : (DATA.avatar || AVATAR_SVG);
+        var svg = faceEl.querySelector("svg"), img = faceEl.querySelector("img"), video = faceEl.querySelector("video");
+        if (video) { video.src = clip; video.playbackRate = speed; }
+        av = { svg: svg, img: img, video: video, eyes: svg ? [svg.querySelector("#eye-l"), svg.querySelector("#eye-r")] : [], mouths: svg ? { closed: svg.querySelector("#mouth-closed"), mid: svg.querySelector("#mouth-mid"), open: svg.querySelector("#mouth-open") } : {}, pulse: -1e9, bound: false, level: 0 };
         av.eyes.forEach(function (e) { if (e) { e.style.transformBox = "fill-box"; e.style.transformOrigin = "50% 50%"; } });
       }
       // where, how big, on what
@@ -794,8 +798,17 @@
     }
     /* a small deterministic noise of the step time: the same t gives the same blink, in a seek as in playback */
     function noise(n) { var x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); }
+    /* the clip follows the step clock: plays with the player, pauses with it, lands where a seek lands */
+    function syncClip(t) {
+      var v = av && av.video; if (!v) return;
+      var want = t / 1000;
+      if (playing) { if (Math.abs(v.currentTime - want) > 0.15) v.currentTime = want; if (v.paused && want < (v.duration || Infinity)) v.play().catch(function () {}); }
+      else { if (!v.paused) v.pause(); if (Math.abs(v.currentTime - want) > 0.02) v.currentTime = want; }
+    }
     function paintAvatar(t, level) {
       if (!av || avatarEl.hidden) return;
+      syncClip(t);
+      if (av.video) return; // a real face: nothing to draw
       // a blink every 2.5–5 s, 150 ms long; the slot's own noise picks its moment
       var slot = Math.floor(t / 3600), at = slot * 3600 + 400 + noise(slot) * 2800, blink = reduce ? 0 : Math.max(0, 1 - Math.abs(t - at) / 75);
       av.eyes.forEach(function (e) { if (e) e.style.transform = "scaleY(" + (1 - 0.92 * blink) + ")"; });
@@ -961,6 +974,7 @@
       setPlaying(false);
       if (l) { lang = l; langSel.value = l; pickVoice(); }
       await goTo(i, t);
+      if (av && av.video && !avatarEl.hidden) await new Promise(function (res) { var v = av.video; if (v.readyState >= 2 && !v.seeking) return res(); var done = function () { v.removeEventListener("seeked", done); v.removeEventListener("loadeddata", done); res(); }; v.addEventListener("seeked", done); v.addEventListener("loadeddata", done); setTimeout(done, 1500); });
       app.classList.add("cf-ready");
       return { total: cur.total, narration: cur.narrDur, steps: steps.length };
     }
@@ -1235,6 +1249,7 @@
       speed = speeds[(speeds.indexOf(speed) + 1) % speeds.length];
       speedBtn.textContent = speed + "×";
       if (cur && cur.audio) cur.audio.playbackRate = speed;
+      if (av && av.video) av.video.playbackRate = speed;
     };
     ccBtn.onclick = function () {
       captionsOn = !captionsOn;

@@ -1,4 +1,7 @@
-import { avatarImages } from "./avatars.ts";
+import { avatarImages, stepAvatar } from "./avatars.ts";
+import { avatarVideoProviderFor, clipAspect, stepClip } from "./avatar-video.ts";
+import { isGenerated } from "./avatar.ts";
+import { isKitImage } from "./avatars.ts";
 import type { Avatar } from "./avatar.ts";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -19,7 +22,7 @@ export const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, 
 /** Text that is safe inside a <script> or <style> element. */
 export const rawText = (s: string, tag: "script" | "style") => s.replace(new RegExp(`</${tag}`, "gi"), `<\\/${tag}`);
 
-export type BuildResult = { file: string; scenes: string[]; audioFiles: number; silent: boolean; warnings: string[] };
+export type BuildResult = { file: string; scenes: string[]; audioFiles: number; silent: boolean; clips: number; clipsMade: number; warnings: string[] };
 
 /** What the player needs to run a guide: the guide, its scenes inlined, its audio as data URIs. */
 export type GuideBundle = {
@@ -35,9 +38,14 @@ export type GuideBundle = {
     avatarGlobal: Avatar;
     /** pictures the narrator shows, by kit path: data URIs, or addresses in a docs site */
     avatarImages: Record<string, string>;
+    /** the generated narrator, per language and step id: a clip of the person saying the step (data URI, or an address in a docs site) */
+    avatarVideo: Record<string, Record<string, string>>;
   };
   scenes: string[];
   audioFiles: number;
+  /** clips of the narrator: in the page, and how many were generated now (credit) */
+  clips: number;
+  clipsMade: number;
   warnings: string[];
 };
 
@@ -62,7 +70,8 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
   }
 
   const audio: Record<string, Record<string, string>> = {};
-  let audioFiles = 0;
+  const avatarVideo: Record<string, Record<string, string>> = {};
+  let audioFiles = 0, clips = 0, clipsMade = 0;
   // `provider` undefined: each language speaks with the voice cueflow.json gives it; null: silent (previews); a provider: forced
   let browserVoice = false;
   // slides have no voice: their narration is the speaker's notes, never read aloud
@@ -85,11 +94,25 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
       if (!sound) continue;
       (audio[lang] ??= {})[step.id] = `data:${sound.mime};base64,${sound.data.toString("base64")}`;
       audioFiles += 1;
+      // the generated narrator: only the steps that show it, only with real audio, never spent for a preview
+      const av = stepAvatar(kit, guide, step);
+      if (isGenerated(av.provider) && av.mode !== "off" && isKitImage(av.image)) {
+        const image = await readFile(path.join(kit.root, av.image)).catch(() => null);
+        if (!image) continue; // validate reports the missing picture
+        let p = null;
+        try { p = avatarVideoProviderFor(av.provider, process.env, av.model); } catch (e) { if (provider !== null) throw e; } // a preview without a key: no clip, no error
+        if (!p) continue;
+        const req = { image, imageMime: /\.png$/i.test(av.image) ? "image/png" : "image/jpeg", audio: sound.data, audioMime: sound.mime, silenceAfterMs: step.hold, background: av.background, aspect: clipAspect(av.mode) };
+        const r = await stepClip(kit, p, req, { previewOnly: provider === null });
+        if (!r) continue;
+        (avatarVideo[lang] ??= {})[step.id] = `data:${r.clip.mime};base64,${r.clip.data.toString("base64")}`;
+        clips += 1; if (r.made) clipsMade += 1;
+      }
     }
   }
   // a language without a recorded voice is read by the viewer's browser when that is what was chosen for it
   if (browserVoice) guide.player = { ...guide.player, fallbackVoice: "browser" };
-  return { guide, data: { guide, scenes, sceneLang, shared, audio, avatarGlobal: kit.settings.avatar, avatarImages: await avatarImages(kit, guide) }, scenes: names, audioFiles, warnings: report.warnings };
+  return { guide, data: { guide, scenes, sceneLang, shared, audio, avatarGlobal: kit.settings.avatar, avatarImages: await avatarImages(kit, guide), avatarVideo }, scenes: names, audioFiles, clips, clipsMade, warnings: report.warnings };
 }
 
 const MS_PER_CHAR = 65; // as in the player: narration length estimate when there is no audio
@@ -145,7 +168,7 @@ export async function buildGuide(kit: Kit, id: string, provider?: TtsProvider | 
   const { bundle, html } = await renderGuideHtml(kit, id, provider, { onProgress: opts.onProgress });
   const file = distFile(kit, id);
   await writeAtomic(file, html);
-  return { file, scenes: bundle.scenes, audioFiles: bundle.audioFiles, silent: bundle.audioFiles === 0, warnings: bundle.warnings };
+  return { file, scenes: bundle.scenes, audioFiles: bundle.audioFiles, silent: bundle.audioFiles === 0, clips: bundle.clips, clipsMade: bundle.clipsMade, warnings: bundle.warnings };
 }
 
 /** What a variant of the page (the one for phones) adds to the standard one: head tags, css after the theme, a script after the player, and the options passed to mount (a JS expression). */

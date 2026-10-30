@@ -32,7 +32,8 @@ Decisions taken by the maintainers — do not re-litigate:
 | `validate.ts` | checks selectors against the scene current at each step, duplicate ids, unknown scenes, missing narration per language |
 | `tts.ts` | `TtsProvider` interface (+ `format`: mp3/m4a/wav/ogg) with OpenAI, `command` (any local program, e.g. Piper) and `say` (macOS) providers; on-disk cache keyed by hash(provider, voice, lang, text); ported from the sister chess project |
 | `theme.ts` | optional kit `theme/`: `theme.css` appended after the player CSS (urls inlined), `labels.json` (player words per language, validated), `avatar.svg` (the kit's own narrator face; must have the groups of `AVATAR_IDS`, checked at load) |
-| `avatar.ts`, `avatars.ts` | the narrator: schema `Avatar` (all fields optional), `AVATAR_DEFAULTS`, `resolveAvatar` (step < video < project < defaults); `setAvatar` at one level, `avatarImages` (the pictures a guide may show, inlined), `stepAvatar` (what a step shows), `isKitImage` |
+| `avatar.ts`, `avatars.ts` | the narrator: schema `Avatar` (all fields optional), `AVATAR_DEFAULTS`, `resolveAvatar` (step < video < project < defaults), `isGenerated`; `setAvatar` at one level, `avatarImages` (the pictures a guide may show, inlined), `stepAvatar` (what a step shows), `isKitImage` |
+| `avatar-video.ts` | the **generated narrator**: a picture of a person + the step's audio → a clip of that person saying it (`AvatarVideoProvider`: `fantastico` over HTTP with the voices' key, contract in the file header — portrait / animate / jobs; `command`, a local program through a template like Piper); `stepClip` caches under `<kit>/avatar/<hash>.mp4|webm` by provider fingerprint + image + audio + hold + background + aspect, `previewOnly` never generates; `clipAspect` from the place (pip 1:1, side 9:16, band/full 16:9) |
 | `build.ts` | guide → `dist/<id>.html` (player + css + scenes + `shared` + base64 audio, JSON embedded script-safe); `estimateDuration` (same rule as the silent player) |
 | `player/player.js`, `player.css` | browser runtime, plain JS inlined at build time (not bundled/compiled) |
 | `site.ts` | `site.json` catalog → `dist/site/` (home + one page per item: player, transcript, `pages/<id>.html` article); validation, posters via `preview.ts` |
@@ -129,6 +130,16 @@ Player model worth knowing before touching it:
   (`noise(slot)`); lips from `mouthLevel()`: the audio's loudness (AnalyserNode on `keepAlive`, self-calibrated), else
   the browser voice's word boundaries, else a syllable guess; closed when paused, at a seek, or silent. Never on
   slides; `prefers-reduced-motion` stops blink and sway. `.cf-av-br` moves the Cueflow mark out of a bottom-right pip.
+  **Generated** (`provider: fantastico | command`, 2026-10-30): `guideBundle` makes a clip only for a step whose resolved
+  narrator is generated, not `off`, with a real audio (never in a preview: `provider === null` only reads the cache),
+  the request carrying `silenceAfterMs = step.hold` so the clip covers narration AND hold — nothing frozen, no idle
+  loop; before start and on pause everything stops. Clips travel as `DATA.avatarVideo[lang][stepId]` (data URI; files
+  under `assets/avatar/` in the site); `BuildResult.clips`/`clipsMade` tell the credit spent. The player's face is a
+  muted `<video>` kept on the step clock (`syncClip`: play/pause with the player, resync when it drifts, `seek` waits
+  for `seeked`), falling back to the picture when there is no clip (previews). `generate_portrait` (MCP) and
+  `POST /api/avatar-portrait` (Studio, "Generate a portrait…") draw the person from words and save the picture in
+  `shared/avatar/`. The SDK has no `avatar` surface yet: `FANTASTICO_AVATAR_URL` (default `https://fantastico.cc/api`)
+  is where the contract is expected; `test/avatar-video.test.ts` runs a stand-in server speaking it.
   Doors: MCP `set_avatar` (scope global | video | step, `avatar` null = inherit), Studio `POST /api/avatar` (same),
   `validate` checks the pictures exist. Studio: Settings › "Narrator for every tutorial", the **Avatar** page of the
   bottom bar (this video: Auto or its own), the **Avatar lane first on the timeline** (one block per step, what is
@@ -156,7 +167,8 @@ Node ≥ 22.18 runs the `.ts` files directly (imports use the `.ts` extension; `
 Preview needs Chromium: `npx playwright install chromium` (already installed on the dev machine; headless lacks emoji fonts).
 Env: `OPENAI_API_KEY` (enables TTS), `CUEFLOW_TTS=none|openai|say|command`, `CUEFLOW_TTS_COMMAND`, `CUEFLOW_TTS_FORMAT`,
 `CUEFLOW_TTS_MODEL`, `CUEFLOW_TTS_VOICE`, `CUEFLOW_KIT`, `CUEFLOW_CHROMIUM` (browser executable when Playwright's own
-Chromium build is not installed).
+Chromium build is not installed), `FANTASTICO_AVATAR_URL`, `CUEFLOW_AVATAR_MODEL`, `CUEFLOW_AVATAR_COMMAND` (+ `_FORMAT`)
+for the generated narrator.
 
 ## State (2026-10-14)
 

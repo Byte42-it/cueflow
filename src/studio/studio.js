@@ -977,6 +977,8 @@
       return;
     }
     if (external.length) p.appendChild(h("p", { class: "msg warn" }, "Building generates audio with the external voice chosen for this video (" + external.map(function (r) { return r.language + ": " + r.provider; }).join(", ") + "): the narration text is sent to that service, and it may cost. Texts already generated are not paid again."));
+    var genSteps = S.guide ? S.guide.steps.filter(function (st, i) { var sh = S.state.guides.filter(function (x) { return x.id === S.guide.id; })[0]; var a = sh && sh.steps[i] && sh.steps[i].shown; return a && a.provider === "fantastico" && a.mode !== "off"; }).length : 0;
+    if (genSteps) p.appendChild(h("p", { class: "msg warn" }, "Building makes a video of the narrator for " + genSteps + " step(s) × " + (S.guide.languages.length) + " language(s) with Fantastico: the picture and the audio of each step are sent to the service, and it costs per second of video. Steps already made are not paid again."));
     p.appendChild(h("h3", null, "MP4 video"));
     p.appendChild(h("p", null, S.guide.vertical ? "Format: vertical (portrait)." : "Format: horizontal (landscape)."));
     p.appendChild(h("p", null, "Export in " + S.lang + ". Includes recorded audio; browser voices cannot be included. Requires Chromium; FFmpeg is included with Cueflow. Rendering may take several minutes."));
@@ -1016,7 +1018,7 @@
       if (c.layoutError) box.appendChild(h("div", { class: "msg err" }, c.layoutError));
       if (c.errors && !c.errors.length && !(c.warnings || []).length && !(c.layout || []).length && !c.layoutError) box.appendChild(h("div", { class: "msg ok" }, "✓ Nothing to fix."));
       if (c.built) {
-        box.appendChild(h("div", { class: "msg ok" }, "✓ Built" + (c.built.target === "guide" ? (S.guide && S.guide.format === "slides" ? "" : c.built.silent ? " (no recorded audio: the browser reads it)" : " with " + c.built.audioFiles + " audio file(s)") : " (" + c.built.pages + " pages)") + "."));
+        box.appendChild(h("div", { class: "msg ok" }, "✓ Built" + (c.built.target === "guide" ? (S.guide && S.guide.format === "slides" ? "" : c.built.silent ? " (no recorded audio: the browser reads it)" : " with " + c.built.audioFiles + " audio file(s)" + (c.built.clips ? ", " + c.built.clips + " narrator clip(s)" + (c.built.clipsMade ? " (" + c.built.clipsMade + " made now)" : " (all from before)") : "")) : " (" + c.built.pages + " pages)") + "."));
         box.appendChild(h("a", { href: c.built.url, target: "_blank", rel: "noopener", class: "btn" }, "Open it"));
         (c.built.warnings || []).forEach(function (x) { box.appendChild(h("div", { class: "msg warn" }, "! " + x)); });
       }
@@ -1151,13 +1153,18 @@
       var r = resolved();
       body.appendChild(h("p", { class: "cur" }, "Now: " + avatarWords(r)));
       body.appendChild(h("div", { class: "pickrow" },
-        sel("Narrator", "provider", [["none", "None"], ["svg", "Cartoon face, drawn by the player"], ["image", "A picture of the kit"]]),
+        sel("Narrator", "provider", [["none", "None"], ["svg", "Cartoon face, drawn by the player"], ["image", "A picture, swaying as it speaks"], ["fantastico", "A video of the person (Fantastico, made at build)"], ["command", "A video of the person (local program)"]]),
         sel("Where", "mode", [["off", "Hidden"], ["pip", "Small, in a corner"], ["side", "Half bust, on a side"], ["band", "A band"], ["full", "Full screen"]])));
-      if (r.provider === "image") {
+      if (r.provider === "image" || r.provider === "fantastico" || r.provider === "command") {
         var img = h("input", { type: "text", placeholder: "shared/avatar/me.png" }); img.value = v.image || "";
         img.addEventListener("change", function () { if (img.value.trim()) v.image = img.value.trim(); else delete v.image; store(); });
-        body.appendChild(h("div", { class: "pickrow" }, h("label", { class: "lab", style: "flex:1" }, "Picture" + (v.image == null && above.image ? " (Auto: " + above.image + ")" : ""), h("div", { class: "pickrow" }, img,
-          h("button", { class: "btn", onclick: function () { avatarUpload(function (p) { v.image = p; img.value = p; store(); }); } }, "Upload…")))));
+        var picRow = h("div", { class: "pickrow" }, img,
+          h("button", { class: "btn", onclick: function () { avatarUpload(function (p) { v.image = p; img.value = p; store(); }); } }, "Upload…"),
+          h("button", { class: "btn", title: "Describe the person: Fantastico draws a portrait, saved in the kit like an uploaded picture", onclick: function () { portraitDialog(function (p) { v.image = p; img.value = p; store(); render(); }); } }, "Generate a portrait…"));
+        body.appendChild(h("div", { class: "pickrow" }, h("label", { class: "lab", style: "flex:1" }, "Picture of the person" + (v.image == null && above.image ? " (Auto: " + above.image + ")" : ""), picRow)));
+        if (r.image) body.appendChild(h("img", { class: "avpreview", src: "/kit/" + r.image, alt: "" }));
+        if (r.provider === "fantastico") body.appendChild(h("p", { class: "cur" }, "At build, every step that shows the narrator becomes a short video of this person saying it, with the voice of the tutorial. It uses Fantastico credit per second of video; a step already made is not paid again. Previews show the picture instead."));
+        if (r.provider === "command") body.appendChild(h("p", { class: "cur" }, "At build, CUEFLOW_AVATAR_COMMAND makes the clip of every step that shows the narrator ({image}, {audio}, {out}; optional {background}, {silence}, {aspect})."));
       }
       if (r.mode === "pip") {
         body.appendChild(h("div", { class: "pickrow" },
@@ -1193,6 +1200,27 @@
     render();
     box.appendChild(body);
     return box;
+  }
+  /* a portrait from words: Fantastico draws it, the kit keeps it */
+  function portraitDialog(done) {
+    dialog("Generate a portrait", function (body, close) {
+      body.appendChild(h("p", null, "Describe the narrator: who they are, how they look, the framing (head and shoulders, facing the camera, plain background). Fantastico draws the picture; you can generate again until it is right. It uses credit."));
+      var prompt = h("textarea", { rows: 4, placeholder: "A woman in her forties, short grey hair, glasses, dark blazer, head and shoulders, looking at the camera, soft studio light, plain background" });
+      var style = h("input", { type: "text", placeholder: "photo, illustration, flat cartoon… (optional)" });
+      var out = h("div", { class: "result" }), msg = h("div", { class: "msg" }), current = null;
+      var go = h("button", { class: "btn primary", onclick: function () {
+        if (!prompt.value.trim()) { msg.className = "msg err"; msg.textContent = "Describe the person first."; return; }
+        go.disabled = true; msg.className = "msg"; msg.textContent = "Drawing…";
+        api("/api/avatar-portrait", { method: "POST", body: { prompt: prompt.value.trim(), style: style.value.trim() || undefined } })
+          .then(function (r) { current = r.image; out.textContent = ""; out.appendChild(h("img", { class: "avpreview big", src: "/kit/" + r.image + "?t=" + Date.now(), alt: "" })); msg.textContent = r.image; use.disabled = false; go.textContent = "Generate again"; })
+          .catch(function (e) { msg.className = "msg err"; msg.textContent = e.message; }).then(function () { go.disabled = false; });
+      } }, "Generate");
+      var use = h("button", { class: "btn", disabled: true, onclick: function () { done(current); close(); } }, "Use this picture");
+      body.appendChild(h("label", { class: "lab" }, "The person", prompt));
+      body.appendChild(h("label", { class: "lab" }, "Style", style));
+      body.appendChild(h("div", { class: "row" }, go, use, h("button", { class: "btn", onclick: close }, "Cancel")));
+      body.appendChild(out); body.appendChild(msg);
+    });
   }
   /* the Avatar page of the bottom bar: this video's narrator, Auto = the project's */
   function avatarPage(p) {

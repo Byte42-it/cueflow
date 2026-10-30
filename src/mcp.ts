@@ -6,7 +6,7 @@ import { Brief, initKit, kitStatus, updateBrief } from "./brief.ts";
 import { describeChange, markSeen, pendingChanges } from "./changes.ts";
 import { INSTRUCTIONS, METHOD } from "./method.ts";
 import { VoiceSpec } from "./settings.ts";
-import { speechModels } from "./tts.ts";
+import { FANTASTICO_PORTAL, speechModels } from "./tts.ts";
 import { setVoice, voiceOptions, voiceTable } from "./voices.ts";
 import { captureScenes } from "./capture.ts";
 import { listGuides, listScenes, loadGuide, readScene, saveGuide, type Kit } from "./kit.ts";
@@ -18,6 +18,9 @@ import { buildSite, checkEndpoint, loadSite, syncSite, validateSite } from "./si
 import { createArticle, readArticle, writeArticle } from "./articles.ts";
 import { Avatar, Guide, orientedGuide, Step } from "./schema.ts";
 import { setAvatar } from "./avatars.ts";
+import { fantasticoAvatarProvider } from "./avatar-video.ts";
+import { saveMediaFile } from "./media.ts";
+import { createHash } from "node:crypto";
 import { validateGuide } from "./validate.ts";
 
 const text = (value: unknown) => ({ content: [{ type: "text" as const, text: typeof value === "string" ? value : JSON.stringify(value, null, 2) }] });
@@ -176,6 +179,23 @@ export function createServer(kit: Kit): McpServer {
       const target = scope === "global" ? { scope } : scope === "video" ? { scope, guide: guide! } : { scope, guide: guide!, step: step_id! };
       await setAvatar(kit, target, avatar);
       return text({ scope, guide, step_id, avatar, project: kit.settings.avatar });
+    })
+  );
+
+  server.registerTool(
+    "generate_portrait",
+    {
+      description:
+        "Draw the narrator from words with Fantastico (credit): a picture saved in the kit (shared/avatar/portrait-<hash>.png) to use as `image` of set_avatar, for the provider image (a swaying picture) or fantastico (a video of the person saying every step, made at build). Describe who they are, how they look and the framing: head and shoulders, facing the camera, plain background. Only when the user asks for a narrator they do not have a picture of.",
+      inputSchema: { prompt: z.string().min(3), style: z.string().optional().describe("photo, illustration, flat cartoon…") }
+    },
+    safe(async ({ prompt, style }) => {
+      const prov = fantasticoAvatarProvider();
+      if (!prov) throw new Error(`FANTASTICO_API_KEY is missing: put it in the kit's .env file, or get a key at ${FANTASTICO_PORTAL}`);
+      const pic = await prov.portrait!(prompt, style);
+      const ext = pic.mime.includes("jpeg") ? "jpg" : pic.mime.includes("webp") ? "webp" : "png";
+      const name = await saveMediaFile(kit, "shared", undefined, `avatar/portrait-${createHash("sha256").update(pic.data).digest("hex").slice(0, 10)}.${ext}`, pic.data);
+      return text({ image: `shared/${name}`, next: "set_avatar with provider image or fantastico and this image" });
     })
   );
 

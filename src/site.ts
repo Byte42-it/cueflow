@@ -174,7 +174,7 @@ function fromDataUri(uri: string): { bytes: Buffer; ext: string } | null {
   const mime = m[1]!.toLowerCase();
   const ext = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/svg+xml": "svg", "image/webp": "webp", "image/x-icon": "ico", "image/avif": "avif",
     "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/wav": "wav", "audio/x-wav": "wav", "audio/ogg": "ogg",
-    "font/woff2": "woff2", "font/woff": "woff", "font/ttf": "ttf", "font/otf": "otf" }[mime] ?? mime.split("/")[1]!.replace(/[^a-z0-9]/g, "") ?? "bin";
+    "font/woff2": "woff2", "font/woff": "woff", "font/ttf": "ttf", "font/otf": "otf", "video/mp4": "mp4", "video/webm": "webm" }[mime] ?? mime.split("/")[1]!.replace(/[^a-z0-9]/g, "") ?? "bin";
   return { bytes: m[2] ? Buffer.from(m[3]!, "base64") : Buffer.from(decodeURIComponent(m[3]!), "utf8"), ext };
 }
 
@@ -215,7 +215,17 @@ async function externalize(data: GuideBundle["data"], out: string, guideId: stri
     if (!written.has(name)) { await writeAtomic(path.join(out, "assets", name), file.bytes); written.add(name); }
     avatarImages[kitPath] = `../assets/${name}`;
   }
-  return { ...data, shared: shared as GuideBundle["data"]["shared"], audio, avatarImages };
+  const avatarVideo: Record<string, Record<string, string>> = {};
+  for (const [lang, steps] of Object.entries(data.avatarVideo ?? {})) {
+    for (const [stepId, uri] of Object.entries(steps)) {
+      const file = fromDataUri(uri);
+      if (!file) { (avatarVideo[lang] ??= {})[stepId] = uri; continue; }
+      const rel = `avatar/${guideId}/${lang}/${stepId}.${file.ext}`;
+      if (!written.has(rel)) { await writeAtomic(path.join(out, "assets", rel), file.bytes); written.add(rel); }
+      (avatarVideo[lang] ??= {})[stepId] = `../assets/${rel}`;
+    }
+  }
+  return { ...data, shared: shared as GuideBundle["data"]["shared"], audio, avatarImages, avatarVideo };
 }
 
 export async function buildSite(kit: Kit, opts: { provider?: TtsProvider | null; posters?: boolean }): Promise<SiteResult> {
