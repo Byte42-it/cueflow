@@ -294,6 +294,7 @@ export async function clipAudio(clip: Buffer, extension: string): Promise<Buffer
 }
 
 /** The shape a clip should have for the place the narrator is shown in. */
+/** the shape of the face in each place: a half bust on a side is tall, everywhere else (a corner, a band, the full picture) the face is square */
 export function clipAspect(mode: string): ClipRequest["aspect"] {
-  return mode === "side" ? "9:16" : mode === "band" || mode === "full" ? "16:9" : "1:1";
+  return mode === "side" ? "9:16" : "1:1";
 }
