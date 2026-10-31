@@ -144,16 +144,15 @@ export async function buildVideo(kit: Kit, id: string, lang: string, onProgress:
         await run(ffmpeg, ["-y", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", String(seconds), audio]);
       }
       segments.push(`file 'audio-${i}.wav'`);
-      // The browser clock keeps animations and the captured frames on the same timeline.
-      await page.evaluate("window.__cueflow.play()");
+      // Every frame is asked for at its exact time (the player's live clock would start 800 ms late and tick on the
+      // browser's 16.7 ms grid); the narrator's clip is positioned there too and must be on screen before the shot.
+      // The page clock still advances 40 ms per frame for the scene's own CSS animations.
       for (let f = 0; f < frames; f++) {
-        // the narrator's clip was sent to this frame's time: its picture must be on screen before the shot (real time, the page clock is frozen)
-        await Promise.race([page.evaluate("window.__cueflow.clipSettled()"), new Promise((r) => setTimeout(r, 2000))]);
+        await Promise.race([page.evaluate((ms) => (window as any).__cueflow.renderFrame(ms), f * 40), new Promise((r) => setTimeout(r, 2000))]);
         await page.locator(".cf-stage").screenshot({ path: path.join(temp, `frame-${String(frame++).padStart(8, "0")}.png`), animations: "allow" });
         rendering(i);
         if (f + 1 < frames) await page.clock.runFor(40);
       }
-      await page.evaluate("window.__cueflow.pause()");
     }
     if (guide.steps.some((step) => !bundle.data.audio[lang]?.[step.id])) warnings.push("Steps without recorded audio are silent in MP4. Choose a generated voice or upload narration to include speech; browser speech cannot be exported.");
     await writeFile(path.join(temp, "audio.txt"), segments.join("\n"));

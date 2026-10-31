@@ -1344,6 +1344,9 @@
       seek: seek, probe: probe, restart: restart, jump: jump, transcript: transcriptText, downloadTranscript: downloadTranscript,
       // for a recorder (the MP4 export): the narrator's clip follows the clock frame by frame, and says when the frame is on screen
       setRender: function (on) { render = !!on; if (cur) syncClip(cur.t); }, clipSettled: clipSettled,
+      // one exact frame of the current step at `ms`, without the live clock: no 800 ms hold at play, no rAF jitter;
+      // resolves once the narrator's clip shows that frame too
+      renderFrame: function (ms) { if (!cur) return Promise.resolve(); cur.t = ms; tickCamera(cur.t); paintAvatar(cur.t, 0); runDue(cur, cur.t, { instant: false }); progressBar(); return clipSettled(); },
       // slides: what a press of the space bar and of the back key do
       next: slideNext, previous: slidePrev, slides: slides,
       // for an editor that draws its own transport (Studio's timeline): where we are, and play/pause from outside
