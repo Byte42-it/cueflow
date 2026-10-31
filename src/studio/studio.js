@@ -1131,6 +1131,8 @@
   function avatarForm(own, above, root, save) {
     var box = h("section", { class: "nar", "aria-label": "Narrator" });
     var v = Object.assign({}, own);
+    if (v.provider === "fantastico") v.provider = "image"; // the old name of a picture, from before the voice decided the clips
+    if (above && above.provider === "fantastico") above = Object.assign({}, above, { provider: "image" });
     var resolved = function () { return avatarMerge(AV_DEFAULTS, above, v); };
     var store = function () { save(v); };
     var sel = function (label, key, options) {

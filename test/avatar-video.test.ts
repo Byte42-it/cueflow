@@ -207,6 +207,15 @@ describe("the generated narrator", () => {
       assert.ok(Math.abs((await v.evaluate((el) => (el as HTMLVideoElement).currentTime)) - 1.5) < 0.2, "the clip sits where the step is");
       await page.evaluate(() => (window as unknown as { __cueflow: { seek(i: number, t: number): Promise<unknown> } }).__cueflow.seek(0, 100));
       assert.equal(await page.locator(".cf-avatar").isVisible(), false, "the video hides the narrator elsewhere");
+      // a preview (no clips) and the old provider name: the picture, never a broken face
+      await setAvatar(kit, { scope: "video", guide: "dashboard" }, { provider: "fantastico", mode: "pip" });
+      const preview = await buildGuide(kit, "dashboard", null);
+      await page.goto(pathToFileURL(preview.file).href);
+      await page.waitForFunction(() => (window as unknown as { __cueflow?: unknown }).__cueflow);
+      await page.evaluate(() => (window as unknown as { __cueflow: { seek(i: number, t: number): Promise<unknown> } }).__cueflow.seek(1, 500));
+      assert.equal(await page.locator(".cf-avatar img").count(), 1, "the picture stands in");
+      assert.equal(await page.locator(".cf-avatar video").count(), 0);
+      await setAvatar(kit, { scope: "video", guide: "dashboard" }, { mode: "off" });
     } finally {
       await browser.close();
     }
