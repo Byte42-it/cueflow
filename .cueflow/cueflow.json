@@ -2,7 +2,13 @@
   "outDir": "../cueflow-dist",
   "voices": {
     "default": {
-      "provider": "browser"
+      "provider": "fantastico",
+      "voice": "noelle",
+      "model": "heygen/heygen-voice-1"
     }
+  },
+  "avatar": {
+    "provider": "none",
+    "mode": "pip"
   }
 }

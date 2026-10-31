@@ -87,34 +87,6 @@
       }
     },
     {
-      "id": "create-text",
-      "row": "ready",
-      "status": "video",
-      "guide": "create-text",
-      "title": {
-        "en": "Create a written guide",
-        "it": "Crea una guida scritta"
-      },
-      "kicker": {
-        "en": "Written guides",
-        "it": "Guide scritte"
-      },
-      "desc": {
-        "en": "Sections, text and preview: a page of text beside your videos.",
-        "it": "Sezioni, testo e anteprima: una pagina di testo accanto ai video."
-      },
-      "contents": {
-        "en": [
-          "Short video with captions",
-          "Transcript to read or download"
-        ],
-        "it": [
-          "Video breve con sottotitoli",
-          "Trascrizione da leggere o scaricare"
-        ]
-      }
-    },
-    {
       "id": "publish",
       "row": "ready",
       "status": "video",

@@ -1,6 +1,7 @@
-# secrets, the voice cache (regenerated, and may be large) and the inbox of hand edits for the assistant
+# secrets, the voice cache and the narrator clips (regenerated, and may be large) and the inbox of hand edits for the assistant
 .env
 audio/
+avatar/
 changes.json
 trash/
 
