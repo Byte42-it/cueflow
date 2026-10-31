@@ -60,7 +60,7 @@ function voiceTargetOf(source: VoiceSource, guide: string, lang: string): VoiceT
   return { scope: "global" };
 }
 
-export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider | null, opts: { lang?: string; onProgress?: (done: number, total: number) => void } = {}): Promise<GuideBundle> {
+export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider | null, opts: { lang?: string; onProgress?: (done: number, total: number) => void; onPhase?: (phase: string) => void } = {}): Promise<GuideBundle> {
   const guide = orientedGuide(await loadGuide(kit, id));
   const report = await validateGuide(kit, guide);
   if (report.errors.length) throw new Error(`the guide "${id}" is not valid:\n- ${report.errors.join("\n- ")}`);
@@ -147,6 +147,7 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
       }
       if (p && image && p.voiced && text) {
         const req = { image, imageMime: imageMimeOf(av.image!), text, lang, voice, silenceAfterMs: step.hold, background: av.background, aspect: clipAspect(av.mode) };
+        if (provider !== null) opts.onPhase?.(`Narrator clip for step "${step.id}" (${lang}): the video model takes a minute or two per step…`);
         try {
           clip = await stepClip(kit, p, req, { previewOnly: provider === null });
           if (clip && voice === sameHouse && narr && !narr.voice) await keep(voice!, `(the voice of the other steps, which the video model knows too)`);
@@ -221,8 +222,8 @@ export async function writeAtomic(file: string, content: string | Buffer): Promi
 }
 
 /** The page of a guide, as a string. `browserVoice` makes a silent build read its narration with the browser's voice (previews). */
-export async function renderGuideHtml(kit: Kit, id: string, provider?: TtsProvider | null, opts: { browserVoice?: boolean; extras?: PageExtras; lang?: string; onProgress?: (done: number, total: number) => void } = {}) {
-  const bundle = await guideBundle(kit, id, provider, { lang: opts.lang, onProgress: opts.onProgress });
+export async function renderGuideHtml(kit: Kit, id: string, provider?: TtsProvider | null, opts: { browserVoice?: boolean; extras?: PageExtras; lang?: string; onProgress?: (done: number, total: number) => void; onPhase?: (phase: string) => void } = {}) {
+  const bundle = await guideBundle(kit, id, provider, { lang: opts.lang, onProgress: opts.onProgress, onPhase: opts.onPhase });
   if (opts.browserVoice) bundle.guide.player = { ...bundle.guide.player, fallbackVoice: "browser" };
   const { js, css, theme } = await playerAssets(kit);
   const styles = theme.css ? `${css}\n/* kit theme */\n${theme.css}` : css;

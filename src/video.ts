@@ -92,7 +92,12 @@ export async function buildVideo(kit: Kit, id: string, lang: string, onProgress:
   const browser = await launchChromium(lang);
   const temp = await mkdtemp(path.join(tmpdir(), "cueflow-video-"));
   try {
-    const { html, bundle } = await renderGuideHtml(kit, id, undefined, { lang });
+    let prepared = 0;
+    const { html, bundle } = await renderGuideHtml(kit, id, undefined, {
+      lang,
+      onProgress: (done, total) => { prepared = Math.round((done / Math.max(1, total)) * 4); onProgress({ percent: prepared, phase: `Voices and narrator clips: ${done} of ${total} step(s) ready…` }); },
+      onPhase: (phase) => onProgress({ percent: prepared, phase })
+    });
     await writeFile(path.join(temp, "player.html"), html);
     onProgress({ percent: 5, phase: "Opening tutorial…" });
     const page = await browser.newPage({ viewport: renderViewport, deviceScaleFactor: preset.width / renderViewport.width, locale: lang });
