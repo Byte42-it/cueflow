@@ -109,8 +109,9 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
       const narr = spoken.spec.provider === "narrator" ? spoken.spec : null;
       const shown = av.mode !== "off" && av.provider !== "none" && !(own?.provider === "none");
       let p: AvatarVideoProvider | null = null;
-      if (shown && narr && isKitImage(av.image)) {
-        try { p = avatarVideoProviderFor("fantastico", process.env, narr.model); } catch (e) { if (provider !== null) throw e; } // a preview without a key: no clip, no error
+      // a preview never shows a clip, even one in the cache: the picture stands in while editing, the clips are for the export
+      if (shown && narr && isKitImage(av.image) && provider !== null) {
+        try { p = avatarVideoProviderFor("fantastico", process.env, narr.model); } catch (e) { if (provider !== null) throw e; }
       } else if (shown && isGenerated(av.provider) && isKitImage(av.image)) {
         try { p = avatarVideoProviderFor(av.provider, process.env); } catch (e) { if (provider !== null) throw e; }
       }

@@ -105,6 +105,7 @@ export async function buildVideo(kit: Kit, id: string, lang: string, onProgress:
     await page.goto(pathToFileURL(path.join(temp, "player.html")).href);
     await page.waitForFunction("!!window.__cueflow && !window.__cueflow.state().loading");
     await page.addStyleTag({ content: `html,body{margin:0!important;padding:0!important} .cf-app{width:${renderViewport.width}px!important;max-width:none!important} .cf-bar,.cf-big,.cf-veil{display:none!important} .cf-stage{height:${renderViewport.height}px!important;aspect-ratio:auto!important;border-radius:0!important} .cf-captions-below .cf-subs{display:block!important}` });
+    await page.evaluate("window.__cueflow.setRender(true)");
     await page.clock.install();
     await page.clock.pauseAt(new Date());
     onProgress({ percent: 8, phase: "Measuring tutorial duration…" });
@@ -146,6 +147,8 @@ export async function buildVideo(kit: Kit, id: string, lang: string, onProgress:
       // The browser clock keeps animations and the captured frames on the same timeline.
       await page.evaluate("window.__cueflow.play()");
       for (let f = 0; f < frames; f++) {
+        // the narrator's clip was sent to this frame's time: its picture must be on screen before the shot (real time, the page clock is frozen)
+        await Promise.race([page.evaluate("window.__cueflow.clipSettled()"), new Promise((r) => setTimeout(r, 2000))]);
         await page.locator(".cf-stage").screenshot({ path: path.join(temp, `frame-${String(frame++).padStart(8, "0")}.png`), animations: "allow" });
         rendering(i);
         if (f + 1 < frames) await page.clock.runFor(40);

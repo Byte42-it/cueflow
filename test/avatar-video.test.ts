@@ -154,7 +154,7 @@ describe("the generated narrator", () => {
       assert.equal(seen.jobs.length, jobs + 1, "the English clip was the only job; none for clips in the cache");
       const preview = await guideBundle(kit, "dashboard", null);
       assert.equal(preview.clipsMade, 0);
-      assert.equal(preview.clips, 2, "a preview takes what the cache has, never generates");
+      assert.equal(preview.clips, 0, "a preview shows the picture, never a clip, even one in the cache");
     });
   });
 

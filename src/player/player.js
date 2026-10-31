@@ -799,11 +799,21 @@
     /* a small deterministic noise of the step time: the same t gives the same blink, in a seek as in playback */
     function noise(n) { var x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); }
     /* the clip follows the step clock: plays with the player, pauses with it, lands where a seek lands */
+    var render = false; // a recorder drives the clock frame by frame: the clip is positioned, never played (real time would run ahead)
     function syncClip(t) {
       var v = av && av.video; if (!v) return;
       var want = t / 1000;
-      if (playing) { if (Math.abs(v.currentTime - want) > 0.15) v.currentTime = want; if (v.paused && want < (v.duration || Infinity)) v.play().catch(function () {}); }
-      else { if (!v.paused) v.pause(); if (Math.abs(v.currentTime - want) > 0.02) v.currentTime = want; }
+      if (playing && !render) { if (Math.abs(v.currentTime - want) > 0.15) v.currentTime = want; if (v.paused && want < (v.duration || Infinity)) v.play().catch(function () {}); }
+      else { if (!v.paused) v.pause(); if (Math.abs(v.currentTime - want) > (render ? 0.001 : 0.02)) v.currentTime = Math.min(want, v.duration || want); }
+    }
+    /** resolves once the clip shows the frame it was sent to (a recorder waits for it before taking the picture) */
+    function clipSettled() {
+      var v = av && av.video; if (!v || avatarEl.hidden) return Promise.resolve();
+      return new Promise(function (res) {
+        if (v.readyState >= 2 && !v.seeking) return res();
+        var done = function () { v.removeEventListener("seeked", done); v.removeEventListener("loadeddata", done); v.removeEventListener("error", done); res(); };
+        v.addEventListener("seeked", done); v.addEventListener("loadeddata", done); v.addEventListener("error", done);
+      });
     }
     function paintAvatar(t, level) {
       if (!av || avatarEl.hidden) return;
@@ -1332,6 +1342,8 @@
     });
     return {
       seek: seek, probe: probe, restart: restart, jump: jump, transcript: transcriptText, downloadTranscript: downloadTranscript,
+      // for a recorder (the MP4 export): the narrator's clip follows the clock frame by frame, and says when the frame is on screen
+      setRender: function (on) { render = !!on; if (cur) syncClip(cur.t); }, clipSettled: clipSettled,
       // slides: what a press of the space bar and of the back key do
       next: slideNext, previous: slidePrev, slides: slides,
       // for an editor that draws its own transport (Studio's timeline): where we are, and play/pause from outside
