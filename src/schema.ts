@@ -310,14 +310,38 @@ export const Site = z.object({
   lang: z.string().min(2).default("en").describe("language the content is written in (pages/<id>.html, texts given as plain strings)"),
   languages: z.array(z.string().min(2)).default([]).describe("languages offered by the site, chosen once for every page and player; default: [lang]"),
   fallback: z.string().min(2).optional().describe("language used when the browser asks for none of the offered ones; default: the first offered"),
-  brand: z.object({ name: Localized, logo: z.string().optional().describe("image file in the kit: SVG (takes the text color) or png, jpg, gif, webp"), url: z.string().url().optional().describe("the product's own site: where a click on the logo goes (default: the home of this site)") }).optional(),
+  brand: z.object({ name: Localized, logo: z.string().optional().describe("image file in the kit: SVG (takes the text color) or png, jpg, gif, webp"), url: z.string().url().optional().describe("the product's own site: a button at the foot of the left bar opens it in a new tab (the logo leads to the home of this site)") }).optional(),
   footer: Localized.optional(),
-  favicon: z.string().optional().describe("icon file in the kit (svg, png)"),
+  description: Localized.optional().describe("one or two lines about the site: the text of the link card when the home is shared (default: the featured item's description)"),
+  favicon: z.string().optional().describe("icon file in the kit (svg, png); also the logo of the left bar when brand.logo is not given"),
+  backdrop: z
+    .object({
+      image: z.string().describe("image file in the kit (svg, png, jpg, gif, webp)"),
+      size: z
+        .string()
+        .optional()
+        .describe("size of one tile, e.g. \"18px\": the image repeats as a pattern and only its shape counts, drawn in --cf-site-backdrop-ink. Without it the image covers the area as a picture"),
+      glow: z
+        .union([z.boolean(), z.string()])
+        .default(false)
+        .describe("a pattern lights up around the pointer: true in the site's accent color, or a CSS color")
+    })
+    .optional()
+    .describe("what fills the top of the home, behind the featured item and the latest releases"),
   colorScheme: z
     .enum(["light", "dark", "auto"])
     .default("light")
     .describe("the site's built-in colors: light, dark, or auto to follow the visitor's system; a theme's own :root colors always win"),
   stylesheets: z.array(z.string().url()).default([]).describe("remote stylesheets linked from every page, e.g. web fonts used by the theme"),
+  scripts: z
+    .array(z.string().url())
+    .default([])
+    .describe("remote scripts loaded first in every page, in this order and before the tag manager, e.g. a cookie consent banner"),
+  tagManager: z
+    .string()
+    .regex(/^GTM-[A-Z0-9]+$/, "a Google Tag Manager container id looks like GTM-ABC1234")
+    .optional()
+    .describe("Google Tag Manager container id (GTM-…): loaded on every page except on this machine, and fed the site's events (see the README)"),
   url: z.string().url().optional().describe("where the site is published, e.g. https://help.example.com: lets the build tell whether the request endpoint must allow it (CORS)"),
   requestEndpoint: z
     .string()

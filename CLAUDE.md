@@ -162,6 +162,36 @@ Player model worth knowing before touching it:
   language) would replace the face in the same layer.
 - On a docs page the player fits the window by **narrowing** (`--cf-aspect`, set by `mount`, times the available
   height), never by capping the stage height: a capped stage cropped the bottom of every scene on wide screens.
+- Docs home, as a streaming catalog (0.1.53): the featured item is an inset rounded card (`--cf-site-billboard`, a
+  shade darker than the hero on light themes) whose picture fades out through a **mask on the image itself**, so no
+  edge of a poster can show; under the title, the row it belongs to and its facts (type, length, chapters) as icons.
+  "Latest releases" (label `quick`) are tall cards, the catalog's last items first, title running up the left side.
+  Rows alternate `--cf-site-row-alt` edge to edge (no borders, no gaps). Covers in lists rest at
+  `--cf-site-cover-opacity` under a veil (`--cf-site-cover-shade`) and come to full strength on hover.
+- `site.json` `backdrop` (site only, not the theme: the theme is also inlined in standalone guides): an image of the
+  kit behind the top of the home; with `size` it is a pattern whose **shape** counts (drawn in
+  `--cf-site-backdrop-ink`, optional `glow` around the pointer), without it a picture. `favicon` is also the left bar's
+  logo when `brand.logo` is absent; `brand.url` has its own button at the foot of the bar (the logo leads home).
+- Calls to action use `--cf-site-cta` (default: the primary), never the primary directly: on most themes the primary
+  is also the headings' color, so a brand color there would turn every title. Status badges are filled, one color per
+  status (`--cf-site-tag-{video,guide,soon}-bg/-fg`).
+- Item page actions (share, print) are two tiles above the index, each opening a dialog. Share: the apps' web
+  intents, the link to copy, `navigator.share` where it exists, and "start at chapter N" (`#step-N`) once the video has
+  moved on; the dialog lives in the shell, so the home shares the site. Print: the sections to include (the index has
+  links only), then `window.print()`.
+- Link cards: every page carries og:/twitter: tags written by `site.ts` in **`site.lang`** (a crawler asks for no
+  language, so the visitors' fallback does not apply); pictures need site.json `url` (warning without it). The home
+  card uses site.json `description`, else the featured item's.
+- Analytics (0.1.54): site.json `tagManager` (GTM id) and `scripts` (remote scripts before it, e.g. a consent banner)
+  are written into every page's head by `site.ts`; the GTM snippet itself returns early on `file:`, localhost,
+  127.* and [::1], so previews never count. `site.js` `track()` pushes to `window.dataLayer` only if it exists: a
+  `cueflow_page` first (the Google tag waits for it, so `page_lang` is known), clicks on `[data-cf-cta]` as
+  `cueflow_cta` with `cta_id = "cta-" + value` (prefixed `drawer-` inside the drawer, where the same tiles repeat;
+  ids would collide, hence the attribute), the player's DOM events (`cueflow:play`/`progress`/`ended`, emitted only
+  while playing) as `cueflow_video_*`. Never push what a visitor typed. A new link worth counting gets a
+  `data-cf-cta`; event names are a contract with the containers already published, do not rename them.
+- Hidden words for screen readers (`.cf-sr`) are absolutely positioned: keep a positioned ancestor inside a scrolling
+  row (`.cf-fact`, `.cf-rail` are), or they escape its clipping and widen the page.
 
 ## Commands
 
@@ -183,6 +213,28 @@ Env: `OPENAI_API_KEY` (enables TTS), `CUEFLOW_TTS=none|openai|say|command`, `CUE
 `CUEFLOW_TTS_MODEL`, `CUEFLOW_TTS_VOICE`, `CUEFLOW_KIT`, `CUEFLOW_CHROMIUM` (browser executable when Playwright's own
 Chromium build is not installed), `FANTASTICO_BASE_URL`, `FANTASTICO_MODELS_URL`, `FANTASTICO_PRODUCT`, `CUEFLOW_AVATAR_MODEL`, `CUEFLOW_PORTRAIT_MODEL`,
 `CUEFLOW_AVATAR_RESOLUTION`, `CUEFLOW_AVATAR_COMMAND` (+ `_FORMAT`) for the generated narrator.
+
+## Pending (2026-10-27): 0.1.53 is on `main` but NOT on npm yet (0.1.54, analytics, follows it)
+
+> **Whoever picks this up next — Luca first — publish it.** `3787555` (docs site layout: streaming-style home,
+> share/print dialogs, link cards, `backdrop`, `--cf-site-cta`) was merged and pushed, and the Academy
+> (academy.fantastico.cc) and SAUL (tutorial.saul-ai.it) sites were rebuilt with it, from a local checkout. npm still
+> serves 0.1.52, so any other kit rebuilt with the published package gets the old layout.
+>
+> Publishing needs the npmjs credentials of the `byte-42` scope owner, which only Luca has (the token in a dev
+> machine's `~/.npmrc` is for the GitLab registry, `@byte42`, and is not valid on npmjs):
+> ```bash
+> git pull && npm ci && npm publish   # on main; prepack builds, access public is in package.json
+> npm view @byte-42/cueflow version   # must say the version in package.json
+> ```
+> Then delete this section.
+>
+> Two facts learned on the way, worth keeping after it is gone:
+> - The audio cache key contains a hash of `FANTASTICO_API_KEY` (in the provider's fingerprint), so a cache made with
+>   one key is invisible to a build with another: changing key regenerates (and pays for) every narration.
+> - Those two sites were rebuilt **without** regenerating audio: the narration already embedded in their published
+>   pages was written back into the cache under the build's key, only where the kit's text was identical, and the build
+>   ran with that same key, so a missing file would have failed instead of calling the paid service.
 
 ## State (2026-10-14)
 

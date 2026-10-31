@@ -345,6 +345,30 @@ and the printable units. The site is styled with `--cf-site-*` variables (top of
 same `theme/theme.css` as the player; its interface is in English or Italian (`lang`), and `site.json` `labels`
 overrides any word. See `examples/demo-kit`.
 
+### Analytics
+
+`tagManager` (a Google Tag Manager container id, `GTM-…`) puts the container's snippet in the head of every page
+and its `<noscript>` frame at the top of the body. It does not load on `file:` pages, `localhost`, `127.*` or
+`[::1]`, so previews and Studio never count the author's visits. `scripts` lists remote scripts loaded first, in
+order and before the tag manager: the place for a cookie consent banner.
+
+The pages push these events to the container's `dataLayer`. Every event carries `page_lang`, the language the visitor
+reads the site in (chosen in the browser, so it is not in the address):
+
+| Event | When | Also carries |
+|---|---|---|
+| `cueflow_page` | first thing on every page: a Google tag that fires on it knows the language | `page_type` (`home`, `item`), `item_id` |
+| `cueflow_cta` | a click on a link or button that matters | `cta_id`, e.g. `cta-tile-upload`, `cta-rail-website`, `cta-featured-watch-upload` (`cta-drawer-…` inside the tutorials drawer) |
+| `cueflow_video_start` | first play of the video on this page | `video_id` |
+| `cueflow_video_progress` | the progress bar reaches 25, 50, 75 % (once each) | `video_id`, `video_percent` |
+| `cueflow_video_complete` | the video ends | `video_id` |
+| `cueflow_language_change` | the visitor picks another language | `previous_lang` |
+| `cueflow_request_sent` | a tutorial request was accepted by the endpoint | — |
+
+Nothing a visitor types (the request's topic, message, name, email) is ever pushed. The player alone, outside a docs
+site, sends DOM events on its mount element instead (`cueflow:play` with `detail.first`, `cueflow:progress` with
+`detail.percent`, `cueflow:ended`), only while playing: a seek sends nothing.
+
 ### Tutorial requests
 
 With `requestEndpoint` set, the site offers a "request a tutorial" dialog. It sends

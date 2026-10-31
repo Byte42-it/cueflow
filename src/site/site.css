@@ -8,8 +8,14 @@
   --cf-site-panel: #f1f1ef; --cf-site-card: #fff;
   --cf-site-primary: #23314a; --cf-site-primary-hover: #36507a; /* buttons, headings */
   --cf-site-on-primary: #fff;                                   /* text and icons on the primary color */
+  /* calls to action (watch the video, play, send): the primary color unless a theme gives the brand's own */
+  --cf-site-cta: var(--cf-site-primary); --cf-site-cta-hover: var(--cf-site-primary-hover); --cf-site-on-cta: var(--cf-site-on-primary);
   --cf-site-accent: #c2410c; --cf-site-accent-ink: #9a3412;     /* kickers, active marks */
   --cf-site-hero: #eef0f3; --cf-site-band: #f2f1ec; --cf-site-cover: #eceae5; --cf-site-cover-ink: #23314a;
+  --cf-site-row-alt: #f1f0ec;                                   /* every other row (module) of the home */
+  /* light themes: the featured card a shade darker than the theme's hero, and the cards lifted by a soft shadow (no borders) */
+  --cf-site-billboard: color-mix(in srgb, var(--cf-site-hero), var(--cf-site-fg) 7%);
+  --cf-site-card-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 8px 22px rgba(15, 23, 42, .08);
   --cf-site-veil: #fff;                                         /* labels and panels laid over pictures */
   --cf-site-field-bg: #fff; --cf-site-field-line: #ccc;         /* form fields */
   --cf-site-rail-bg: #fff; --cf-site-rail-fg: #66666a; --cf-site-rail-active: #eef0f4;
@@ -26,7 +32,9 @@
   --cf-site-panel: #1f2229; --cf-site-card: #1c1f25;
   --cf-site-primary: #e6e9f0; --cf-site-primary-hover: #fff; --cf-site-on-primary: #15171c;
   --cf-site-accent: #f08a4b; --cf-site-accent-ink: #f5a372;
-  --cf-site-hero: #1b1e24; --cf-site-band: #191b21; --cf-site-cover: #262a31; --cf-site-cover-ink: #e6e9f0;
+  --cf-site-hero: #1b1e24; --cf-site-band: #191b21; --cf-site-cover: #262a31; --cf-site-cover-ink: #e6e9f0; --cf-site-row-alt: #1b1e25;
+  --cf-site-billboard: var(--cf-site-hero); --cf-site-card-shadow: none;
+  --cf-site-cover-shade: linear-gradient(rgba(0, 0, 0, .2), rgba(0, 0, 0, .55)); /* a dark site needs a deeper veil to show it */
   --cf-site-veil: #1c1f25; --cf-site-field-bg: #121418; --cf-site-field-line: #3a3d45;
   --cf-site-rail-bg: #121418; --cf-site-rail-fg: #a6a7ad; --cf-site-rail-active: #23262d;
   --cf-site-side-bg: #101215;
@@ -39,7 +47,9 @@
     --cf-site-panel: #1f2229; --cf-site-card: #1c1f25;
     --cf-site-primary: #e6e9f0; --cf-site-primary-hover: #fff; --cf-site-on-primary: #15171c;
     --cf-site-accent: #f08a4b; --cf-site-accent-ink: #f5a372;
-    --cf-site-hero: #1b1e24; --cf-site-band: #191b21; --cf-site-cover: #262a31; --cf-site-cover-ink: #e6e9f0;
+    --cf-site-hero: #1b1e24; --cf-site-band: #191b21; --cf-site-cover: #262a31; --cf-site-cover-ink: #e6e9f0; --cf-site-row-alt: #1b1e25;
+  --cf-site-billboard: var(--cf-site-hero); --cf-site-card-shadow: none;
+  --cf-site-cover-shade: linear-gradient(rgba(0, 0, 0, .2), rgba(0, 0, 0, .55)); /* a dark site needs a deeper veil to show it */
     --cf-site-veil: #1c1f25; --cf-site-field-bg: #121418; --cf-site-field-line: #3a3d45;
     --cf-site-rail-bg: #121418; --cf-site-rail-fg: #a6a7ad; --cf-site-rail-active: #23262d;
     --cf-site-side-bg: #101215;
@@ -48,7 +58,7 @@
 }
 /* the players of the site take the site's look */
 .cf-site {
-  --cf-bg: var(--cf-site-bg); --cf-fg: var(--cf-site-fg); --cf-muted: var(--cf-site-muted); --cf-accent: var(--cf-site-primary); --cf-on-accent: var(--cf-site-on-primary);
+  --cf-bg: var(--cf-site-bg); --cf-fg: var(--cf-site-fg); --cf-muted: var(--cf-site-muted); --cf-accent: var(--cf-site-cta); --cf-on-accent: var(--cf-site-on-cta);
   --cf-surface: var(--cf-site-card); --cf-line: var(--cf-site-line); --cf-font: var(--cf-site-font);
   --cf-stage-radius: 0; --cf-stage-shadow: none; --cf-stage-bg: var(--cf-site-panel); --cf-control-radius: var(--cf-site-radius);
 }
@@ -62,11 +72,11 @@
 .cf-btns { display: flex; flex-wrap: wrap; gap: 8px; }
 .cf-btn { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--cf-site-primary) !important; background: var(--cf-site-panel); padding: 8px 13px; border-radius: var(--cf-site-radius); transition: background .2s, transform .2s; }
 .cf-btn:hover { background: var(--cf-site-line); }
-.cf-btn.cf-primary { background: var(--cf-site-primary); color: var(--cf-site-on-primary) !important; }
-.cf-btn.cf-primary:hover { background: var(--cf-site-primary-hover); }
+.cf-btn.cf-primary { background: var(--cf-site-cta); color: var(--cf-site-on-cta) !important; }
+.cf-btn.cf-primary:hover { background: var(--cf-site-cta-hover); }
 .cf-btn.cf-ghost { background: color-mix(in srgb, var(--cf-site-veil) 75%, transparent); border: 1px solid var(--cf-site-line); backdrop-filter: blur(6px); }
 .cf-big-btn { font-size: 14.5px; padding: 14px 24px; }
-.cf-big-btn.cf-primary { box-shadow: 0 10px 24px color-mix(in srgb, var(--cf-site-primary) 22%, transparent); }
+.cf-big-btn.cf-primary { box-shadow: 0 10px 24px color-mix(in srgb, var(--cf-site-cta) 22%, transparent); }
 .cf-big-btn.cf-primary:hover { transform: translateY(-1px); }
 
 /* ── left bar, drawer, dialog ── */
@@ -131,8 +141,8 @@
 .cf-two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .cf-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 .cf-ask-note { font-size: 12px; color: var(--cf-site-faint); margin: -4px 0 0; }
-.cf-ask-send { font: inherit; font-weight: 600; font-size: 14px; color: var(--cf-site-on-primary); background: var(--cf-site-primary); border: 0; border-radius: 4px; padding: 11px 20px; cursor: pointer; }
-.cf-ask-send:hover { background: var(--cf-site-primary-hover); }
+.cf-ask-send { font: inherit; font-weight: 600; font-size: 14px; color: var(--cf-site-on-cta); background: var(--cf-site-cta); border: 0; border-radius: 4px; padding: 11px 20px; cursor: pointer; }
+.cf-ask-send:hover { background: var(--cf-site-cta-hover); }
 .cf-ask-send[disabled] { opacity: .6; cursor: wait; }
 .cf-ask-status { margin: 0; font-size: 13.5px; padding: 10px 12px; border-left: 3px solid; }
 .cf-ask-status.cf-ok { background: var(--cf-site-ok-bg); border-color: var(--cf-site-ok); }
@@ -140,7 +150,11 @@
 
 /* ── tiles and rows ── */
 .cf-rail-wrap { position: relative; --tile-w: clamp(260px, 22vw, 340px); }
-.cf-rail { display: grid; grid-auto-flow: column; grid-auto-columns: var(--tile-w); gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; padding: 8px 2px 18px; margin: 0 -2px; scrollbar-width: none; }
+.cf-rail { display: grid; grid-auto-flow: column; grid-auto-columns: var(--tile-w); gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; scrollbar-width: none;
+  /* room around the tiles for their shadow and their lift on hover (a scrolling row clips whatever overflows it), given back
+     by the negative margin so the first tile still lines up with the title */
+  --rail-bleed: clamp(16px, 4.5vw, 32px); padding: 12px 0 48px var(--rail-bleed); margin: -4px 0 -30px calc(-1 * var(--rail-bleed)); scroll-padding-left: var(--rail-bleed); }
+/* on the right the row ends with the content, where the featured card ends: a card cut there says the row goes on */
 .cf-rail::-webkit-scrollbar { display: none; }
 .cf-rail > * { scroll-snap-align: start; }
 .cf-rail-arrow { position: absolute; top: calc(var(--tile-w) * 9 / 32 + 8px); transform: translateY(-50%); z-index: 3; width: 40px; height: 40px; border: 0; border-radius: 50%; cursor: pointer;
@@ -149,7 +163,7 @@
 .cf-rail-arrow[disabled] { opacity: 0; pointer-events: none; }
 .cf-tile { display: block; text-decoration: none; color: inherit !important; min-width: 0; }
 .cf-tile-media { position: relative; aspect-ratio: 16 / 9; width: 100%; overflow: hidden; border-radius: var(--cf-site-tile-radius); background: var(--cf-site-cover); transition: transform .3s cubic-bezier(.2, .7, .2, 1), box-shadow .3s; }
-a.cf-tile:hover .cf-tile-media, a.cf-tile:focus-visible .cf-tile-media { transform: translateY(-4px); box-shadow: 0 18px 40px rgba(0, 0, 0, .16); }
+a.cf-tile:hover .cf-tile-media, a.cf-tile:focus-visible .cf-tile-media { transform: translateY(-4px); box-shadow: 0 14px 28px rgba(0, 0, 0, .16); }
 a.cf-tile:focus-visible { outline: none; }
 a.cf-tile:focus-visible .cf-tile-media { outline: 2px solid var(--cf-site-accent); outline-offset: 3px; }
 .cf-tile-media img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; transition: transform .5s ease; }
@@ -157,9 +171,11 @@ a.cf-tile:hover .cf-tile-media img { transform: scale(1.04); }
 .cf-cover { position: absolute; inset: 0; padding: 18px 20px; display: flex; flex-direction: column; justify-content: space-between; background: var(--cf-site-cover); }
 .cf-cover small { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--cf-site-accent-ink); padding-top: 22px; }
 .cf-cover b { font-family: var(--cf-site-heading-font); font-weight: 500; font-size: 21px; line-height: 1.15; color: var(--cf-site-cover-ink); text-wrap: balance; }
-.cf-tag { position: absolute; left: 10px; top: 10px; z-index: 2; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; padding: 3px 8px; border-radius: 2px; background: var(--cf-site-primary); color: var(--cf-site-on-primary); display: inline-flex; align-items: center; gap: 5px; }
-.cf-tag-light { background: color-mix(in srgb, var(--cf-site-veil) 92%, transparent); color: var(--cf-site-primary); }
-.cf-tag-soon { background: color-mix(in srgb, var(--cf-site-veil) 60%, transparent); color: var(--cf-site-accent-ink); border: 1px solid currentColor; }
+/* status badges on the covers: filled, no border, one color per status (--cf-site-tag-{video,guide,soon}-bg/-fg restyle them) */
+.cf-tag { position: absolute; left: 10px; top: 10px; z-index: 2; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; padding: 3px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 5px;
+  background: var(--cf-site-tag-video-bg, var(--cf-site-cta)); color: var(--cf-site-tag-video-fg, var(--cf-site-on-cta)); box-shadow: 0 2px 8px rgba(0, 0, 0, .18); }
+.cf-tag-light { background: var(--cf-site-tag-guide-bg, #2f6fde); color: var(--cf-site-tag-guide-fg, #fff); }
+.cf-tag-soon { background: var(--cf-site-tag-soon-bg, #f2a93b); color: var(--cf-site-tag-soon-fg, #2a1a02); }
 .cf-tile-info { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 14px 16px; background: color-mix(in srgb, var(--cf-site-veil) 95%, transparent); backdrop-filter: blur(6px);
   transform: translateY(101%); transition: transform .3s cubic-bezier(.2, .7, .2, 1); font-size: 12.5px; line-height: 1.5; color: var(--cf-site-muted); }
 .cf-tile:hover .cf-tile-info, .cf-tile:focus-visible .cf-tile-info, .cf-tile:focus-within .cf-tile-info { transform: none; }
@@ -180,7 +196,7 @@ a.cf-ask:hover .cf-tile-media { border-color: var(--cf-site-accent); }
 .cf-pv.cf-on { opacity: 1; transform: none; }
 .cf-pv-media { position: relative; display: block; aspect-ratio: 16 / 9; background: var(--cf-site-cover); overflow: hidden; }
 .cf-pv-media img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
-.cf-pv-play { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: var(--cf-site-primary); color: var(--cf-site-on-primary); display: flex; align-items: center; justify-content: center; }
+.cf-pv-play { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: var(--cf-site-cta); color: var(--cf-site-on-cta); display: flex; align-items: center; justify-content: center; }
 .cf-pv-body { padding: 16px 18px 18px; }
 .cf-pv-kicker { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--cf-site-accent-ink); margin: 0 0 3px; }
 .cf-pv-title { font-family: var(--cf-site-heading-font); font-size: 19px; line-height: 1.25; color: var(--cf-site-primary); margin: 0 0 10px; }
@@ -196,31 +212,66 @@ a.cf-ask:hover .cf-tile-media { border-color: var(--cf-site-accent); }
 .cf-pv-list svg { flex-shrink: 0; margin-top: 2px; color: var(--cf-site-ok); }
 
 /* ── home ── */
-.cf-billboard { position: relative; overflow: hidden; min-height: clamp(420px, 56vh, 600px); display: flex; align-items: center; background: var(--cf-site-hero); border-bottom: 1px solid var(--cf-site-line); margin-bottom: 34px; }
-.cf-billboard img { position: absolute; right: 0; top: 0; height: 100%; width: auto; aspect-ratio: 16 / 9; max-width: 72%; object-fit: cover; object-position: left top; }
-.cf-billboard::after { content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(90deg, var(--cf-site-hero) 30%, color-mix(in srgb, var(--cf-site-hero) 86%, transparent) 42%, transparent 62%), linear-gradient(0deg, var(--cf-site-hero), transparent 22%); }
+/* the featured item: a rounded card inset from the edges, the picture on its right fading into the card (a mask on the
+   picture itself, so no edge of it can show, whatever the colors of the poster) */
+.cf-billboard { position: relative; overflow: hidden; min-height: clamp(400px, 54vh, 560px); display: flex; align-items: center; background: var(--cf-site-billboard);
+  margin: clamp(16px, 2.4vw, 32px) clamp(20px, 4.5vw, 72px) 30px; border-radius: var(--cf-site-billboard-radius, 28px); }
+.cf-billboard img { position: absolute; right: 0; top: 0; height: 100%; width: auto; aspect-ratio: 16 / 9; max-width: 62%; object-fit: cover; object-position: right top; opacity: var(--cf-site-billboard-image-opacity, .6); /* a short card crops the left, which fades out anyway */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 45%), linear-gradient(0deg, transparent, #000 22%); -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(90deg, transparent, #000 45%), linear-gradient(0deg, transparent, #000 22%); mask-composite: intersect; }
 .cf-billboard.cf-no-poster { min-height: 0; }
-.cf-billboard.cf-no-poster::after { display: none; }
-.cf-bb-text { position: relative; z-index: 1; max-width: 560px; padding-block: 48px; }
-.cf-bb-text h1 { font-weight: 600; font-size: clamp(38px, 3.4vw + 14px, 68px); line-height: 1.04; letter-spacing: -.01em; margin: 0 0 18px; text-wrap: balance; }
+.cf-bb-text { position: relative; z-index: 1; max-width: min(600px, 46%); padding: 48px clamp(28px, 4.5vw, 72px); }
+.cf-bb-text .cf-kicker { margin-bottom: 18px; }
+.cf-bb-row { margin: 0 0 6px; font-size: 13px; font-weight: 600; letter-spacing: .02em; color: var(--cf-site-muted); }
+.cf-bb-text h1 { font-weight: 600; font-size: clamp(38px, 3.4vw + 14px, 68px); line-height: 1.04; letter-spacing: -.01em; margin: 0 0 16px; text-wrap: balance; }
+.cf-bb-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 0 0 18px; font-size: 14px; font-weight: 600; color: var(--cf-site-fg); }
+.cf-bb-badge { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px;
+  background: var(--cf-site-tag-video-bg, var(--cf-site-cta)); color: var(--cf-site-tag-video-fg, var(--cf-site-on-cta)); }
+.cf-bb-badge-guide { background: var(--cf-site-tag-guide-bg, #2f6fde); color: var(--cf-site-tag-guide-fg, #fff); }
 .cf-bb-desc { color: var(--cf-site-muted); font-size: clamp(15px, .4vw + 13px, 18px); line-height: 1.55; margin: 0 0 30px; max-width: 46ch; }
 .cf-sec { padding-block: 10px 30px; }
+/* the top of the home on the kit's backdrop (site.json "backdrop"): a pattern keeps only the shape of its tile, drawn in
+   --cf-site-backdrop-ink and lit around the pointer in --cf-bd-glow; a picture covers the area. Both fade out downwards */
+.cf-home-top { position: relative; isolation: isolate; padding-bottom: 8px; }
+.cf-home-top > section { position: relative; z-index: 1; }
+.cf-bd, .cf-bd-glow { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.cf-bd-pattern .cf-bd, .cf-bd-glow {
+  -webkit-mask-image: var(--cf-bd-image), linear-gradient(#000 55%, transparent); -webkit-mask-size: var(--cf-bd-size), 100% 100%;
+  -webkit-mask-repeat: repeat, no-repeat; -webkit-mask-composite: source-in;
+  mask-image: var(--cf-bd-image), linear-gradient(#000 55%, transparent); mask-size: var(--cf-bd-size), 100% 100%; mask-repeat: repeat, no-repeat; mask-composite: intersect; }
+.cf-bd-pattern .cf-bd { background: var(--cf-site-backdrop-ink, color-mix(in srgb, var(--cf-site-fg) 14%, transparent)); }
+.cf-bd-glow { opacity: .55; background: radial-gradient(circle 180px at var(--cf-mx, -9999px) var(--cf-my, -9999px), var(--cf-bd-glow, var(--cf-site-accent)), transparent); }
+.cf-bd-picture .cf-bd { background: var(--cf-bd-image) center top / cover no-repeat;
+  -webkit-mask-image: linear-gradient(#000 45%, transparent); mask-image: linear-gradient(#000 45%, transparent); }
+/* the rows (modules): edge to edge, told apart by background only */
+.cf-row { padding-block: 34px 30px; }
+.cf-row.cf-alt { background: var(--cf-site-row-alt); }
+/* latest releases: tall cards, picture on top */
+.cf-latest .cf-rail-wrap { --tile-w: clamp(200px, 15vw, 240px); }
+
+.cf-latest .cf-rail-arrow { top: calc(var(--tile-w) * 9 / 32 + 8px); }
+.cf-lt { display: flex; flex-direction: column; height: 100%; padding: 0; border: 0; border-radius: 14px; overflow: hidden; background: var(--cf-site-card); box-shadow: var(--cf-site-card-shadow); color: var(--cf-site-fg) !important;
+  text-decoration: none; font: inherit; text-align: left; cursor: pointer; transition: transform .25s, box-shadow .25s; }
+.cf-lt:hover, .cf-lt:focus-visible { transform: translateY(-4px); box-shadow: 0 14px 28px rgba(0, 0, 0, .2); }
+.cf-lt-media { position: relative; display: block; aspect-ratio: 16 / 9; overflow: hidden; background: var(--cf-site-cover); }
+.cf-lt-media img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; transition: transform .5s ease; }
+.cf-lt:hover .cf-lt-media img { transform: scale(1.05); }
+.cf-lt-media .cf-cover b { font-size: 17px; }
+.cf-lt-play { position: absolute; right: 10px; bottom: 10px; width: 36px; height: 36px; border-radius: 50%; background: var(--cf-site-veil); color: var(--cf-site-primary);
+  display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0, 0, 0, .3); }
+.cf-lt-play svg { width: 14px; height: 14px; }
+.cf-lt-body { display: flex; flex-direction: column; gap: 6px; flex: 1; padding: 14px 16px 16px; }
+.cf-lt-body small { font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--cf-site-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cf-lt-body b { font-size: 15px; font-weight: 600; line-height: 1.3; color: var(--cf-site-primary); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cf-lt-body em { margin-top: auto; padding-top: 4px; font-style: normal; font-size: 12.5px; color: var(--cf-site-faint); }
+.cf-lt.cf-ask { background: transparent; outline: 1.5px dashed var(--cf-site-line); outline-offset: -1.5px; }
+.cf-lt.cf-ask .cf-lt-media { background: transparent; display: flex; align-items: center; justify-content: center; }
+.cf-lt.cf-ask i { width: 48px; height: 48px; border-radius: 50%; background: var(--cf-site-primary); color: var(--cf-site-on-primary); font-style: normal; font-size: 24px; display: flex; align-items: center; justify-content: center; }
 .cf-sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .cf-sec-head h2 { font-weight: 500; font-size: clamp(21px, .6vw + 17px, 26px); margin: 0; }
 .cf-sec-head span { font-size: 13px; color: var(--cf-site-faint); }
 .cf-sec-lede { color: var(--cf-site-muted); font-size: 14px; margin: 2px 0 6px; }
-.cf-band { background: var(--cf-site-band); border-block: 1px solid var(--cf-site-line); padding-block: 34px; margin-top: 26px; }
 .cf-band .cf-kicker { margin-bottom: 6px; }
-.cf-quick { display: flex; flex-wrap: wrap; gap: 14px; padding-top: 8px; }
-.cf-qk { width: 132px; aspect-ratio: 1; border-radius: 10px; background: var(--cf-site-card); border: 1px solid var(--cf-site-line); text-decoration: none; color: var(--cf-site-primary) !important;
-  display: flex; flex-direction: column; justify-content: space-between; padding: 14px; transition: transform .25s, box-shadow .25s, border-color .25s; font: inherit; text-align: left; cursor: pointer; }
-.cf-qk:hover, .cf-qk:focus-visible { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(0, 0, 0, .12); border-color: transparent; }
-.cf-qk i { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-style: normal; background: var(--cf-site-cover); }
-.cf-qk i svg, .cf-qk i img { width: 19px; height: 19px; object-fit: contain; }
-.cf-qk > b { font-size: 13px; font-weight: 600; line-height: 1.3; }
-.cf-qk.cf-ask { border-style: dashed; background: transparent; }
-.cf-qk.cf-ask i { background: var(--cf-site-primary); color: var(--cf-site-on-primary); }
 .cf-foot { color: var(--cf-site-faint); font-size: 12px; padding-block: 30px 36px; margin: 0; }
 
 /* ── item page: dark index next to the light bar, video across the whole area ── */
@@ -250,10 +301,17 @@ a.cf-ask:hover .cf-tile-media { border-color: var(--cf-site-accent); }
 .cf-sub-tree a:hover { color: var(--cf-site-side-strong) !important; background: rgba(255, 255, 255, .06); }
 .cf-hidden { display: none !important; }
 .cf-link-btn { background: none; border: 0; padding: 4px 10px; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; color: var(--cf-site-side-accent); text-decoration: underline; text-align: left; }
-.cf-print-panel { background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1); border-radius: 8px; padding: 12px; margin-top: 6px; }
-.cf-print-panel .cf-side-label { cursor: default; padding: 0 0 8px; }
+/* the actions of the page, above the index: two tiles side by side, each opening its dialog */
+.cf-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 18px; padding-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, .1); }
+.cf-action-tile { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 8px 12px; border: 0; border-radius: 12px; cursor: pointer;
+  background: rgba(255, 255, 255, .06); color: var(--cf-site-side-strong); font: inherit; font-size: 12.5px; font-weight: 600; transition: background .2s, transform .2s; }
+.cf-action-tile i { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-style: normal;
+  background: var(--cf-site-side-accent); color: var(--cf-site-side-bg); box-shadow: 0 6px 16px color-mix(in srgb, var(--cf-site-side-accent) 30%, transparent); transition: transform .2s; }
+.cf-action-tile svg { width: 19px; height: 19px; }
+.cf-action-tile:hover, .cf-action-tile:focus-visible { background: rgba(255, 255, 255, .11); }
+.cf-action-tile:hover i, .cf-action-tile:focus-visible i { transform: scale(1.07); }
 .cf-sel-row { display: flex; gap: 4px; margin: 0 -10px 10px; }
-.cf-print-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--cf-site-side-accent); color: #111; border: 0; border-radius: 6px; padding: 10px 12px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.cf-print-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: transparent; color: var(--cf-site-side-strong); border: 1px solid rgba(255, 255, 255, .22); border-radius: 6px; padding: 10px 12px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .cf-print-btn svg, .cf-print-one svg { width: 14px; height: 14px; }
 .cf-pdf-help { margin-top: 10px; }
 .cf-pdf-help > summary { list-style: none; cursor: pointer; display: inline-block; font-size: 12px; font-weight: 600; color: var(--cf-site-side-fg); text-decoration: underline; text-underline-offset: 2px; }
@@ -269,7 +327,7 @@ a.cf-ask:hover .cf-tile-media { border-color: var(--cf-site-accent); }
 #cf-player .cf-app { max-width: calc((100vh - 150px) * var(--cf-aspect, 1.7778)); margin-inline: auto; }
 /* on a docs page the veil over a still video is light and blurred, the button and its words in the site's colours */
 #cf-player { --cf-veil-bg: color-mix(in srgb, var(--cf-site-bg) 66%, transparent); --cf-veil-blur: 4px; }
-#cf-player .cf-big { width: 72px; height: 72px; box-shadow: 0 12px 30px color-mix(in srgb, var(--cf-site-primary) 30%, transparent); }
+#cf-player .cf-big { width: 72px; height: 72px; box-shadow: 0 12px 30px color-mix(in srgb, var(--cf-site-cta) 30%, transparent); }
 #cf-player .cf-veil-text { top: calc(50% + 28px); --cf-veil-fg: var(--cf-site-primary); --cf-veil-muted: var(--cf-site-muted); --cf-veil-shadow: none; }
 .cf-transcript-section .cf-transcript { margin-top: 16px; }
 .cf-tr-sub { font-weight: 400; color: var(--cf-site-muted); }
@@ -294,12 +352,11 @@ a.cf-ask:hover .cf-tile-media { border-color: var(--cf-site-accent); }
 #cf-print-cover { display: none; }
 
 @media (max-width: 860px) {
-  .cf-billboard { min-height: 0; flex-direction: column; align-items: stretch; }
-  .cf-billboard img { position: relative; width: 100%; max-width: none; height: auto; }
-  .cf-billboard::after { background: linear-gradient(0deg, var(--cf-site-hero) 48%, transparent 62%); }
+  .cf-billboard { min-height: 0; flex-direction: column; align-items: stretch; border-radius: 20px; }
+  .cf-billboard img { position: relative; width: 100%; max-width: none; height: auto;
+    -webkit-mask-image: linear-gradient(0deg, transparent, #000 30%); mask-image: linear-gradient(0deg, transparent, #000 30%); }
   /* the text starts under the picture: pulled over it, it would vanish on a dark poster (a screenshot of an app) */
-  .cf-bb-text { padding-block: 0 24px; margin-top: 20px; }
-  .cf-qk { width: calc(50% - 7px); aspect-ratio: auto; min-height: 100px; }
+  .cf-bb-text { max-width: none; padding-block: 0 28px; margin-top: 12px; }
   .cf-pager { flex-direction: column; }
 }
 @media (max-width: 720px) {
@@ -339,7 +396,81 @@ a.cf-ask:hover .cf-tile-media { border-color: var(--cf-site-accent); }
 
 /* what follows a written guide in the catalog, at the end of its text (a finished video shows the same over its picture) */
 .cf-site a.cf-up-next-card { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 40px 0 8px; padding: 16px 20px; border-radius: 12px;
-  background: var(--cf-site-primary); color: var(--cf-site-on-primary, #fff); text-decoration: none; font-size: 16px; line-height: 1.35; }
+  background: var(--cf-site-cta); color: var(--cf-site-on-cta); text-decoration: none; font-size: 16px; line-height: 1.35; }
 .cf-up-next-card b { font-weight: 700; }
 .cf-up-next-card i { font-style: normal; font-size: 1.3em; transition: transform .2s; }
 .cf-up-next-card:hover i, .cf-up-next-card:focus-visible i { transform: translateX(4px); }
+
+/* the covers in lists are veiled a little, a bit more at the bottom: a light picture then marks the end of its card
+   by itself, with no border (--cf-site-cover-shade restyles it, "none" removes it) */
+.cf-tile-media::after, .cf-lt-media::after { content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: var(--cf-site-cover-shade, linear-gradient(rgba(15, 23, 42, .04), rgba(15, 23, 42, .14))); }
+.cf-lt-play { z-index: 1; }
+
+/* latest releases: the title runs up the left side of the row, like the spine of a book, with a hairline to the top */
+@media (min-width: 721px) {
+  .cf-latest { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: clamp(24px, 2.6vw, 40px); align-items: stretch; }
+  .cf-latest .cf-sec-head { display: flex; margin: 0; padding: 8px 0 18px; }
+  .cf-latest .cf-sec-head h2 { writing-mode: vertical-rl; transform: rotate(180deg); display: flex; align-items: center; gap: 16px; margin: 0;
+    font-family: var(--cf-site-heading-font); font-size: clamp(16px, .6vw + 9px, 20px); font-weight: 700; line-height: 1; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--cf-site-accent-ink); white-space: nowrap; }
+  .cf-latest .cf-sec-head h2::after { content: ""; flex: 1; width: 1px; min-height: 24px; background: linear-gradient(var(--cf-site-accent-ink), transparent); opacity: .5; }
+}
+
+/* the share dialog: the apps in a row, the link with its copy button, the chapter to start from */
+.cf-share-dialog { width: min(520px, calc(100vw - 32px)); border: 0; border-radius: 16px; padding: 26px 28px 22px; box-shadow: 0 30px 80px rgba(0, 0, 0, .35);
+  background: var(--cf-site-card); color: var(--cf-site-fg); font: var(--cf-site-font); }
+.cf-share-dialog::backdrop { background: rgba(0, 0, 0, .45); backdrop-filter: blur(2px); }
+.cf-share-dialog h2 { font-weight: 600; font-size: 20px; margin: 0 0 2px; }
+.cf-share-what { margin: 0 0 20px; font-size: 13.5px; color: var(--cf-site-muted); padding-right: 30px; }
+.cf-share-apps { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(62px, 1fr); gap: 6px; margin: 0 -4px 20px; padding: 4px; overflow-x: auto; scrollbar-width: none; }
+.cf-share-app { display: flex; flex-direction: column; align-items: center; gap: 7px; text-decoration: none; color: var(--cf-site-fg) !important; background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
+.cf-share-app i { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-style: normal; color: #fff; transition: transform .15s; }
+.cf-share-app i svg { width: 26px; height: 26px; }
+.cf-share-app i b { font: 700 21px/1 system-ui, sans-serif; }
+.cf-share-app span { font-size: 12px; color: var(--cf-site-muted); }
+.cf-share-app:hover i, .cf-share-app:focus-visible i { transform: scale(1.08); }
+.cf-share-more { background: var(--cf-site-panel); color: var(--cf-site-fg) !important; font-size: 13px; letter-spacing: .1em; }
+.cf-share-link { display: flex; gap: 8px; padding: 6px 6px 6px 12px; border-radius: 10px; background: var(--cf-site-panel); }
+.cf-share-link input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; font-size: 13.5px; color: var(--cf-site-fg); }
+.cf-share-link input:focus { outline: none; }
+.cf-share-copy { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 8px; padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  background: var(--cf-site-cta); color: var(--cf-site-on-cta); }
+.cf-share-copy:hover { background: var(--cf-site-cta-hover); }
+.cf-share-copy svg { width: 15px; height: 15px; }
+.cf-share-start { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13.5px; color: var(--cf-site-muted); cursor: pointer; }
+.cf-share-start[hidden] { display: none; }
+.cf-share-start input { accent-color: var(--cf-site-cta); width: 16px; height: 16px; margin: 0; }
+.cf-share-status { min-height: 1.2em; margin: 10px 0 0; font-size: 13px; color: var(--cf-site-ok); }
+
+/* the covers in lists rest a little dimmed, like the featured picture, and come to full strength under the pointer
+   (--cf-site-cover-opacity restyles it, 1 turns it off) */
+.cf-tile-media img, .cf-tile-media .cf-cover, .cf-lt-media img, .cf-lt-media .cf-cover { opacity: var(--cf-site-cover-opacity, .6); transition: opacity .25s ease, transform .5s ease; }
+a.cf-tile:hover .cf-tile-media img, a.cf-tile:hover .cf-tile-media .cf-cover, a.cf-tile:focus-visible .cf-tile-media img, a.cf-tile:focus-visible .cf-tile-media .cf-cover,
+.cf-lt:hover .cf-lt-media img, .cf-lt:hover .cf-lt-media .cf-cover, .cf-lt:focus-visible .cf-lt-media img, .cf-lt:focus-visible .cf-lt-media .cf-cover { opacity: 1; }
+
+/* an item's facts as icons and numbers: type, length, chapters (the words stay for screen readers) */
+.cf-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.cf-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+/* positioned, so the hidden words stay inside it: otherwise they escape the scrolling row and widen the page */
+.cf-fact { position: relative; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.cf-rail { position: relative; }
+.cf-fact svg { width: 14px; height: 14px; flex-shrink: 0; opacity: .85; }
+.cf-bb-meta { gap: 6px 16px; }
+.cf-bb-meta .cf-fact svg { width: 16px; height: 16px; }
+.cf-tag { white-space: nowrap; }
+.cf-tag svg { width: 9px; height: 9px; flex-shrink: 0; }
+.cf-tag svg:not(:first-child) { width: 11px; height: 11px; margin-left: 3px; }
+.cf-chip.cf-facts { display: inline-flex; gap: 10px; }
+.cf-chip .cf-fact svg { width: 12px; height: 12px; }
+
+/* the print dialog: the sections to include, then print */
+.cf-print-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--cf-site-faint); margin-bottom: 6px; }
+.cf-text-btn { background: none; border: 0; padding: 0; font: inherit; font-size: 12.5px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--cf-site-primary-hover); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.cf-print-list { list-style: none; margin: 0 0 18px; padding: 4px; max-height: 42vh; overflow-y: auto; border-radius: 10px; background: var(--cf-site-panel); }
+.cf-print-list label { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; font-size: 14px; cursor: pointer; }
+.cf-print-list label:hover { background: color-mix(in srgb, var(--cf-site-fg) 6%, transparent); }
+.cf-print-list input { accent-color: var(--cf-site-cta); width: 16px; height: 16px; margin: 0; flex-shrink: 0; }
+.cf-print-dialog .cf-print-btn { width: 100%; justify-content: center; padding: 12px 16px; font-size: 14px; }
+.cf-print-dialog .cf-pdf-help > summary { color: var(--cf-site-muted); }
+.cf-print-dialog .cf-pdf-help p { color: var(--cf-site-muted); font-size: 12.5px; }

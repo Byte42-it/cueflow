@@ -92,6 +92,10 @@ export async function validateSite(kit: Kit, site: Site): Promise<{ errors: stri
     if (rel && !/\.(svg|png|jpe?g|gif|webp)$/i.test(rel)) errors.push(`${what} "${rel}" must be an svg, png, jpg, gif or webp file`);
   }
   if (site.favicon && !(await exists(inKit(kit, site.favicon)))) errors.push(`favicon "${site.favicon}" not found in the kit`);
+  if (site.backdrop) {
+    if (!/\.(svg|png|jpe?g|gif|webp)$/i.test(site.backdrop.image)) errors.push(`backdrop "${site.backdrop.image}" must be an svg, png, jpg, gif or webp file`);
+    else if (!(await exists(inKit(kit, site.backdrop.image)))) errors.push(`backdrop "${site.backdrop.image}" not found in the kit`);
+  }
   return { errors, warnings };
 }
 
@@ -272,6 +276,8 @@ export async function buildSite(kit: Kit, opts: { provider?: TtsProvider | null;
     if (Object.keys(mine).length) posterOf[it.id] = mine;
   }
 
+  const favicon = site.favicon ? await dataUri(inKit(kit, site.favicon)) : null;
+
   // the catalog as the pages see it
   const chapters: Record<string, Localized[]> = {};
   const durations: Record<string, Localized> = {};
@@ -294,6 +300,9 @@ export async function buildSite(kit: Kit, opts: { provider?: TtsProvider | null;
     languages,
     fallback,
     brand: site.brand ? { name: site.brand.name, logo: await imageInline(kit, site.brand.logo), url: site.brand.url } : { name: site.title },
+    // the left bar shows the project's icon when the kit has no logo of its own
+    favicon: favicon ?? undefined,
+    backdrop: site.backdrop ? { image: await dataUri(inKit(kit, site.backdrop.image)), size: site.backdrop.size, glow: site.backdrop.glow } : undefined,
     footer: site.footer,
     requestEndpoint: site.requestEndpoint,
     featured: site.featured,
@@ -320,20 +329,59 @@ export async function buildSite(kit: Kit, opts: { provider?: TtsProvider | null;
     )
   };
 
-  const favicon = site.favicon ? await dataUri(inKit(kit, site.favicon)) : null;
+  /* A tag manager on a published site only: a preview opened from disk, Studio or a local server would count the
+     author's own visits. The guard runs in the page because the same build is often looked at locally first. */
+  const tagManager = site.tagManager
+    ? `<script>(function(w,d,s,l,i){var h=location.hostname;if(location.protocol==="file:"||h==="localhost"||/^127\\./.test(h)||h==="[::1]")return;` +
+      `w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);` +
+      `j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${site.tagManager}');</script>\n`
+    : "";
+  const tagManagerNoscript = site.tagManager
+    ? `<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${site.tagManager}" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>\n`
+    : "";
   const head =
+    site.scripts.map((src) => `<script src="${escapeHtml(src)}"></script>\n`).join("") +
+    tagManager +
     (favicon ? `<link rel="icon" href="${favicon}">\n` : "") +
     site.stylesheets.map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}">\n`).join("");
-  const page = (title: string, root: string, body: string, data: unknown) => `<!doctype html>
+  /* The card a chat or a social network draws for a shared link (title, line, picture). Read from the HTML as written,
+     never from what the script draws, so it is built here, in the language the site is written in (no browser asks a
+     crawler for one, so the fallback for visitors does not apply). A picture needs an absolute
+     address, hence site.json "url": without it the card has words and no picture. */
+  const name = (v: Localized) => pick(v, fallback, fallback) ?? "";
+  const card = (v: Localized | undefined) => pick(v, site.lang, fallback) || undefined;
+  const siteBase = site.url ? (site.url.endsWith("/") ? site.url : `${site.url}/`) : null;
+  if (!siteBase) warnings.push("url is not set in site.json: a shared link shows title and description but no picture (set url to where the site is published)");
+  const linkCard = (c: { title: string; description?: string; path: string; image?: string; video?: boolean }) => {
+    const abs = (rel: string) => (siteBase ? new URL(rel, siteBase).href : null);
+    const image = c.image ? abs(c.image) : null;
+    const pageUrl = abs(c.path);
+    return [
+      `<meta property="og:type" content="${c.video ? "video.other" : "website"}">`,
+      `<meta property="og:site_name" content="${escapeHtml(card(site.title) ?? "")}">`,
+      `<meta property="og:title" content="${escapeHtml(c.title)}">`,
+      c.description ? `<meta property="og:description" content="${escapeHtml(c.description)}">\n<meta name="description" content="${escapeHtml(c.description)}">` : "",
+      `<meta property="og:locale" content="${escapeHtml(site.lang)}">`,
+      pageUrl ? `<meta property="og:url" content="${escapeHtml(pageUrl)}">` : "",
+      image
+        ? `<meta property="og:image" content="${escapeHtml(image)}">\n<meta property="og:image:alt" content="${escapeHtml(c.title)}">\n<meta name="twitter:card" content="summary_large_image">\n<meta name="twitter:image" content="${escapeHtml(image)}">`
+        : `<meta name="twitter:card" content="summary">`
+    ]
+      .filter(Boolean)
+      .join("\n");
+  };
+  const posterFor = (id?: string) => (id ? (posterOf[id]?.[site.lang] ?? posterOf[id]?.[fallback] ?? Object.values(posterOf[id] ?? {})[0]) : undefined);
+  const page = (title: string, root: string, body: string, data: unknown, card: string) => `<!doctype html>
 <html lang="${escapeHtml(fallback)}" data-cf-scheme="${site.colorScheme}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
+${card}
 ${head}<link rel="stylesheet" href="${root}assets/cueflow.css">
 </head>
 <body class="cf-site">
-${body}
+${tagManagerNoscript}${body}
 <noscript><p style="padding:24px;font:16px sans-serif">This page needs JavaScript.</p></noscript>
 <script>${DIAGNOSTIC}</script>
 <script>window.CUEFLOW_SITE = ${embed(data)};</script>
@@ -353,8 +401,15 @@ ${body}
   };
 
   const pages: string[] = [];
-  const name = (v: Localized) => pick(v, fallback, fallback) ?? "";
-  await writeAtomic(path.join(out, "index.html"), page(name(site.title), "", '<main id="cf-home"></main>', { page: "home", root: "", catalog }));
+  // the home's card: the site's own description, else the featured item's, with the featured picture
+  const featuredItem = site.items.find((it) => it.id === site.featured && it.status !== "soon");
+  const homeCard = linkCard({
+    title: card(site.title) ?? "",
+    description: card(site.description) ?? card(featuredItem?.desc),
+    path: "",
+    image: posterFor(featuredItem?.id)
+  });
+  await writeAtomic(path.join(out, "index.html"), page(name(site.title), "", '<main id="cf-home"></main>', { page: "home", root: "", catalog }, homeCard));
   pages.push("index.html");
 
   for (const it of site.items) {
@@ -385,7 +440,7 @@ ${body}
       next: nextOf(it.id),
       guide: b ? { ...external[it.guide!]!, labels: theme.labels, avatar: theme.avatar } : undefined
     };
-    await writeAtomic(path.join(out, it.id, "index.html"), page(`${name(it.title)} · ${name(site.title)}`, "../", body, data));
+    await writeAtomic(path.join(out, it.id, "index.html"), page(`${name(it.title)} · ${name(site.title)}`, "../", body, data, linkCard({ title: card(it.title) ?? "", description: card(it.desc), path: `${it.id}/`, image: posterFor(it.id), video: it.status === "video" })));
     pages.push(`${it.id}/index.html`);
   }
   return { dir: out, pages, posters, warnings };
