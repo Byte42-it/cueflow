@@ -9,7 +9,7 @@ import { Avatar } from "./avatar.ts";
  */
 
 /** One way of speaking. `browser` is the default: free, no key, but it sounds different on every computer. */
-export const VoiceSpec = z.discriminatedUnion("provider", [
+const plainVoices = [
   z.object({ provider: z.literal("browser") }).describe("the voice of the viewer's browser: free, no key, differs from computer to computer"),
   z.object({ provider: z.literal("none") }).describe("silent: captions only"),
   z.object({
@@ -30,8 +30,26 @@ export const VoiceSpec = z.discriminatedUnion("provider", [
     format: z.enum(["mp3", "m4a", "wav", "ogg"]).default("wav"),
     voice: z.string().optional()
   })
-]);
+] as const;
+/** The voices that only speak: a sound for the step, nothing on screen. */
+export const PlainVoiceSpec = z.discriminatedUnion("provider", [...plainVoices]);
+export type PlainVoiceSpec = z.infer<typeof PlainVoiceSpec>;
+/**
+ * The narrator's own voice: the person in the narrator's picture says the step on video, voice and clip made together
+ * by a video model through Fantastico (paid by the second, only where the narrator is shown). Where the narrator is not
+ * shown, `otherwise` reads the step (the browser's voice when omitted): a second voice, nothing paid.
+ */
+export const NarratorVoice = z.object({
+  provider: z.literal("narrator"),
+  voice: z.string().min(1).optional().describe("the video model's voice id; omitted = the first export asks the model for one and keeps it here"),
+  model: z.string().min(1).optional().describe("the video model of the Fantastico catalogue; omitted = heygen/avatar-iv"),
+  otherwise: PlainVoiceSpec.optional().describe("the voice of the steps where the narrator is not shown (mode off, or no picture); omitted = the browser's")
+}).describe("the person in the narrator's picture says the step on video, voice and clip together, through Fantastico; needs a picture (set_avatar image) and the Fantastico key");
+export const VoiceSpec = z.discriminatedUnion("provider", [...plainVoices, NarratorVoice]);
 export type VoiceSpec = z.infer<typeof VoiceSpec>;
+export const isNarrator = (spec: VoiceSpec | undefined): spec is z.infer<typeof NarratorVoice> => spec?.provider === "narrator";
+/** The voice that only speaks: the spec itself, or a narrator's `otherwise` */
+export const spokenVoice = (spec: VoiceSpec): PlainVoiceSpec => (spec.provider === "narrator" ? spec.otherwise ?? { provider: "browser" } : spec);
 
 /** A voice for everything in the scope, and/or one per language. */
 export const VoiceScope = z.object({

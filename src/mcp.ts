@@ -169,7 +169,7 @@ export function createServer(kit: Kit): McpServer {
     "set_avatar",
     {
       description:
-        "The narrator over the picture, chosen like a voice at three levels inherited downwards: the project (scope global, cueflow.json), one video (scope video), one step (scope step). Give only the fields that change at that level (provider svg = a cartoon face drawn by the player, lips moving with the voice; image = a picture of the kit; mode pip/side/band/full/off; position; size; background colour or picture); `avatar` null clears the level. The same in every language. Only when the user asks for a narrator or a presenter; never on slides. Typical: the project chooses the face and the usual corner, a step goes `full` for an intro or `off` where the face would cover what is shown.",
+        "The narrator over the picture, chosen like a voice at three levels inherited downwards: the project (scope global, cueflow.json), one video (scope video), one step (scope step). Give only the fields that change at that level (provider svg = a cartoon face drawn by the player, lips moving with the voice; image = a picture of the kit, swaying as it speaks — or, when the video's voice is the narrator's (set_voice provider narrator), a video of that person saying each step; mode pip/side/band/full/off; position; size; background colour or picture); `avatar` null clears the level. The same in every language. Only when the user asks for a narrator or a presenter; never on slides. Typical: the project chooses the face and the usual corner, a step goes `full` for an intro or `off` where the face would cover what is shown.",
       inputSchema: { scope: z.enum(["global", "video", "step"]).default("video"), guide: guideId.optional(), step_id: z.string().optional(), avatar: Avatar.nullable() }
     },
     safe(async ({ scope, guide, step_id, avatar }) => {
@@ -186,7 +186,7 @@ export function createServer(kit: Kit): McpServer {
     "generate_portrait",
     {
       description:
-        "Draw the narrator from words (an image model through Fantastico, paid with its key): a picture saved in the kit (shared/avatar/portrait-<hash>.png) to use as `image` of set_avatar, for the provider image (a swaying picture) or fantastico (a video of the person saying every step, made at build by HeyGen Avatar IV through Fantastico, with the tutorial's own voice). Describe who they are, how they look and the framing: head and shoulders, facing the camera, plain background. Only when the user asks for a narrator they do not have a picture of.",
+        "Draw the narrator from words (an image model through Fantastico, paid with its key): a picture saved in the kit (shared/avatar/portrait-<hash>.png) to use as `image` of set_avatar (provider image: a swaying picture; with the voice `narrator` of set_voice, a video of the person saying every step, made at build through Fantastico). Describe who they are, how they look and the framing: head and shoulders, facing the camera, plain background. Only when the user asks for a narrator they do not have a picture of.",
       inputSchema: { prompt: z.string().min(3), style: z.string().optional().describe("photo, illustration, flat cartoon…") }
     },
     safe(async ({ prompt, style }) => {
@@ -195,7 +195,7 @@ export function createServer(kit: Kit): McpServer {
       const pic = await prov.portrait!(prompt, style);
       const ext = pic.mime.includes("jpeg") ? "jpg" : pic.mime.includes("webp") ? "webp" : "png";
       const name = await saveMediaFile(kit, "shared", undefined, `avatar/portrait-${createHash("sha256").update(pic.data).digest("hex").slice(0, 10)}.${ext}`, pic.data);
-      return text({ image: `shared/${name}`, next: "set_avatar with provider image or fantastico and this image" });
+      return text({ image: `shared/${name}`, next: "set_avatar with provider image and this image; set_voice provider narrator to have the person speak on video" });
     })
   );
 
@@ -203,19 +203,19 @@ export function createServer(kit: Kit): McpServer {
     "set_voice",
     {
       description:
-        "Choose a voice at one level, or clear it to inherit from the level above. Levels, most specific first: one video (and optionally one of its languages) > a language (all videos in it) > global > the browser's voice. Ask the user before choosing an external voice: it sends the narration text to a service, and Fantastico needs FANTASTICO_API_KEY in the kit's .env. Describe the options from get_voices; do not pick for them.",
+        "Choose a voice at one level, or clear it to inherit from the level above. Levels, most specific first: one video (and optionally one of its languages) > a language (all videos in it) > global > the browser's voice. Ask the user before choosing an external voice: it sends the narration text to a service, and Fantastico needs FANTASTICO_API_KEY in the kit's .env. Describe the options from get_voices; do not pick for them. Provider narrator (the person in the narrator's picture says each step on video, voice and clip made together by a video model through Fantastico, paid per second of clip only where the narrator is shown): needs a picture (set_avatar image) and the key; `voice` (the model's voice id) may be left out, the first export picks one and keeps it; `otherwise` is the voice of the steps where the narrator is not shown (default the browser's).",
       inputSchema: {
         scope: z.enum(["global", "language", "video"]),
         language: z.string().optional().describe("for scope language, or to narrow a video's voice to one of its languages"),
         guide: z.string().optional().describe("for scope video"),
-        voice: VoiceSpec.nullable().describe("the voice, e.g. {provider:'browser'} or {provider:'fantastico', model:'<id from get_voices>', voice:'<supported voice>', style:'calm'}; null clears this level")
+        voice: VoiceSpec.nullable().describe("the voice, e.g. {provider:'browser'}, {provider:'fantastico', model:'<id from get_voices>', voice:'<supported voice>', style:'calm'} or {provider:'narrator', otherwise:{provider:'fantastico', model:…, voice:…}}; null clears this level")
       }
     },
     safe(async ({ scope, language, guide, voice }) => {
       if (scope === "language" && !language) throw new Error("scope language needs `language`, e.g. \"it\"");
       if (scope === "video" && !guide) throw new Error("scope video needs `guide`, the id of the video");
       await setVoice(kit, scope === "global" ? { scope } : scope === "language" ? { scope, language: language! } : { scope, guide: guide!, language }, voice);
-      const needsKey = voice?.provider === "fantastico" && !process.env.FANTASTICO_API_KEY;
+      const needsKey = (voice?.provider === "fantastico" || voice?.provider === "narrator") && !process.env.FANTASTICO_API_KEY;
       return text({
         saved: true,
         ...(needsKey ? { warning: "FANTASTICO_API_KEY is not set yet: put it in the kit's .env file (FANTASTICO_API_KEY=ck-fant-…) before building. Get a key or recharge credit at https://cueflow.fantastico.cc." } : {}),

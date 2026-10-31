@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { writeAtomic } from "./build.ts";
 import { listGuides, loadGuide, openKit, type Kit } from "./kit.ts";
-import { migrateVoiceSettings, resolveVoice, Settings, settingsFile, VoiceSpec as VoiceSpecSchema, type VoiceSource, type VoiceSpec } from "./settings.ts";
+import { migrateVoiceSettings, resolveVoice, Settings, settingsFile, spokenVoice, VoiceSpec as VoiceSpecSchema, type VoiceSource, type VoiceSpec } from "./settings.ts";
 import { audioMime, cachedNarration, defaultProvider, narrationAudio, providerFromSpec, spokenText, type TtsProvider } from "./tts.ts";
 import { loadBrief } from "./brief.ts";
 import { spokenOf, type Guide, type Step } from "./schema.ts";
@@ -18,7 +18,7 @@ export function voiceFor(kit: Kit, guideId: string, lang: string, env: NodeJS.Pr
   if (source === "default" && env.CUEFLOW_TTS && env.CUEFLOW_TTS !== "none") {
     return { spec, source, provider: defaultProvider(env), browser: false };
   }
-  return { spec, source, provider: providerFromSpec(spec, env), browser: spec.provider === "browser" };
+  return { spec, source, provider: providerFromSpec(spec, env), browser: spokenVoice(spec).provider === "browser" };
 }
 
 /** The choices, in words a person can choose from. Studio shows these; the assistant reads them with get_voices. */
@@ -43,6 +43,16 @@ export function voiceOptions(env: NodeJS.ProcessEnv = process.env) {
       portal: "https://cueflow.fantastico.cc",
       catalogue: "/api/speech-models",
       style: "free text, e.g. 'calm and professional'"
+    },
+    {
+      provider: "narrator",
+      title: "The narrator speaks · Fantastico",
+      summary: "The person in the narrator's picture says each step on video: voice and clip are made together by a video model, so the lips, the face and the voice are one. Needs the narrator's picture (Avatar page) and your Fantastico key. Where the narrator is not shown, a second voice of your choice reads the step (the browser's by default), nothing paid.",
+      needs: "FANTASTICO_API_KEY in the kit's .env file, and a picture of the person",
+      cost: "Fantastico credit, about $0.05 per second of clip, only for the steps that show the narrator, only when a text or the picture changes",
+      available: hasKey,
+      portal: "https://cueflow.fantastico.cc",
+      voice: "the video model's own voice id; leave it empty and the first export picks one and keeps it in cueflow.json"
     },
     {
       provider: "command",

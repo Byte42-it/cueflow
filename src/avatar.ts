@@ -6,10 +6,8 @@ import { z } from "zod";
  */
 export const Avatar = z
   .object({
-    provider: z.enum(["none", "svg", "image", "fantastico", "command"]).optional().describe("none: no narrator; svg: a cartoon face drawn by the player, lips moving with the voice (theme/avatar.svg or the built-in one); image: a picture of the kit (`image`), swaying and nodding with the voice; fantastico: a video of the person in `image` saying the narration with the model's own voice (`voices` per language), generated at build with the Fantastico key (credit per second of clip; only the steps that show the narrator); command: the same through a local program (CUEFLOW_AVATAR_COMMAND)"),
-    image: z.string().optional().describe("providers image, fantastico, command: path of the picture of the person inside the kit, e.g. shared/avatar/me.png (uploaded, or made from words with generate_portrait)"),
-    model: z.string().optional().describe("provider fantastico: the video model of the Fantastico catalogue; omitted = heygen/avatar-iv"),
-    voices: z.record(z.string()).optional().describe("provider fantastico: the model's voice per language code (a HeyGen voice id); omitted = the first export asks the model for one and keeps it here (cueflow.json). The only part of the narrator that is per language, because it is a voice"),
+    provider: z.enum(["none", "svg", "image", "fantastico", "command"]).optional().describe("none: no narrator; svg: a cartoon face drawn by the player, lips moving with the voice (theme/avatar.svg or the built-in one); image: a picture of the kit (`image`), swaying and nodding with the voice — and, when the tutorial's voice is the narrator's (set_voice provider narrator), a video of that person saying each step, voice and clip made together; command: the picture animated by a local program (CUEFLOW_AVATAR_COMMAND) on the audio Cueflow made. (fantastico: an old name of image)"),
+    image: z.string().optional().describe("providers image, command: path of the picture of the person inside the kit, e.g. shared/avatar/me.png (uploaded, or made from words with generate_portrait)"),
     mode: z.enum(["off", "pip", "side", "band", "full"]).optional().describe("off: hidden; pip: small, in a corner or at x/y; side: a half-bust panel on the left or right of the picture; band: a panel at the bottom or top; full: the narrator covers the whole picture (an intro, a conclusion)"),
     position: z.enum(["bottom-right", "bottom-left", "top-right", "top-left", "custom", "left", "right", "top", "bottom"]).optional().describe("pip: a corner, or custom with x/y; side: left or right; band: bottom or top"),
     x: z.number().min(0).max(1).optional().describe("pip custom: left edge of the narrator, as a fraction of the picture's width"),
@@ -21,12 +19,15 @@ export const Avatar = z
   .default({});
 export type Avatar = z.infer<typeof Avatar>;
 export const AVATAR_DEFAULTS = { provider: "none", mode: "pip", position: "bottom-right", x: 0.7, y: 0.6, size: 0.28, shape: "round", background: "#1f2a44" } as const;
-/** A narrator that is a generated clip of a person (made at build, one per step and language). */
-export const isGenerated = (provider: string | undefined) => provider === "fantastico" || provider === "command";
+/** a narrator animated by a local program on the audio Cueflow made (the video model's clips come from the voice, not from here) */
+export const isGenerated = (provider: string | undefined) => provider === "command";
+/** the picture of a person, under whichever name: "fantastico" was the name of image when the clips were chosen here */
+export const isPicture = (provider: string | undefined) => provider === "image" || provider === "fantastico" || provider === "command";
 /** The narrator of one step: the step's own choices over the video's over the project's over the defaults. */
 export function resolveAvatar(...layers: (Partial<Avatar> | undefined)[]): Required<Avatar> {
   const out: Record<string, unknown> = { ...AVATAR_DEFAULTS };
   for (const layer of layers) for (const [k, v] of Object.entries(layer ?? {})) if (v !== undefined) out[k] = v;
+  if (out.provider === "fantastico") out.provider = "image";
   return out as Required<Avatar>;
 }
 /** The groups a theme/avatar.svg must have for the player to move it. */

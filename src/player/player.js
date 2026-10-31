@@ -760,10 +760,10 @@
     /** Puts the face where the step says. Idempotent: called at every step entry (and seek). */
     function applyAvatar(st) {
       var a = avatarOf(st);
-      // a generated narrator: the clip of this step in this language; without one (a preview, no key yet) the picture stands in
-      var generated = a.provider === "fantastico" || a.provider === "command";
-      var clip = generated && st && DATA.avatarVideo && DATA.avatarVideo[lang] ? DATA.avatarVideo[lang][st.id] : null;
-      var on = !slides && a.provider !== "none" && a.mode !== "off" && (!(a.provider === "image" || (generated && !clip)) || kitImage(a.image));
+      // a person: the clip of this step in this language when the voice made one; without it (a preview, no key yet) the picture stands in
+      var person = a.provider === "image" || a.provider === "fantastico" || a.provider === "command";
+      var clip = person && st && DATA.avatarVideo && DATA.avatarVideo[lang] ? DATA.avatarVideo[lang][st.id] : null;
+      var on = !slides && a.provider !== "none" && a.mode !== "off" && (!person || clip || kitImage(a.image));
       app.classList.toggle("cf-av-br", on && a.mode === "pip" && a.position === "bottom-right");
       avatarEl.hidden = !on;
       if (!on) { avKey = ""; return; } // the face stays built for the next step that shows it

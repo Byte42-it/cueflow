@@ -28,7 +28,7 @@ describe("Fantastico professional voices", () => {
     assert.equal(VoiceSpec.safeParse({ provider: "fantastico", voice: "TestVoice" }).success, false);
     assert.equal(VoiceSpec.safeParse({ provider: "openai", voice: "coral" }).success, false);
     assert.equal(VoiceSpec.safeParse({ provider: "fantastico", ...options, style: key }).success, false);
-    assert.deepEqual(voiceOptions({}).filter((option) => option.cost !== "free").map((option) => option.provider), ["fantastico"]);
+    assert.deepEqual(voiceOptions({}).filter((option) => option.cost !== "free").map((option) => option.provider), ["fantastico", "narrator"], "both paid through Fantastico");
   });
 
   it("passes the selected model, voice, language and style through the SDK and caches playable audio", async () => {

@@ -130,11 +130,20 @@ Player model worth knowing before touching it:
   (`noise(slot)`); lips from `mouthLevel()`: the audio's loudness (AnalyserNode on `keepAlive`, self-calibrated), else
   the browser voice's word boundaries, else a syllable guess; closed when paused, at a seek, or silent. Never on
   slides; `prefers-reduced-motion` stops blink and sway. `.cf-av-br` moves the Cueflow mark out of a bottom-right pip.
-  **Generated** (`provider: fantastico | command`, 2026-10-30): `guideBundle` makes a clip only for a step whose resolved
-  narrator is generated, not `off`, never in a preview (`provider === null` only reads the cache). A voiced provider
-  (fantastico) gets the spoken text and `voices[lang]` (the only per-language field of the narrator: it is a voice; a
-  language without one: a real build asks the model (`suggestVoice`), keeps the id in `cueflow.json` and warns; a preview just shows the picture, no clip) and gives back clip + audio, so no TTS is paid for
-  that step; `command` gets the audio Cueflow made first. The clip ends with the words, so during `hold` the `<video>`
+  **The narrator speaks** (2026-10-31, the clips are decided by the *voice*, not by the avatar): `VoiceSpec` has a
+  provider `narrator` (`settings.ts`: `voice` = the video model's voice id, optional; `model`; `otherwise` = a
+  `PlainVoiceSpec` for the steps where the narrator is not shown, default browser). `guideBundle` resolves the voice
+  per language (`resolveVoice`): narrator + a picture (`isKitImage(av.image)`) + narrator shown (`mode !== off`,
+  provider not `none`) → `fantasticoAvatarProvider` gets the spoken text, gives back clip + audio (the clip's voice is
+  the step's; no TTS paid for that step); no `voice` id → a real build asks the model (`suggestVoice`), writes it back
+  with `setVoice` at the level the voice came from (`voiceTargetOf`) and warns; a preview only reads the cache. The
+  other steps speak with `spokenVoice(spec)` = `otherwise` (`providerFromSpec` unwraps it). The avatar's `provider`
+  is only *what is shown*: `none | svg | image | command` (`fantastico` is kept as an old name of `image`,
+  `resolveAvatar` maps it); `isGenerated` = command only (audio-driven, local), `isPicture` = image/fantastico/command.
+  The player uses a clip whenever `DATA.avatarVideo[lang][step]` exists for a picture provider. Studio: the Voice page
+  has the option "The narrator speaks" (voice id, model, `otherwise` with its own model/voice selects); the Avatar
+  page no longer has a Fantastico provider or voice ids. Chosen by Luca (option 2): two voices, nothing paid where
+  the narrator is off, rather than clips everywhere or a narrator that cannot be off. The clip ends with the words, so during `hold` the `<video>`
   shows its last frame. Clips travel as `DATA.avatarVideo[lang][stepId]` (data URI; files under `assets/avatar/` in
   the site); `BuildResult.clips`/`clipsMade` tell the credit spent. The player's face is a muted `<video>` on the step
   clock (`syncClip`), the picture stands in where there is no clip (previews). `generate_portrait` (MCP) and

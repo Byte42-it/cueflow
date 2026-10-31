@@ -1,4 +1,4 @@
-import { avatarImages, setAvatar, stepAvatar } from "./avatars.ts";
+import { avatarImages, stepAvatar } from "./avatars.ts";
 import { avatarVideoProviderFor, clipAspect, imageMimeOf, stepClip, type AvatarVideoProvider } from "./avatar-video.ts";
 import { spokenText } from "./tts.ts";
 import { loadBrief } from "./brief.ts";
@@ -12,7 +12,8 @@ import { distFile, loadGuide, sceneFile, sceneFileFor, type Kit } from "./kit.ts
 import { inlineScene, type Shared } from "./scene.ts";
 import { orientedGuide, spokenOf, type Guide } from "./schema.ts";
 import { loadTheme } from "./theme.ts";
-import { stepAudio, voiceFor } from "./voices.ts";
+import { setVoice, stepAudio, voiceFor, type VoiceTarget } from "./voices.ts";
+import { resolveVoice, spokenVoice, type VoiceSource } from "./settings.ts";
 import type { TtsProvider } from "./tts.ts";
 import { validateGuide } from "./validate.ts";
 
@@ -50,6 +51,14 @@ export type GuideBundle = {
   clipsMade: number;
   warnings: string[];
 };
+
+/** where a resolved voice came from, as the target set_voice writes to */
+function voiceTargetOf(source: VoiceSource, guide: string, lang: string): VoiceTarget {
+  if (source === "video-language") return { scope: "video", guide, language: lang };
+  if (source === "video") return { scope: "video", guide };
+  if (source === "language") return { scope: "language", language: lang };
+  return { scope: "global" };
+}
 
 export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider | null, opts: { lang?: string; onProgress?: (done: number, total: number) => void } = {}): Promise<GuideBundle> {
   const guide = orientedGuide(await loadGuide(kit, id));
@@ -92,39 +101,44 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
       const own = step.voice?.[lang];
       if (own?.provider === "browser") browserVoice = true;
       else if (langSilent && anyBrowser && !own) step.voice = { ...step.voice, [lang]: { provider: "none" } };
-      // the generated narrator: a clip of the person saying the step, only where the narrator is shown, never made for a
-      // preview (the cache is read). A voiced provider (the models through Fantastico) makes the audio of the step too; a provider
-      // driven by audio (a local command) needs the step's voice first.
+      // the narrator's voice (set_voice provider narrator): a clip of the person saying the step, voice and clip together,
+      // only where the narrator is shown, never made for a preview (the cache is read); the clip's voice is the step's audio.
+      // The other steps speak with the voice's `otherwise`. A narrator animated by a local program needs the step's voice first.
       const av = stepAvatar(kit, guide, step);
-      const generated = isGenerated(av.provider) && av.mode !== "off" && isKitImage(av.image) && !(own?.provider === "none");
+      const spoken = resolveVoice(kit.settings, id, lang);
+      const narr = spoken.spec.provider === "narrator" ? spoken.spec : null;
+      const shown = av.mode !== "off" && av.provider !== "none" && !(own?.provider === "none");
       let p: AvatarVideoProvider | null = null;
-      if (generated) {
-        try { p = avatarVideoProviderFor(av.provider, process.env, av.model); } catch (e) { if (provider !== null) throw e; } // a preview without a key: no clip, no error
+      if (shown && narr && isKitImage(av.image)) {
+        try { p = avatarVideoProviderFor("fantastico", process.env, narr.model); } catch (e) { if (provider !== null) throw e; } // a preview without a key: no clip, no error
+      } else if (shown && isGenerated(av.provider) && isKitImage(av.image)) {
+        try { p = avatarVideoProviderFor(av.provider, process.env); } catch (e) { if (provider !== null) throw e; }
       }
+      if (narr && provider !== null && !isKitImage(av.image) && shown) warnings.push(`step "${step.id}" in "${lang}": the voice is the narrator's but there is no picture of the person: no clip, "${spokenVoice(spoken.spec).provider}" reads it (upload a picture in Studio's Avatar page, or generate_portrait)`);
       let sound: { data: Buffer; mime: string } | null = null;
       let clip: Awaited<ReturnType<typeof stepClip>> = null;
       const image = p ? await readFile(path.join(kit.root, av.image!)).catch(() => null) : null; // missing: validate reports it
       const text = spokenText(spokenOf(step, lang).trim(), { ...(await loadBrief(kit)).pronunciation, ...guide.pronunciation });
-      let voice: string | undefined = av.voices?.[lang];
+      let voice: string | undefined = narr?.voice;
       if (p && image && p.voiced && text && !voice) {
-        // no voice chosen for the language: a real build asks the model for one and keeps it in cueflow.json, so the choice
-        // is made once, shows in Studio and can be changed there; a preview (no generation) just reads the picture
+        // no voice chosen: a real build asks the model for one and keeps it in cueflow.json at the level the voice was set,
+        // so the choice is made once, shows in Studio's Voice page and can be changed there; a preview just reads the picture
         if (provider !== null && p.suggestVoice) {
-          try { voice = (await p.suggestVoice(lang)) ?? undefined; } catch (e) { warnings.push(`avatar: could not ask for a voice for "${lang}": ${(e as Error).message}`); }
-          if (voice) {
-            await setAvatar(kit, { scope: "global" }, { ...kit.settings.avatar, voices: { ...kit.settings.avatar?.voices, [lang]: voice } });
-            warnings.push(`avatar: no voice was chosen for "${lang}": "${voice}" from the model's own voices is now the narrator's (cueflow.json avatar.voices.${lang}, change it in Studio's Avatar page if it does not fit)`);
+          try { voice = (await p.suggestVoice(lang)) ?? undefined; } catch (e) { warnings.push(`voice: could not ask the model for a voice (${lang}): ${(e as Error).message}`); }
+          if (voice && narr) {
+            await setVoice(kit, voiceTargetOf(spoken.source, id, lang), { ...narr, voice });
+            warnings.push(`voice: no voice id was chosen for the narrator: "${voice}" from the model's own voices is now its voice (cueflow.json, ${spoken.source}; change it in Studio's Voice page if it does not fit)`);
           }
         }
         if (!voice) {
-          warnings.push(`step "${step.id}" in "${lang}": the narrator has no voice for this language (voices.${lang}): no clip, the picture is shown and the usual voice reads it`);
+          warnings.push(`step "${step.id}" in "${lang}": the narrator has no voice yet: no clip, the picture is shown and "${spokenVoice(spoken.spec).provider}" reads it`);
           p = null;
         }
       }
       if (p && image && p.voiced && text) {
         const req = { image, imageMime: imageMimeOf(av.image!), text, lang, voice, silenceAfterMs: step.hold, background: av.background, aspect: clipAspect(av.mode) };
         clip = await stepClip(kit, p, req, { previewOnly: provider === null });
-        sound = clip?.audio ?? (provider === null ? await stepAudio(kit, guide, step, lang, provider) : null); // a preview without the clip yet: the usual voice
+        sound = clip?.audio ?? (provider === null ? await stepAudio(kit, guide, step, lang, provider) : null); // a preview without the clip yet: the other voice
       } else {
         sound = await stepAudio(kit, guide, step, lang, provider);
         if (p && image && sound) {

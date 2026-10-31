@@ -977,8 +977,9 @@
       return;
     }
     if (external.length) p.appendChild(h("p", { class: "msg warn" }, "Building generates audio with the external voice chosen for this video (" + external.map(function (r) { return r.language + ": " + r.provider; }).join(", ") + "): the narration text is sent to that service, and it may cost. Texts already generated are not paid again."));
-    var genSteps = S.guide ? S.guide.steps.filter(function (st, i) { var sh = S.state.guides.filter(function (x) { return x.id === S.guide.id; })[0]; var a = sh && sh.steps[i] && sh.steps[i].shown; return a && a.provider === "fantastico" && a.mode !== "off"; }).length : 0;
-    if (genSteps) p.appendChild(h("p", { class: "msg warn" }, "Building makes a video of the narrator for " + genSteps + " step(s) × " + (S.guide.languages.length) + " language(s) with Fantastico: the picture and the words of each step are sent to the model, and it costs per second of video (HeyGen Avatar IV: about $0.05/s). Steps already made are not paid again."));
+    var narrLangs = (S.voicesTable || []).filter(function (r) { return r.guide === S.guide.id && r.provider === "narrator"; }).map(function (r) { return r.language; });
+    var genSteps = S.guide && narrLangs.length ? S.guide.steps.filter(function (st, i) { var sh = S.state.guides.filter(function (x) { return x.id === S.guide.id; })[0]; var a = sh && sh.steps[i] && sh.steps[i].shown; return a && a.provider !== "none" && a.mode !== "off" && a.image; }).length : 0;
+    if (genSteps) p.appendChild(h("p", { class: "msg warn" }, "The voice is the narrator's (" + narrLangs.join(", ") + "): building makes a video of the person for " + genSteps + " step(s) × " + narrLangs.length + " language(s) with Fantastico. The picture and the words of each step are sent to the model, and it costs per second of video (about $0.05/s). Steps already made are not paid again."));
     p.appendChild(h("h3", null, "MP4 video"));
     p.appendChild(h("p", null, S.guide.vertical ? "Format: vertical (portrait)." : "Format: horizontal (landscape)."));
     p.appendChild(h("p", null, "Export in " + S.lang + ". Includes recorded audio; browser voices cannot be included. Requires Chromium; FFmpeg is included with Cueflow. Rendering may take several minutes."));
@@ -1048,6 +1049,7 @@
   /* ---------- voices ---------- */
   var label = function (spec) {
     if (!spec) return null;
+    if (spec.provider === "narrator") return "The narrator speaks" + (spec.voice ? ": " + spec.voice : " (voice picked at export)") + (spec.otherwise && spec.otherwise.provider !== "browser" ? " · elsewhere " + label(spec.otherwise) : "");
     if (spec.provider === "fantastico") {
       var vendor = (spec.model || "").split("/")[0];
       var name = { heygen: "HeyGen", elevenlabs: "ElevenLabs", google: "Google", mistralai: "Mistral", openai: "OpenAI" }[vendor] || "Fantastico";
@@ -1153,9 +1155,9 @@
       var r = resolved();
       body.appendChild(h("p", { class: "cur" }, "Now: " + avatarWords(r)));
       body.appendChild(h("div", { class: "pickrow" },
-        sel("Narrator", "provider", [["none", "None"], ["svg", "Cartoon face, drawn by the player"], ["image", "A picture, swaying as it speaks"], ["fantastico", "A video of the person (Fantastico, made at build)"], ["command", "A video of the person (local program)"]]),
+        sel("Narrator", "provider", [["none", "None"], ["svg", "Cartoon face, drawn by the player"], ["image", "A picture of the person"], ["command", "A picture, animated by a local program"]]),
         sel("Where", "mode", [["off", "Hidden"], ["pip", "Small, in a corner"], ["side", "Half bust, on a side"], ["band", "A band"], ["full", "Full screen"]])));
-      if (r.provider === "image" || r.provider === "fantastico" || r.provider === "command") {
+      if (r.provider === "image" || r.provider === "command") {
         var img = h("input", { type: "text", placeholder: "shared/avatar/me.png" }); img.value = v.image || "";
         img.addEventListener("change", function () { if (img.value.trim()) v.image = img.value.trim(); else delete v.image; store(); });
         var picRow = h("div", { class: "pickrow" }, img,
@@ -1163,20 +1165,7 @@
           h("button", { class: "btn", title: "Describe the person: Fantastico draws a portrait, saved in the kit like an uploaded picture", onclick: function () { portraitDialog(function (p) { v.image = p; img.value = p; store(); render(); }); } }, "Generate a portrait…"));
         body.appendChild(h("div", { class: "pickrow" }, h("label", { class: "lab", style: "flex:1" }, "Picture of the person" + (v.image == null && above.image ? " (Auto: " + above.image + ")" : ""), picRow)));
         if (r.image) body.appendChild(h("img", { class: "avpreview", src: "/kit/" + r.image, alt: "" }));
-        if (r.provider === "fantastico") {
-          body.appendChild(h("p", { class: "cur" }, "At build, every step that shows the narrator becomes a short video of this person saying it: the model (HeyGen Avatar IV, through Fantastico) voices the words itself, and that voice becomes the step's audio. Paid with the Fantastico key, per second of video; a step already made is not paid again. Previews show the picture."));
-          var langs = (video() && video().languages) || Object.keys(S.state.brief && S.state.brief.languages ? S.state.brief.languages.reduce(function (o, l) { o[l] = 1; return o; }, {}) : { en: 1 });
-          var vrow = h("div", { class: "pickrow" });
-          langs.forEach(function (l) {
-            var inp = h("input", { type: "text", placeholder: "auto: picked at the first export", style: "width:140px" }); inp.value = (v.voices && v.voices[l]) || "";
-            inp.addEventListener("change", function () { var m = Object.assign({}, v.voices || {}); if (inp.value.trim()) m[l] = inp.value.trim(); else delete m[l]; if (Object.keys(m).length) v.voices = m; else delete v.voices; store(); });
-            vrow.appendChild(h("label", { class: "lab" }, "Voice id · " + l + ((!v.voices || !v.voices[l]) && above.voices && above.voices[l] ? " (Auto: " + above.voices[l] + ")" : ""), inp));
-          });
-          var model = h("input", { type: "text", placeholder: "heygen/avatar-iv", style: "width:180px" }); model.value = v.model || "";
-          model.addEventListener("change", function () { if (model.value.trim()) v.model = model.value.trim(); else delete v.model; store(); });
-          vrow.appendChild(h("label", { class: "lab" }, "Model" + (v.model == null && above.model ? " (Auto: " + above.model + ")" : ""), model));
-          body.appendChild(vrow);
-        }
+        if (r.provider === "image") body.appendChild(h("p", { class: "cur" }, "The picture sways and nods as the step is read. With the voice “The narrator speaks” (Voice page), every step that shows it becomes instead a short video of this person saying it, voice and lips together, made at export."));
         if (r.provider === "command") body.appendChild(h("p", { class: "cur" }, "At build, CUEFLOW_AVATAR_COMMAND makes the clip of every step that shows the narrator ({image}, {audio}, {out}; optional {background}, {silence}, {aspect})."));
       }
       if (r.mode === "pip") {
@@ -1308,10 +1297,20 @@
     function refresh() {
       stopListening();
       form.querySelectorAll(".fields").forEach(function (f) { f.hidden = f.getAttribute("data-for") !== choice; });
-      if (choice === "fantastico" && v.hasKey) {
+      if ((choice === "fantastico" || choice === "narrator") && v.hasKey) {
         if (!models.length && !loadingModels) loadModels();
         loadCredit();
       }
+      if (fields.oFields) fields.oFields.hidden = fields.otherwise.value !== "fantastico";
+    }
+    function narratorVoice() {
+      var other = fields.otherwise.value, otherwise;
+      if (other === "none") otherwise = { provider: "none" };
+      else if (other === "fantastico") {
+        if (!fields.oModel.value || !fields.oVoice.value) throw new Error("Choose the model and the voice that read the steps where the narrator is not shown (connect your Fantastico key first).");
+        otherwise = { provider: "fantastico", model: fields.oModel.value, voice: fields.oVoice.value, style: fields.oStyle.value.trim() || undefined };
+      }
+      return { provider: "narrator", voice: fields.nVoice.value.trim() || undefined, model: fields.nModel.value.trim() || undefined, otherwise: otherwise };
     }
     function selectedVoice() {
       if (!fields.model.value || !fields.voice.value) throw new Error("Connect your Fantastico key and choose a model and voice first.");
@@ -1319,17 +1318,26 @@
     }
     function fillVoices() {
       stopListening();
-      var model = models.filter(function (m) { return m.id === fields.model.value; })[0];
-      fields.voice.textContent = "";
-      (model ? model.voices : []).forEach(function (voice) { fields.voice.appendChild(h("option", { value: voice }, voice)); });
-      if (spec && spec.model === fields.model.value && model && model.voices.indexOf(spec.voice) >= 0) fields.voice.value = spec.voice;
+      [[fields.model, fields.voice, spec], [fields.oModel, fields.oVoice, spec && spec.otherwise]].forEach(function (pair) {
+        var modelSel = pair[0], voiceSel = pair[1], chosen = pair[2];
+        if (!modelSel) return;
+        var model = models.filter(function (m) { return m.id === modelSel.value; })[0];
+        voiceSel.textContent = "";
+        (model ? model.voices : []).forEach(function (voice) { voiceSel.appendChild(h("option", { value: voice }, voice)); });
+        if (chosen && chosen.model === modelSel.value && model && model.voices.indexOf(chosen.voice) >= 0) voiceSel.value = chosen.voice;
+      });
     }
     function loadModels() {
       loadingModels = true; msg.className = "msg"; msg.textContent = "Loading Fantastico models and voices…";
       return api("/api/speech-models").then(function (data) {
-        models = data.models; fields.model.textContent = "";
-        models.forEach(function (model) { fields.model.appendChild(h("option", { value: model.id }, model.name || model.id)); });
-        if (spec && models.some(function (m) { return m.id === spec.model; })) fields.model.value = spec.model;
+        models = data.models;
+        [[fields.model, spec], [fields.oModel, spec && spec.otherwise]].forEach(function (pair) {
+          var modelSel = pair[0], chosen = pair[1];
+          if (!modelSel) return;
+          modelSel.textContent = "";
+          models.forEach(function (model) { modelSel.appendChild(h("option", { value: model.id }, model.name || model.id)); });
+          if (chosen && models.some(function (m) { return m.id === chosen.model; })) modelSel.value = chosen.model;
+        });
         fillVoices(); msg.textContent = models.length ? "" : "No speech models with selectable voices are currently available.";
       }).catch(function (error) { voiceError(msg, error); }).then(function () { loadingModels = false; });
     }
@@ -1365,7 +1373,30 @@
     }
     function extra(prov, kids) { return h("div", { class: "fields", "data-for": prov, hidden: choice !== prov }, kids); }
 
-    v.options.slice().sort(function (a, b) { return (a.provider === "fantastico" ? 0 : 1) - (b.provider === "fantastico" ? 0 : 1); }).forEach(function (o) {
+    var order = { fantastico: 0, narrator: 1 };
+    v.options.slice().sort(function (a, b) { return (order[a.provider] == null ? 2 : order[a.provider]) - (order[b.provider] == null ? 2 : order[b.provider]); }).forEach(function (o) {
+      if (o.provider === "narrator") {
+        if (target.scope === "step") return; // one person for the whole tutorial: a step mutes or records, it does not change narrator
+        var nv = fld("nVoice", "auto: picked at the first export", "");
+        if (spec && spec.provider === "narrator" && spec.voice) nv.value = spec.voice;
+        var nm = fld("nModel", "heygen/avatar-iv", spec && spec.provider === "narrator" ? spec.model : "");
+        var other = spec && spec.provider === "narrator" && spec.otherwise ? spec.otherwise.provider : "browser";
+        fields.otherwise = h("select", { "aria-label": "Voice where the narrator is not shown", onchange: refresh },
+          h("option", { value: "browser" }, "Browser voice (free)"), h("option", { value: "fantastico" }, "A professional voice · Fantastico"), h("option", { value: "none" }, "Silent: captions only"));
+        fields.otherwise.value = other;
+        fields.oModel = h("select", { "aria-label": "Fantastico speech model", onchange: fillVoices }, h("option", { value: "" }, "Connect a key to load models"));
+        fields.oVoice = h("select", { "aria-label": "Fantastico voice", onchange: stopListening }, h("option", { value: "" }, "Choose a model first"));
+        fields.oFields = h("div", { class: "voice-selectors", hidden: other !== "fantastico" }, h("label", { class: "voice-field" }, "Model", fields.oModel), h("label", { class: "voice-field" }, "Voice", fields.oVoice), h("label", { class: "voice-field" }, "Speaking style (optional)", fld("oStyle", "e.g. calm and professional", spec && spec.otherwise && spec.otherwise.style)));
+        var nkids = [
+          h("p", { class: "voice-note" }, v.hasKey ? "Uses the Fantastico key set under Professional voices." : "Connect your Fantastico key under Professional voices first."),
+          h("div", { class: "voice-selectors" }, h("label", { class: "voice-field" }, "Voice id of the video model (optional)", nv), h("label", { class: "voice-field" }, "Video model (optional)", nm)),
+          h("label", { class: "voice-field" }, "Where the narrator is not shown, the step is read by", fields.otherwise),
+          fields.oFields,
+          h("p", { class: "voice-note" }, "At export, every step that shows the narrator becomes a short video of the person saying it; that voice is the step's audio. About $0.05 per second of clip, paid once per text. Needs the narrator's picture (Avatar page).")
+        ];
+        form.appendChild(opt("narrator", o.title, o.summary, extra("narrator", nkids)));
+        return;
+      }
       if (o.provider === "fantastico") {
         fields.model = h("select", { "aria-label": "Fantastico speech model", onchange: fillVoices }, h("option", { value: "" }, "Connect a key to load models"));
         fields.voice = h("select", { "aria-label": "Fantastico voice", onchange: stopListening }, h("option", { value: "" }, "Choose a model first"));
@@ -1411,6 +1442,7 @@
         var voice = null, work = Promise.resolve();
         if (choice === "inherit") voice = target.scope === "global" ? { provider: "browser" } : null;
         else if (choice === "fantastico") { try { voice = selectedVoice(); } catch (error) { voiceError(msg, error); return; } }
+        else if (choice === "narrator") { try { voice = narratorVoice(); } catch (error) { voiceError(msg, error); return; } }
         else if (choice === "command") voice = { provider: "command", command: fields.command.value.trim(), format: "wav" };
         else if (choice === "file") {
           var picked = fields.file.files[0];
@@ -1434,9 +1466,15 @@
         var sample = text((S.guide && S.guide.steps[S.step] || { narration: "" }).narration, target.language || S.lang) || "Hello, this is how the tutorial will sound.";
         var language = target.language || S.lang || (S.state.brief.languages || [])[0] || "en";
         if (choice === "browser" || choice === "inherit") return speak(sample, target.language || S.lang);
+        if (choice === "narrator") {
+          var nvc; try { nvc = narratorVoice().otherwise; } catch (error) { voiceError(msg, error); return; }
+          msg.className = "msg"; msg.textContent = "The narrator's own voice is heard only in the exported clips; this is the voice of the other steps.";
+          if (!nvc) return speak(sample, target.language || S.lang);
+          if (nvc.provider === "none") return;
+        }
         msg.className = "msg"; msg.textContent = "Generating a sample…";
         var vc;
-        try { vc = choice === "fantastico" ? selectedVoice() : choice === "command" ? { provider: "command", command: fields.command.value.trim(), format: "wav" } : { provider: choice }; }
+        try { vc = choice === "fantastico" ? selectedVoice() : choice === "narrator" ? narratorVoice().otherwise : choice === "command" ? { provider: "command", command: fields.command.value.trim(), format: "wav" } : { provider: choice }; }
         catch (error) { voiceError(msg, error); return; }
         var previewAudio = null;
         var mine = { done: function () { previewButton.textContent = "Preview"; msg.textContent = ""; } };

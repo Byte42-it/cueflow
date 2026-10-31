@@ -10,6 +10,7 @@ import { promisify } from "node:util";
 import { buildGuide, guideBundle } from "../src/build.ts";
 import { commandAvatarProvider, fantasticoAvatarProvider, imageMimeOf, stepClip } from "../src/avatar-video.ts";
 import { setAvatar } from "../src/avatars.ts";
+import { setVoice } from "../src/voices.ts";
 import { loadGuide, openKit, type Kit } from "../src/kit.ts";
 import { launchChromium } from "../src/preview.ts";
 import { validateGuide } from "../src/validate.ts";
@@ -57,7 +58,10 @@ before(async () => {
   await mkdir(path.join(dir, "shared", "avatar"), { recursive: true });
   await writeFile(path.join(dir, "shared", "avatar", "face.avif"), PNG); // the bytes do not matter to the stand-in; the type travels
   kit = openKit(dir);
-  await setAvatar(kit, { scope: "global" }, { provider: "fantastico", image: "shared/avatar/face.avif", background: "#101010", voices: { en: "Daniel" } });
+  await setAvatar(kit, { scope: "global" }, { provider: "image", image: "shared/avatar/face.avif", background: "#101010" });
+  // the voice decides the clips: the narrator's in English (voice chosen) and Italian (none yet); the other steps are silent
+  await setVoice(kit, { scope: "language", language: "en" }, { provider: "narrator", voice: "Daniel", otherwise: { provider: "none" } });
+  await setVoice(kit, { scope: "language", language: "it" }, { provider: "narrator", otherwise: { provider: "none" } });
   await setAvatar(kit, { scope: "video", guide: "dashboard" }, { mode: "off" });
   await setAvatar(kit, { scope: "step", guide: "dashboard", step: "figures" }, { mode: "side", position: "left" }); // the only step that shows it
   kit = openKit(dir);
@@ -117,9 +121,11 @@ describe("the generated narrator", () => {
       assert.equal(b.clips, 2, "English has a voice; Italian has none, so the model is asked for one and the clip made with it");
       assert.equal(b.clipsMade, 2);
       assert.equal(seen.refused, 1, "one job without a voice, refused before anything is paid");
-      assert.match(b.warnings.join("\n"), /no voice was chosen for "it": "16a09e4706f74997ba4ed05ea1e3d3ea" from the model's own voices is now the narrator's/);
-      assert.equal(openKit(dir).settings.avatar?.voices?.it, "16a09e4706f74997ba4ed05ea1e3d3ea", "kept in cueflow.json, where Studio shows it");
-      assert.equal(kit.settings.avatar?.voices?.it, "16a09e4706f74997ba4ed05ea1e3d3ea", "and the kit in hand sees it");
+      assert.match(b.warnings.join("\n"), /no voice id was chosen for the narrator: "16a09e4706f74997ba4ed05ea1e3d3ea" from the model's own voices is now its voice \(cueflow.json, language/);
+      const it = openKit(dir).settings.voices.languages.it!;
+      assert.equal(it.provider === "narrator" ? it.voice : null, "16a09e4706f74997ba4ed05ea1e3d3ea", "kept in cueflow.json at the level the voice was set, where Studio shows it");
+      assert.deepEqual(it.provider === "narrator" ? it.otherwise : null, { provider: "none" }, "the rest of the voice untouched");
+      assert.equal(b.data.audio.en!.intro, undefined, "the other steps speak with `otherwise`: silent here");
       assert.match(b.data.avatarVideo.en!.figures!, /^data:video\/mp4;base64,/);
       assert.match(b.data.audio.en!.figures!, /^data:audio\/wav;base64,/, "the step's audio is the clip's voice");
       assert.equal(b.data.avatarVideo.en!.intro, undefined, "hidden there: no clip, no credit");
@@ -135,14 +141,26 @@ describe("the generated narrator", () => {
     });
   });
 
-  it("refuses a generated narrator without a picture, and knows the picture types", async () => {
+  it("warns, never blocks, when the narrator's voice has no picture or no voice id yet, and knows the picture types", async () => {
     const own = await mkdtemp(path.join(tmpdir(), "cueflow-nopic-"));
     await cp(path.join(import.meta.dirname, "..", "examples", "demo-kit"), own, { recursive: true, filter: (s) => !/[\\/](dist|audio)([\\/]|$)/.test(s) });
     const k = openKit(own);
-    await setAvatar(k, { scope: "video", guide: "upload" }, { provider: "fantastico" });
-    const r = await validateGuide(openKit(own), await loadGuide(openKit(own), "upload"));
+    await setAvatar(k, { scope: "video", guide: "upload" }, { provider: "image" });
+    await setVoice(k, { scope: "video", guide: "upload" }, { provider: "narrator" });
+    let r = await validateGuide(openKit(own), await loadGuide(openKit(own), "upload"));
     assert.deepEqual(r.errors, [], "a missing picture must not block the tutorial");
-    assert.match(r.warnings.join("\n"), /provider "fantastico" has no picture of the person yet/);
+    assert.match(r.warnings.join("\n"), /provider "image" has no picture of the person yet/);
+    assert.match(r.warnings.join("\n"), /voice \(video, "en"\): the voice is the narrator's, but there is no picture/);
+    await mkdir(path.join(own, "shared", "avatar"), { recursive: true });
+    await writeFile(path.join(own, "shared", "avatar", "me.png"), PNG);
+    await setAvatar(k, { scope: "video", guide: "upload" }, { provider: "image", image: "shared/avatar/me.png" });
+    r = await validateGuide(openKit(own), await loadGuide(openKit(own), "upload"));
+    assert.match(r.warnings.join("\n"), /the narrator has no voice id yet: the first export picks one/);
+    assert.ok(!/no picture/.test(r.warnings.join("\n")));
+    // a plain voice: the narrator stays a swaying picture, no warning about clips
+    await setVoice(k, { scope: "video", guide: "upload" }, { provider: "browser" });
+    r = await validateGuide(openKit(own), await loadGuide(openKit(own), "upload"));
+    assert.ok(!/narrator/.test(r.warnings.join("\n")));
     await rm(own, { recursive: true, force: true });
     assert.equal(imageMimeOf("x/me.AVIF"), "image/avif");
     assert.equal(imageMimeOf("x/me.jpg"), "image/jpeg");

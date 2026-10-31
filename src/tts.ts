@@ -7,7 +7,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { Kit } from "./kit.ts";
 import { audioDir } from "./kit.ts";
-import type { VoiceSpec } from "./settings.ts";
+import { spokenVoice, type VoiceSpec } from "./settings.ts";
 
 /**
  * Text-to-speech behind a small interface, with an on-disk cache. The file name is a hash of everything that
@@ -212,6 +212,7 @@ export function defaultProvider(env: NodeJS.ProcessEnv = process.env): TtsProvid
 
 /** The provider for a voice chosen in cueflow.json. External voices are explicit: a missing key is an error, not a silent build. */
 export function providerFromSpec(spec: VoiceSpec, env: NodeJS.ProcessEnv = process.env): TtsProvider | null {
+  if (spec.provider === "narrator") return providerFromSpec(spokenVoice(spec), env); // the clips carry their own voice; this reads the other steps
   switch (spec.provider) {
     case "browser":
     case "none":
