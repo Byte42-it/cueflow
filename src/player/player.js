@@ -774,7 +774,7 @@
       var faceKey = a.provider + ":" + (a.image || "") + ":" + (clip ? st.id + "/" + lang : "");
       if (faceEl.getAttribute("data-face") !== faceKey) {
         faceEl.setAttribute("data-face", faceKey);
-        faceEl.innerHTML = clip ? '<video muted playsinline preload="auto"></video>' : person ? '<img alt="" src="' + kitImage(a.image) + '">' : (DATA.avatar || AVATAR_SVG);
+        faceEl.innerHTML = clip ? '<video muted playsinline preload="auto"></video>' : (a.provider === "image" || generated) ? '<img alt="" src="' + kitImage(a.image) + '">' : (DATA.avatar || AVATAR_SVG);
         var svg = faceEl.querySelector("svg"), img = faceEl.querySelector("img"), video = faceEl.querySelector("video");
         if (video) { video.src = clip; video.playbackRate = speed; }
         av = { svg: svg, img: img, video: video, eyes: svg ? [svg.querySelector("#eye-l"), svg.querySelector("#eye-r")] : [], mouths: svg ? { closed: svg.querySelector("#mouth-closed"), mid: svg.querySelector("#mouth-mid"), open: svg.querySelector("#mouth-open") } : {}, pulse: -1e9, bound: false, level: 0 };

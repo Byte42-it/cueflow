@@ -144,7 +144,11 @@ Player model worth knowing before touching it:
   has the option "The narrator speaks" (voice id, model, `otherwise` with its own model/voice selects); the Avatar
   page no longer has a Fantastico provider or voice ids. Chosen by Luca (option 2): two voices, nothing paid where
   the narrator is off, rather than clips everywhere or a narrator that cannot be off. The clip ends with the words, so during `hold` the `<video>`
-  shows its last frame. Clips travel as `DATA.avatarVideo[lang][stepId]` (data URI; files under `assets/avatar/` in
+  shows its last frame. **Between two steps the narrator dissolves** (2026-10-31): every clip starts again from the
+  photo's pose, so `applyAvatar` builds a *ghost* (`.cf-av-ghost`, placed like the step before: a canvas with the
+  previous clip's last frame, or the picture) that fades out over the first 300 ms of the step on the step clock
+  (`paintAvatar`), while a narrator that appears or changes place fades in (`avFade`); same picture, same place → no
+  ghost. `clipSettled`/`seek` wait for the ghost's frame, so the export gets it too. No CSS transition any more. Clips travel as `DATA.avatarVideo[lang][stepId]` (data URI; files under `assets/avatar/` in
   the site); `BuildResult.clips`/`clipsMade` tell the credit spent. The player's face is a muted `<video>` on the step
   clock (`syncClip`), the picture stands in where there is no clip (previews). `generate_portrait` (MCP) and
   `POST /api/avatar-portrait` (Studio) draw the person and save the picture in `shared/avatar/`. A narrator without a

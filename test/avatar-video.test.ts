@@ -205,6 +205,17 @@ describe("the generated narrator", () => {
       assert.equal(await v.count(), 1, "step 2 shows the generated clip");
       assert.ok(await page.locator(".cf-avatar").evaluate((el) => el.classList.contains("cf-av-side")));
       assert.ok(Math.abs((await v.evaluate((el) => (el as HTMLVideoElement).currentTime)) - 1.5) < 0.2, "the clip sits where the step is");
+      // the narrator appears at step 2: it fades in over the first 300 ms, on the step clock (a seek lands on the exact opacity)
+      await page.evaluate(() => (window as unknown as { __cueflow: { seek(i: number, t: number): Promise<unknown> } }).__cueflow.seek(1, 120));
+      assert.ok(Math.abs(parseFloat(await page.locator(".cf-avatar").evaluate((el) => getComputedStyle(el).opacity)) - 0.4) < 0.05, "40 % at 120 ms");
+      await page.evaluate(() => (window as unknown as { __cueflow: { seek(i: number, t: number): Promise<unknown> } }).__cueflow.seek(1, 1500));
+      assert.equal(await page.locator(".cf-avatar").evaluate((el) => getComputedStyle(el).opacity), "1");
+      // step 3 hides it again: the step before dissolves as a ghost, its clip's last frame on a canvas
+      await page.evaluate(() => (window as unknown as { __cueflow: { seek(i: number, t: number): Promise<unknown> } }).__cueflow.seek(2, 150));
+      assert.equal(await page.locator(".cf-av-ghost canvas").count(), 1, "the ghost holds the last frame of the clip");
+      assert.ok(Math.abs(parseFloat(await page.locator(".cf-av-ghost").evaluate((el) => getComputedStyle(el).opacity)) - 0.5) < 0.05, "half gone at 150 ms");
+      await page.evaluate(() => (window as unknown as { __cueflow: { seek(i: number, t: number): Promise<unknown> } }).__cueflow.seek(2, 600));
+      assert.equal(await page.locator(".cf-av-ghost").isVisible(), false, "gone after 300 ms");
       await page.evaluate(() => (window as unknown as { __cueflow: { seek(i: number, t: number): Promise<unknown> } }).__cueflow.seek(0, 100));
       assert.equal(await page.locator(".cf-avatar").isVisible(), false, "the video hides the narrator elsewhere");
       // a preview (no clips) and the old provider name: the picture, never a broken face
