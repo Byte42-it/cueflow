@@ -22,8 +22,10 @@ html:has(> .cf-page), .cf-page { margin: 0; background: var(--cf-bg); color: var
 .cf-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; } /* moved by the player on the step clock, no CSS transition: it pauses and seeks with the step */
 .cf-frame { display: block; border: 0; background: var(--cf-stage-bg); pointer-events: none; }
 .cf-ring { position: absolute; border: 3px solid var(--cf-ring); border-radius: 8px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--cf-ring) 25%, transparent); opacity: 0; pointer-events: none; animation: cf-pulse 1s ease-in-out infinite; }
-/* the fades of the cursor and the ring only while playing: a seek must land on a finished picture (previews, checks) */
-.cf-playing .cf-ring, .cf-playing .cf-cursor { transition: opacity 200ms; }
+.cf-ring.cf-glow { border-color: transparent; border-radius: 10px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--cf-ring) 70%, transparent), 0 0 18px 6px color-mix(in srgb, var(--cf-ring) 55%, transparent); animation: cf-glow 1.2s ease-in-out infinite; }
+/* spotlight: a clear window on the element, the rest of the scene under a veil (one huge shadow does the veil) */
+.cf-spot { position: absolute; border-radius: 10px; opacity: 0; pointer-events: none; box-shadow: 0 0 0 9999px var(--cf-spot, rgba(0, 0, 0, .5)); }
+.cf-playing .cf-cursor { transition: opacity 200ms; } /* a seek must land on a finished picture (previews, checks) */
 .cf-cursor { position: absolute; left: 0; top: 0; width: 22px; height: 22px; margin: -3px 0 0 -3px; opacity: 0; pointer-events: none;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 2l15 9-6.5 1.6L9 19z' fill='%23111' stroke='%23fff' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat; }
 .cf-cursor::after { content: ""; position: absolute; left: -9px; top: -9px; width: 24px; height: 24px; border-radius: 50%; background: color-mix(in srgb, var(--cf-ring) 55%, transparent); opacity: 0; transform: scale(.3); }
@@ -31,6 +33,35 @@ html:has(> .cf-page), .cf-page { margin: 0; background: var(--cf-bg); color: var
 .cf-big { position: absolute; inset: 0; z-index: 2; margin: auto; width: 68px; height: 68px; padding: 0; border-radius: 50%; border: 0; background: var(--cf-accent); color: var(--cf-on-accent); cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, .4); display: flex; align-items: center; justify-content: center; transition: transform .2s; }
 .cf-big svg { width: 50%; height: 50%; display: block; }
 .cf-big:hover { transform: scale(1.06); }
+/* the narrator: a face over the picture; a corner (pip), a side panel, a band, or the whole picture. Placed by the
+   player at every step; between two steps the old one dissolves under the new (a ghost on the step clock) */
+.cf-avatar, .cf-av-ghost { position: absolute; z-index: 2; overflow: hidden; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+.cf-avatar[hidden], .cf-av-ghost[hidden] { display: none; }
+/* the step before, frozen, dissolving over the new narrator during the first 300 ms of a step (player.js, on the step clock) */
+.cf-av-ghost { z-index: 3; }
+.cf-av-ghost .cf-av-face canvas { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cf-av-face { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+.cf-av-face svg, .cf-av-face img { display: block; width: 100%; height: 100%; object-fit: contain; transform-origin: 50% 80%; }
+.cf-av-face video { display: block; width: 100%; height: 100%; object-fit: cover; } /* a generated clip fills its place */
+.cf-av-pip .cf-av-face video { object-fit: cover; } .cf-av-side .cf-av-face, .cf-av-band .cf-av-face, .cf-av-full .cf-av-face { max-width: 100%; }
+/* pip: square, round by default; four corners or a custom place (left/top set by the player) */
+.cf-av-pip { aspect-ratio: 1; height: 28%; border-radius: 50%; box-shadow: 0 4px 16px rgba(0, 0, 0, .35); }
+.cf-av-pip.cf-av-rounded { border-radius: 14%; }
+.cf-av-pip.cf-av-bottom-right { right: 3%; bottom: 4%; } .cf-av-pip.cf-av-bottom-left { left: 3%; bottom: 4%; }
+.cf-av-pip.cf-av-top-right { right: 3%; top: 4%; } .cf-av-pip.cf-av-top-left { left: 3%; top: 4%; }
+/* side: a half-bust panel along one edge; the face sits low, as a bust would */
+.cf-av-side { top: 0; bottom: 0; width: 30%; align-items: flex-end; box-shadow: 0 0 24px rgba(0, 0, 0, .35); }
+.cf-av-side.cf-av-right { right: 0; } .cf-av-side.cf-av-left { left: 0; }
+.cf-av-side .cf-av-face { height: 62%; width: 88%; align-items: flex-end; }
+/* band: along the bottom (or top), the face at its left */
+.cf-av-band { left: 0; right: 0; height: 30%; justify-content: flex-start; box-shadow: 0 0 24px rgba(0, 0, 0, .35); }
+.cf-av-band.cf-av-bottom { bottom: 0; } .cf-av-band.cf-av-top { top: 0; }
+.cf-av-band .cf-av-face { height: 86%; width: auto; aspect-ratio: 1; margin-left: 4%; }
+/* full: the narrator alone, large, the picture under the panel */
+.cf-av-full { inset: 0; }
+.cf-av-full .cf-av-face { height: 64%; width: auto; aspect-ratio: 1; }
+.cf-avatar.cf-av-clear, .cf-av-ghost.cf-av-clear { box-shadow: none; }
+.cf-av-br .cf-brand { bottom: auto; top: 10px; } /* the mark leaves its corner to the narrator */
 /* made with Cueflow: a small mark in the corner of every player, linking to the project */
 .cf-brand { position: absolute; right: 10px; bottom: 10px; z-index: 3; display: flex; align-items: center; gap: 5px; height: 24px; padding: 0 6px; border-radius: 12px;
   background: rgba(255, 255, 255, .82); color: #ff7a59; text-decoration: none; font: 600 11px/1 system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: .01em; opacity: .7; transition: opacity .2s; }
@@ -133,10 +164,11 @@ html:has(> .cf-page), .cf-page { margin: 0; background: var(--cf-bg); color: var
 .cf-slides.cf-started:not(.cf-ended) .cf-big { display: none; }
 
 @keyframes cf-pulse { 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--cf-ring) 12%, transparent); } }
+@keyframes cf-glow { 50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--cf-ring) 70%, transparent), 0 0 28px 10px color-mix(in srgb, var(--cf-ring) 35%, transparent); } }
 @keyframes cf-click { 0% { opacity: .9; transform: scale(.3); } 100% { opacity: 0; transform: scale(1.4); } }
 @media (prefers-reduced-motion: reduce) {
   .cf-cursor, .cf-chap small { transition: none !important; }
   .cf-up-next { animation: none; }
-  .cf-ring { animation: none; }
+  .cf-ring { animation: none !important; }
 }
 @media (max-width: 480px) { .cf-chap small { display: none; } }

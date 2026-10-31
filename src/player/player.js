@@ -81,6 +81,7 @@
       '<iframe class="cf-frame" scrolling="no" tabindex="-1"></iframe>' +
       '<div class="cf-spot"></div><div class="cf-ring"></div><div class="cf-cursor"></div>' +
       "</div>" +
+      '<div class="cf-av-ghost" hidden aria-hidden="true"><div class="cf-av-face"></div></div>' +
       '<div class="cf-avatar" hidden aria-hidden="true"><div class="cf-av-face"></div></div>' +
       '<p class="cf-subs" aria-live="polite" hidden><span></span></p>' +
       '<button class="cf-big" aria-label="Play">' + ICON_PLAY + "</button>" +
@@ -748,7 +749,11 @@
       '<ellipse id="mouth-mid" cx="50" cy="71" rx="7.5" ry="3.2" fill="#8d3b31"/>' +
       '<g id="mouth-open"><ellipse cx="50" cy="72" rx="8.5" ry="6" fill="#8d3b31"/><ellipse cx="50" cy="69.5" rx="6" ry="2" fill="#fff"/></g></g></svg>';
     var AVATAR_DEFAULTS = { provider: "none", mode: "pip", position: "bottom-right", x: 0.7, y: 0.6, size: 0.28, shape: "round", background: "#1f2a44" };
-    var avatarEl = $(".cf-avatar"), faceEl = $(".cf-av-face"), av = null, avKey = "";
+    var avatarEl = $(".cf-avatar"), faceEl = avatarEl.querySelector(".cf-av-face"), av = null, avKey = "";
+    // the step before, as it last looked: fades out over the first 300 ms of a step while the new narrator fades in,
+    // so a clip that starts again from the photo's pose, a move, an appearance or a disappearance never happen in one frame
+    var ghostEl = $(".cf-av-ghost"), ghostFace = ghostEl.querySelector(".cf-av-face"), ghostReady = Promise.resolve(), avFade = null;
+    var FADE = 300;
     /** What the narrator is in a step: the step's choices over the video's over the project's over the defaults. */
     function avatarOf(st) {
       var out = {}, layers = [AVATAR_DEFAULTS, DATA.avatarGlobal, opts.avatar, st && st.avatar];
@@ -758,42 +763,73 @@
     function isImagePath(v) { return typeof v === "string" && /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(v) && !/^(data:|https?:)/.test(v); }
     function kitImage(v) { return (DATA.avatarImages || {})[v] || null; }
     /** Puts the face where the step says. Idempotent: called at every step entry (and seek). */
-    function applyAvatar(st) {
+    /** what a step shows of the narrator: the resolved choice, whether it is on, and the clip of this language if the voice made one */
+    function avatarShown(st) {
       var a = avatarOf(st);
       // a person: the clip of this step in this language when the voice made one; without it (a preview, no key yet) the picture stands in
       var person = a.provider === "image" || a.provider === "fantastico" || a.provider === "command";
       var clip = person && st && DATA.avatarVideo && DATA.avatarVideo[lang] ? DATA.avatarVideo[lang][st.id] : null;
       var on = !slides && a.provider !== "none" && a.mode !== "off" && (!person || clip || kitImage(a.image));
-      app.classList.toggle("cf-av-br", on && a.mode === "pip" && a.position === "bottom-right");
-      avatarEl.hidden = !on;
-      if (!on) { avKey = ""; return; } // the face stays built for the next step that shows it
-      var key = JSON.stringify(a);
-      if (key === avKey) return;
-      avKey = key;
-      // the face itself
-      var faceKey = a.provider + ":" + (a.image || "") + ":" + (clip ? st.id + "/" + lang : "");
-      if (faceEl.getAttribute("data-face") !== faceKey) {
-        faceEl.setAttribute("data-face", faceKey);
-        faceEl.innerHTML = clip ? '<video muted playsinline preload="auto"></video>' : (a.provider === "image" || generated) ? '<img alt="" src="' + kitImage(a.image) + '">' : (DATA.avatar || AVATAR_SVG);
-        var svg = faceEl.querySelector("svg"), img = faceEl.querySelector("img"), video = faceEl.querySelector("video");
-        if (video) { video.src = clip; video.playbackRate = speed; }
-        av = { svg: svg, img: img, video: video, eyes: svg ? [svg.querySelector("#eye-l"), svg.querySelector("#eye-r")] : [], mouths: svg ? { closed: svg.querySelector("#mouth-closed"), mid: svg.querySelector("#mouth-mid"), open: svg.querySelector("#mouth-open") } : {}, pulse: -1e9, bound: false, level: 0 };
-        av.eyes.forEach(function (e) { if (e) { e.style.transformBox = "fill-box"; e.style.transformOrigin = "50% 50%"; } });
-      }
-      // where, how big, on what
+      return { a: a, person: person, clip: clip, on: on, place: placeKey(a) };
+    }
+    function placeKey(a) { return [a.mode, a.position, a.size, a.shape, a.x, a.y, a.background].join("|"); }
+    /** where, how big, on what: the same for the narrator and for its ghost */
+    function placeAvatar(el, a) {
       var pos = a.position, mode = a.mode;
       if (mode === "pip" && ["bottom-right", "bottom-left", "top-right", "top-left", "custom"].indexOf(pos) < 0) pos = "bottom-right";
       if (mode === "side" && pos !== "left") pos = "right";
       if (mode === "band" && pos !== "top") pos = "bottom";
-      avatarEl.className = "cf-avatar cf-av-" + mode + " cf-av-" + pos + (mode === "pip" && a.shape === "rounded" ? " cf-av-rounded" : "");
-      var cs = avatarEl.style;
+      el.className = (el === ghostEl ? "cf-av-ghost" : "cf-avatar") + " cf-av-" + mode + " cf-av-" + pos + (mode === "pip" && a.shape === "rounded" ? " cf-av-rounded" : "");
+      var cs = el.style;
       cs.left = cs.right = cs.top = cs.bottom = cs.width = cs.height = "";
       if (mode === "pip") { cs.height = a.size * 100 + "%"; if (pos === "custom") { cs.left = a.x * 100 + "%"; cs.top = a.y * 100 + "%"; } }
       else if (mode === "side") cs.width = a.size * 100 + "%";
       else if (mode === "band") cs.height = a.size * 100 + "%";
       var bgImage = isImagePath(a.background) ? kitImage(a.background) : null;
       cs.background = bgImage ? "url(" + JSON.stringify(bgImage) + ") center / cover no-repeat" : a.background;
-      avatarEl.classList.toggle("cf-av-clear", a.background === "transparent"); // no panel: no shadow either
+      el.classList.toggle("cf-av-clear", a.background === "transparent"); // no panel: no shadow either
+    }
+    /** the step before, frozen as it ended (a clip's last frame drawn on a canvas, or the picture), to fade out under the new one */
+    function makeGhost(prev, now) {
+      ghostEl.hidden = true; ghostFace.innerHTML = ""; ghostReady = Promise.resolve();
+      if (!prev || !prev.on || reduce) return;
+      // the same still picture in the same place: nothing changes, nothing to fade
+      if (!prev.clip && !now.clip && now.on && prev.a.provider === now.a.provider && prev.a.image === now.a.image && prev.place === now.place) return;
+      placeAvatar(ghostEl, prev.a);
+      ghostEl.hidden = false; ghostEl.style.opacity = "1";
+      if (!prev.clip) { ghostFace.innerHTML = prev.person ? '<img alt="" src="' + kitImage(prev.a.image) + '">' : (DATA.avatar || AVATAR_SVG); return; }
+      var canvas = document.createElement("canvas"); ghostFace.appendChild(canvas);
+      ghostReady = new Promise(function (res) {
+        var v = document.createElement("video"); v.muted = true; v.preload = "auto"; v.src = prev.clip;
+        var done = false, finish = function () { if (done) return; done = true; try { canvas.width = v.videoWidth || 2; canvas.height = v.videoHeight || 2; canvas.getContext("2d").drawImage(v, 0, 0); } catch (e) {} res(); };
+        v.addEventListener("loadedmetadata", function () { v.currentTime = Math.max(0, (v.duration || 0) - 0.05); });
+        v.addEventListener("seeked", finish); v.addEventListener("error", finish);
+      });
+    }
+    function applyAvatar(st) {
+      var now = avatarShown(st), a = now.a, clip = now.clip, on = now.on;
+      var prev = cur && cur.i > 0 ? avatarShown(steps[cur.i - 1]) : null;
+      makeGhost(prev, now);
+      // a narrator that appears, or changes place, fades in with the ghost fading out; one that only changes clip stays, the ghost dissolves over it
+      avFade = on && prev && !reduce && (!prev.on || (!ghostEl.hidden && prev.place !== now.place)) ? "in" : null;
+      avatarEl.style.opacity = "";
+      app.classList.toggle("cf-av-br", on && a.mode === "pip" && a.position === "bottom-right");
+      avatarEl.hidden = !on;
+      if (!on) { avKey = ""; paintAvatar(cur ? cur.t : 0, 0); return; } // the face stays built for the next step that shows it
+      var key = JSON.stringify(a) + (clip ? "#" + st.id : "");
+      if (key === avKey) { paintAvatar(cur ? cur.t : 0, 0); return; }
+      avKey = key;
+      // the face itself
+      var faceKey = a.provider + ":" + (a.image || "") + ":" + (clip ? st.id + "/" + lang : "");
+      if (faceEl.getAttribute("data-face") !== faceKey) {
+        faceEl.setAttribute("data-face", faceKey);
+        faceEl.innerHTML = clip ? '<video muted playsinline preload="auto"></video>' : now.person ? '<img alt="" src="' + kitImage(a.image) + '">' : (DATA.avatar || AVATAR_SVG);
+        var svg = faceEl.querySelector("svg"), img = faceEl.querySelector("img"), video = faceEl.querySelector("video");
+        if (video) { video.src = clip; video.playbackRate = speed; }
+        av = { svg: svg, img: img, video: video, eyes: svg ? [svg.querySelector("#eye-l"), svg.querySelector("#eye-r")] : [], mouths: svg ? { closed: svg.querySelector("#mouth-closed"), mid: svg.querySelector("#mouth-mid"), open: svg.querySelector("#mouth-open") } : {}, pulse: -1e9, bound: false, level: 0 };
+        av.eyes.forEach(function (e) { if (e) { e.style.transformBox = "fill-box"; e.style.transformOrigin = "50% 50%"; } });
+      }
+      placeAvatar(avatarEl, a);
       paintAvatar(cur ? cur.t : 0, 0);
     }
     /* a small deterministic noise of the step time: the same t gives the same blink, in a seek as in playback */
@@ -808,14 +844,17 @@
     }
     /** resolves once the clip shows the frame it was sent to (a recorder waits for it before taking the picture) */
     function clipSettled() {
-      var v = av && av.video; if (!v || avatarEl.hidden) return Promise.resolve();
-      return new Promise(function (res) {
+      var v = av && av.video; if (!v || avatarEl.hidden) return ghostReady;
+      return ghostReady.then(function () { return new Promise(function (res) {
         if (v.readyState >= 2 && !v.seeking) return res();
         var done = function () { v.removeEventListener("seeked", done); v.removeEventListener("loadeddata", done); v.removeEventListener("error", done); res(); };
         v.addEventListener("seeked", done); v.addEventListener("loadeddata", done); v.addEventListener("error", done);
-      });
+      }); });
     }
     function paintAvatar(t, level) {
+      var k = reduce ? 1 : Math.min(1, Math.max(0, t / FADE));
+      if (!ghostEl.hidden) { ghostEl.style.opacity = String(1 - k); if (k >= 1) { ghostEl.hidden = true; ghostFace.innerHTML = ""; } }
+      if (avFade === "in") { avatarEl.style.opacity = String(k); if (k >= 1) { avFade = null; avatarEl.style.opacity = ""; } }
       if (!av || avatarEl.hidden) return;
       syncClip(t);
       if (av.video) return; // a real face: nothing to draw
@@ -984,6 +1023,7 @@
       setPlaying(false);
       if (l) { lang = l; langSel.value = l; pickVoice(); }
       await goTo(i, t);
+      await ghostReady;
       if (av && av.video && !avatarEl.hidden) await new Promise(function (res) { var v = av.video; if (v.readyState >= 2 && !v.seeking) return res(); var done = function () { v.removeEventListener("seeked", done); v.removeEventListener("loadeddata", done); res(); }; v.addEventListener("seeked", done); v.addEventListener("loadeddata", done); setTimeout(done, 1500); });
       app.classList.add("cf-ready");
       return { total: cur.total, narration: cur.narrDur, steps: steps.length };
