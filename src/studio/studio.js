@@ -1686,7 +1686,7 @@
       };
       lSteps.appendChild(drag("step", "left:" + x * px + "px;width:" + Math.max(8, tm.total * px - 2) + "px", (i + 1) + " · " + (text(st.title, S.lang) || st.id), (text(st.title, S.lang) || st.id) + " — drag to move"));
       if (g.format !== "slides") {
-        var shown = (g.steps[i] && g.steps[i].shown) || avatarMerge(AV_DEFAULTS, S.state.avatar, g.avatar), ownAv = g.steps[i] && g.steps[i].avatar && Object.keys(g.steps[i].avatar).length;
+        var shown = avatarMerge(AV_DEFAULTS, S.state.avatar, g.avatar, g.steps[i] && g.steps[i].avatar), ownAv = g.steps[i] && g.steps[i].avatar && Object.keys(g.steps[i].avatar).length;
         var hidden = shown.provider === "none" || shown.mode === "off";
         lAv.appendChild(h("div", { class: "blk av" + (on ? " on" : "") + (hidden ? " av-off" : " av-" + shown.mode), "data-i": i, style: "left:" + x * px + "px;width:" + Math.max(8, tm.total * px - 2) + "px",
           title: avatarWords(shown) + (ownAv ? " (this step's own)" : " (Auto)") + " — click to change", onclick: function (e) { clickAt(e, i, "avatar"); } }, (ownAv ? "" : "Auto · ") + avatarWords(shown)));
@@ -1987,7 +1987,7 @@
         h("p", null, "A face over the picture that speaks the narration. Upload your own picture, or use the cartoon face drawn by the player; the background is used wherever the narrator has a panel. Each tutorial and each step can still differ."));
       var avMsg = h("div", { class: "msg" });
       avSection.appendChild(avatarForm(S.state.avatar || {}, {}, true, function (v) {
-        api("/api/avatar", { method: "POST", body: { scope: "global", avatar: v } }).then(function (r) { S.state.avatar = r.avatar; avMsg.className = "msg ok"; avMsg.textContent = "Narrator saved: " + avatarWords(avatarMerge(AV_DEFAULTS, r.avatar)) + "."; prevKey = ""; renderStrip(); })
+        api("/api/avatar", { method: "POST", body: { scope: "global", avatar: v } }).then(function (r) { S.state.avatar = r.avatar; avMsg.className = "msg ok"; avMsg.textContent = "Narrator saved: " + avatarWords(avatarMerge(AV_DEFAULTS, r.avatar)) + "."; prevKey = ""; S.ownSave = Date.now(); return loadState(); }).then(function () { renderStrip(); })
           .catch(function (e) { avMsg.className = "msg err"; avMsg.textContent = e.message; });
       }));
       avSection.appendChild(avMsg);
