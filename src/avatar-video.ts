@@ -105,7 +105,12 @@ export function fantasticoAvatarProvider(env: NodeJS.ProcessEnv = process.env, o
       return await run(headers(await runtimeKey(env, f)));
     } catch (e) {
       if (!(e instanceof RefusedKey)) throw e;
-      return run(headers(await runtimeKey(env, f, true)));
+      try {
+        return await run(headers(await runtimeKey(env, f, true)));
+      } catch (again) {
+        if (again instanceof RefusedKey) throw new Error(again.message); // twice: not a stale key, a wall
+        throw again;
+      }
     }
   }
   class RefusedKey extends Error {}
@@ -113,6 +118,8 @@ export function fantasticoAvatarProvider(env: NodeJS.ProcessEnv = process.env, o
     if (r.ok) return;
     const body = await r.text().catch(() => "");
     if (r.status === 401 || r.status === 402) throw new RefusedKey(`Fantastico refused the key for ${what} (${r.status}): ${body.slice(0, 160)}`);
+    // the minted key has spent what it was allowed to: a fresh one is minted once; still refused, it is the credit
+    if (r.status === 403 && /key.?limit|limit exceeded/i.test(body)) throw new RefusedKey(`Fantastico credit exhausted for ${what}: the key has spent its allowance. Recharge your credit at ${FANTASTICO_PORTAL}`);
     throw new Error(`Fantastico ${what} failed (${r.status}): ${body.slice(0, 600)}`);
   };
   return {

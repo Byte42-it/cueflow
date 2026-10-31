@@ -11,7 +11,7 @@ import { buildGuide, guideBundle } from "../src/build.ts";
 import { commandAvatarProvider, fantasticoAvatarProvider, imageMimeOf, stepClip } from "../src/avatar-video.ts";
 import { setAvatar } from "../src/avatars.ts";
 import { setVoice } from "../src/voices.ts";
-import { loadGuide, openKit, type Kit } from "../src/kit.ts";
+import { loadGuide, openKit, saveGuide, type Kit } from "../src/kit.ts";
 import { launchChromium } from "../src/preview.ts";
 import { validateGuide } from "../src/validate.ts";
 
@@ -33,7 +33,7 @@ const server = createServer(async (req, res) => {
   if (!/^Bearer rk-\d+$/.test(auth)) return json(401, { error: "bad key" });
   if (seen.refuseNext) { seen.refuseNext = false; return json(401, { error: "key expired" }); }
   if (url === "/or/chat/completions" && req.method === "POST") { seen.portraits.push(JSON.parse(body)); return json(200, { choices: [{ message: { content: "", images: [{ image_url: { url: `data:image/png;base64,${PNG.toString("base64")}` } }] } }] }); }
-  if (url === "/or/videos" && req.method === "POST") { const j = JSON.parse(body); if (!j.provider?.options?.heygen?.voice_id) { seen.refused += 1; return json(400, { error: { message: "avatar-iv requires provider.options.heygen.voice_id when using a text prompt (script); supply an audio input reference instead, or pick a voice such as: 16a09e4706f74997ba4ed05ea1e3d3ea, 1bd001e7e50f421d891986aad5158bc8", code: 400 } }); } seen.jobs.push(j); pending = 2; return json(202, { id: "job1", status: "pending", polling_url: "/or/videos/job1" }); }
+  if (url === "/or/videos" && req.method === "POST") { const j = JSON.parse(body); if (!j.provider?.options?.heygen?.voice_id || /^x-/.test(j.provider.options.heygen.voice_id)) { seen.refused += 1; return json(400, { error: { message: "avatar-iv requires provider.options.heygen.voice_id when using a text prompt (script); supply an audio input reference instead, or pick a voice such as: 16a09e4706f74997ba4ed05ea1e3d3ea, 1bd001e7e50f421d891986aad5158bc8", code: 400 } }); } seen.jobs.push(j); pending = 2; return json(202, { id: "job1", status: "pending", polling_url: "/or/videos/job1" }); }
   if (url === "/or/videos/job1") return json(200, pending-- > 0 ? { id: "job1", status: "in_progress" } : { id: "job1", status: "completed", unsigned_urls: [`http://127.0.0.1:${port}/or/videos/job1/content?index=0`], usage: { cost: 0.15 } });
   if (url.startsWith("/or/videos/job1/content")) { res.writeHead(200, { "content-type": "video/mp4" }); return res.end(clipBytes); }
   res.writeHead(404); res.end();
@@ -116,15 +116,31 @@ describe("the generated narrator", () => {
   it("builds a clip only for the step that shows the narrator; its voice is the clip's; a preview reads the cache", async () => {
     if (!(await realClip())) return;
     await withEnv(async () => {
+      // the steps without the narrator are muted in Italian: the stand-in has no speech, only clips
+      const g = await loadGuide(kit, "dashboard");
+      for (const st of g.steps) if (st.id !== "figures") st.voice = { ...st.voice, it: { provider: "none" } };
+      await saveGuide(kit, g);
+      // Italian, no voice id, the other steps read by a HeyGen voice the video model does not know: refused, so one of the model's own
+      await setVoice(kit, { scope: "language", language: "it" }, { provider: "narrator", otherwise: { provider: "fantastico", model: "heygen/heygen-voice", voice: "x-nobody" } });
+      const refusedBefore = seen.refused;
+      const first = await guideBundle(kit, "dashboard", undefined, { lang: "it" });
+      assert.equal(first.clips, 1);
+      assert.equal(seen.refused - refusedBefore, 2, "the other steps' voice tried and refused, then one job without a voice: nothing paid for either");
+      assert.match(first.warnings.join("\n"), /no voice id was chosen for the narrator: "16a09e4706f74997ba4ed05ea1e3d3ea" from the model's own voices is now its voice \(cueflow.json, language/);
+      let it = openKit(dir).settings.voices.languages.it!;
+      assert.equal(it.provider === "narrator" ? it.voice : null, "16a09e4706f74997ba4ed05ea1e3d3ea", "kept in cueflow.json at the level the voice was set, where Studio shows it");
+      assert.equal(it.provider === "narrator" ? it.otherwise?.provider : null, "fantastico", "the rest of the voice untouched");
+      // the same, with a HeyGen voice the video model knows: that one, in and out of the clips
+      await setVoice(kit, { scope: "language", language: "it" }, { provider: "narrator", otherwise: { provider: "fantastico", model: "heygen/heygen-voice", voice: "noelle" } });
+      const same = await guideBundle(kit, "dashboard", undefined, { lang: "it" });
+      assert.match(same.warnings.join("\n"), /"noelle" \(the voice of the other steps, which the video model knows too\) is now its voice/);
+      it = openKit(dir).settings.voices.languages.it!;
+      assert.equal(it.provider === "narrator" ? it.voice : null, "noelle");
+      await setVoice(kit, { scope: "language", language: "it" }, { provider: "narrator", voice: "noelle", otherwise: { provider: "none" } });
       const jobs = seen.jobs.length;
       const b = await guideBundle(kit, "dashboard");
-      assert.equal(b.clips, 2, "English has a voice; Italian has none, so the model is asked for one and the clip made with it");
-      assert.equal(b.clipsMade, 2);
-      assert.equal(seen.refused, 1, "one job without a voice, refused before anything is paid");
-      assert.match(b.warnings.join("\n"), /no voice id was chosen for the narrator: "16a09e4706f74997ba4ed05ea1e3d3ea" from the model's own voices is now its voice \(cueflow.json, language/);
-      const it = openKit(dir).settings.voices.languages.it!;
-      assert.equal(it.provider === "narrator" ? it.voice : null, "16a09e4706f74997ba4ed05ea1e3d3ea", "kept in cueflow.json at the level the voice was set, where Studio shows it");
-      assert.deepEqual(it.provider === "narrator" ? it.otherwise : null, { provider: "none" }, "the rest of the voice untouched");
+      assert.equal(b.clips, 2, "one clip per language for the step that shows the narrator");
+      assert.equal(b.clipsMade, 1, "the Italian one is already made, the English one is made now");
       assert.equal(b.data.audio.en!.intro, undefined, "the other steps speak with `otherwise`: silent here");
       assert.match(b.data.avatarVideo.en!.figures!, /^data:video\/mp4;base64,/);
       assert.match(b.data.audio.en!.figures!, /^data:audio\/wav;base64,/, "the step's audio is the clip's voice");
@@ -135,6 +151,7 @@ describe("the generated narrator", () => {
       assert.equal(en.provider.options.heygen.background, "#101010");
       const twice = await guideBundle(kit, "dashboard");
       assert.equal(twice.clipsMade, 0, "nothing paid again");
+      assert.equal(seen.jobs.length, jobs + 1, "the English clip was the only job; none for clips in the cache");
       const preview = await guideBundle(kit, "dashboard", null);
       assert.equal(preview.clipsMade, 0);
       assert.equal(preview.clips, 2, "a preview takes what the cache has, never generates");

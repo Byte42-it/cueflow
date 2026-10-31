@@ -120,16 +120,26 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
       const image = p ? await readFile(path.join(kit.root, av.image!)).catch(() => null) : null; // missing: validate reports it
       const text = spokenText(spokenOf(step, lang).trim(), { ...(await loadBrief(kit)).pronunciation, ...guide.pronunciation });
       let voice: string | undefined = narr?.voice;
+      // no voice id chosen: the voice of the other steps, when it is of the same house as the video model (a HeyGen voice
+      // for heygen/avatar-iv), is tried first, so the person sounds the same in and out of the clips; refused, or absent,
+      // a real build asks the model for one of its own. Either way the id is kept in cueflow.json at the level the voice
+      // was set, so the choice is made once, shows in Studio's Voice page and can be changed there. A preview just reads the picture.
+      const other = narr ? spokenVoice(narr) : null;
+      const house = (narr?.model ?? "heygen/avatar-iv").split("/")[0];
+      const sameHouse = !voice && other?.provider === "fantastico" && other.model.split("/")[0] === house ? other.voice : undefined;
+      const keep = async (v: string, why: string) => {
+        if (!narr) return;
+        await setVoice(kit, voiceTargetOf(spoken.source, id, lang), { ...narr, voice: v });
+        warnings.push(`voice: no voice id was chosen for the narrator: "${v}" ${why} is now its voice (cueflow.json, ${spoken.source}; change it in Studio's Voice page if it does not fit)`);
+      };
+      const askModel = async () => {
+        if (provider === null || !p?.suggestVoice) return;
+        try { voice = (await p.suggestVoice(lang)) ?? undefined; } catch (e) { warnings.push(`voice: could not ask the model for a voice (${lang}): ${(e as Error).message}`); }
+        if (voice) await keep(voice, "from the model's own voices");
+      };
       if (p && image && p.voiced && text && !voice) {
-        // no voice chosen: a real build asks the model for one and keeps it in cueflow.json at the level the voice was set,
-        // so the choice is made once, shows in Studio's Voice page and can be changed there; a preview just reads the picture
-        if (provider !== null && p.suggestVoice) {
-          try { voice = (await p.suggestVoice(lang)) ?? undefined; } catch (e) { warnings.push(`voice: could not ask the model for a voice (${lang}): ${(e as Error).message}`); }
-          if (voice && narr) {
-            await setVoice(kit, voiceTargetOf(spoken.source, id, lang), { ...narr, voice });
-            warnings.push(`voice: no voice id was chosen for the narrator: "${voice}" from the model's own voices is now its voice (cueflow.json, ${spoken.source}; change it in Studio's Voice page if it does not fit)`);
-          }
-        }
+        if (sameHouse && provider !== null) voice = sameHouse; // tried below; kept only once a clip is made with it
+        else await askModel();
         if (!voice) {
           warnings.push(`step "${step.id}" in "${lang}": the narrator has no voice yet: no clip, the picture is shown and "${spokenVoice(spoken.spec).provider}" reads it`);
           p = null;
@@ -137,7 +147,17 @@ export async function guideBundle(kit: Kit, id: string, provider?: TtsProvider |
       }
       if (p && image && p.voiced && text) {
         const req = { image, imageMime: imageMimeOf(av.image!), text, lang, voice, silenceAfterMs: step.hold, background: av.background, aspect: clipAspect(av.mode) };
-        clip = await stepClip(kit, p, req, { previewOnly: provider === null });
+        try {
+          clip = await stepClip(kit, p, req, { previewOnly: provider === null });
+          if (clip && voice === sameHouse && narr && !narr.voice) await keep(voice!, `(the voice of the other steps, which the video model knows too)`);
+        } catch (e) {
+          // the other steps' voice is not one the video model knows: one of its own instead, from now on
+          if (!(voice === sameHouse && /voice/i.test((e as Error).message))) throw e;
+          voice = undefined;
+          await askModel();
+          if (!voice) throw e;
+          clip = await stepClip(kit, p, { ...req, voice }, { previewOnly: provider === null });
+        }
         sound = clip?.audio ?? (provider === null ? await stepAudio(kit, guide, step, lang, provider) : null); // a preview without the clip yet: the other voice
       } else {
         sound = await stepAudio(kit, guide, step, lang, provider);
