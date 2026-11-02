@@ -200,6 +200,10 @@ export const Step = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/i).describe("unique within the guide"),
   title: Localized.optional().describe("chapter name, shown on the progress bar and in the transcript"),
   scene: z.string().optional().describe("switch to another scene file (name without .html); default: keep the current one"),
+  transition: z
+    .object({ effect: z.enum(["fade", "none"]).default("fade"), duration: duration(500) })
+    .optional()
+    .describe("how this step's scene replaces the previous one when `scene` changes: a dissolve (default length 500 ms, on the step clock, in the player and in the MP4) instead of a cut. Ignored in slides and when the scene does not change"),
   camera: Camera.optional().describe("framing at the start of the step; omitted = keep the previous framing"),
   actions: z.array(Action).default([]),
   narration: z.record(z.string()).default({}).describe("text read aloud and shown as caption, per language code; in slides, the speaker's notes (never read, never on the slide)"),

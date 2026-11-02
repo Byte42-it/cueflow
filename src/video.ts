@@ -7,6 +7,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { renderGuideHtml } from "./build.ts";
 import { loadGuide, type Kit } from "./kit.ts";
+import { orientedGuide, type Guide } from "./schema.ts";
 import { launchChromium } from "./preview.ts";
 
 const require = createRequire(import.meta.url);
@@ -72,10 +73,31 @@ export const VIDEO_PRESETS = {
   small: { label: "Small", width: 854, height: 480 }
 } as const;
 
-export function videoPreset(size: unknown = "medium", vertical = false) {
+/** The shapes an MP4 can have. 16:9 and 9:16 keep their sizes (and the names of their files); the others are sized by width. */
+export const VIDEO_ASPECTS = {
+  "16:9": { ratio: 16 / 9, render: { width: 1280, height: 720 }, sizes: { large: [1920, 1080], medium: [1280, 720], small: [854, 480] } },
+  "9:16": { ratio: 9 / 16, render: { width: 720, height: 1280 }, sizes: { large: [1080, 1920], medium: [720, 1280], small: [480, 854] } },
+  "4:5": { ratio: 4 / 5, render: { width: 720, height: 900 }, sizes: { large: [1080, 1350], medium: [720, 900], small: [480, 600] } },
+  "1:1": { ratio: 1, render: { width: 720, height: 720 }, sizes: { large: [1080, 1080], medium: [720, 720], small: [480, 480] } }
+} as const;
+export type VideoAspect = keyof typeof VIDEO_ASPECTS;
+
+/** The aspect of the guide's visible window (its stage, portrait if `vertical`); a shape the export cannot make is an error, never a crop. */
+export function videoAspect(guide: Guide): VideoAspect {
+  const { width, height } = orientedGuide(guide).stage;
+  const ratio = width / height;
+  for (const [name, a] of Object.entries(VIDEO_ASPECTS)) if (Math.abs(ratio / a.ratio - 1) < 0.01) return name as VideoAspect;
+  throw new Error(`The stage of this tutorial is ${width}×${height} (${ratio.toFixed(3)}): MP4 export supports 16:9, 9:16, 4:5 and 1:1. Change the stage to one of those shapes (e.g. 1080×1350 for 4:5) rather than getting a cropped video.`);
+}
+
+/** `aspect` may be the old boolean (`vertical`). */
+export function videoPreset(size: unknown = "medium", aspect: boolean | VideoAspect = false) {
   if (typeof size !== "string" || !Object.hasOwn(VIDEO_PRESETS, size)) throw new Error("MP4 size must be large, medium or small.");
-  const preset = { id: size as keyof typeof VIDEO_PRESETS, ...VIDEO_PRESETS[size as keyof typeof VIDEO_PRESETS] };
-  return vertical ? { ...preset, width: preset.height, height: preset.width } : preset;
+  const id = size as keyof typeof VIDEO_PRESETS;
+  const shape: VideoAspect = aspect === true ? "9:16" : aspect === false ? "16:9" : aspect;
+  if (!Object.hasOwn(VIDEO_ASPECTS, shape)) throw new Error(`MP4 aspect must be one of ${Object.keys(VIDEO_ASPECTS).join(", ")}.`);
+  const [width, height] = VIDEO_ASPECTS[shape].sizes[id];
+  return { id, label: VIDEO_PRESETS[id].label, width, height };
 }
 
 export type VideoProgress = { percent: number; phase: string };
@@ -84,8 +106,9 @@ export type VideoProgress = { percent: number; phase: string };
 export async function buildVideo(kit: Kit, id: string, lang: string, onProgress: (progress: VideoProgress) => void = () => {}, opts: { size?: unknown } = {}) {
   onProgress({ percent: 0, phase: "Preparing tutorial and audio…" });
   const guide = await loadGuide(kit, id);
-  const preset = videoPreset(opts.size, guide.vertical);
-  const renderViewport = guide.vertical ? { width: 720, height: 1280 } : { width: 1280, height: 720 };
+  const aspect = videoAspect(guide);
+  const preset = videoPreset(opts.size, aspect);
+  const renderViewport = VIDEO_ASPECTS[aspect].render;
   if (!guide.languages.includes(lang)) throw new Error(`Unknown tutorial language: ${lang}`);
   if (!guide.steps.length) throw new Error("Add at least one step before exporting MP4.");
   const ffmpeg = await resolveFFmpeg();
@@ -128,9 +151,11 @@ export async function buildVideo(kit: Kit, id: string, lang: string, onProgress:
     const warnings = [...bundle.warnings];
     for (let i = 0; i < guide.steps.length; i++) {
       rendering(i, true);
+      // the first step is a seek; the next ones continue as live playback does (same scene, the camera glides from
+      // where the last step left it, the cursor and the scene's own animations carry on)
       await page.evaluate(async ({ i, lang }) => {
         const p = (window as any).__cueflow;
-        return await p.seek(i, 0, lang);
+        return i === 0 ? await p.seek(0, 0, lang) : await p.renderAdvance(i);
       }, { i, lang });
       const frames = stepFrames[i]!;
       const seconds = frames / FPS;
@@ -151,7 +176,7 @@ export async function buildVideo(kit: Kit, id: string, lang: string, onProgress:
         await Promise.race([page.evaluate((ms) => (window as any).__cueflow.renderFrame(ms), f * 40), new Promise((r) => setTimeout(r, 2000))]);
         await page.locator(".cf-stage").screenshot({ path: path.join(temp, `frame-${String(frame++).padStart(8, "0")}.png`), animations: "allow" });
         rendering(i);
-        if (f + 1 < frames) await page.clock.runFor(40);
+        if (f + 1 < frames || i + 1 < guide.steps.length) await page.clock.runFor(40);
       }
     }
     if (guide.steps.some((step) => !bundle.data.audio[lang]?.[step.id])) warnings.push("Steps without recorded audio are silent in MP4. Choose a generated voice or upload narration to include speech; browser speech cannot be exported.");

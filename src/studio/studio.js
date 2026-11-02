@@ -981,13 +981,14 @@
     var genSteps = S.guide && narrLangs.length ? S.guide.steps.filter(function (st, i) { var sh = S.state.guides.filter(function (x) { return x.id === S.guide.id; })[0]; var a = sh && sh.steps[i] && sh.steps[i].shown; return a && a.provider !== "none" && a.mode !== "off" && a.image; }).length : 0;
     if (genSteps) p.appendChild(h("p", { class: "msg warn" }, "The voice is the narrator's (" + narrLangs.join(", ") + "): building makes a video of the person for " + genSteps + " step(s) × " + narrLangs.length + " language(s) with Fantastico. The picture and the words of each step are sent to the model, and it costs per second of video (about $0.05/s). Steps already made are not paid again."));
     p.appendChild(h("h3", null, "MP4 video"));
-    p.appendChild(h("p", null, S.guide.vertical ? "Format: vertical (portrait)." : "Format: horizontal (landscape)."));
+    var vs = (S.state.guides.filter(function (x) { return x.id === S.guide.id; })[0] || {}).videoSizes || {};
+    p.appendChild(vs.error ? h("p", { class: "msg warn" }, vs.error) : h("p", null, "Format: " + (vs.aspect || (S.guide.vertical ? "9:16" : "16:9")) + "."));
     p.appendChild(h("p", null, "Export in " + S.lang + ". Includes recorded audio; browser voices cannot be included. Requires Chromium; FFmpeg is included with Cueflow. Rendering may take several minutes."));
     var size = S.mp4Size || "medium", presets = S.state.videoPresets;
     var sizeSelect = h("select", { id: "mp4-size", onchange: function () { S.mp4Size = this.value; renderPage(); } });
     Object.keys(presets).forEach(function (key) {
       var preset = presets[key];
-      sizeSelect.appendChild(h("option", { value: key }, preset.label + " · " + (S.guide.vertical ? preset.height : preset.width) + " × " + (S.guide.vertical ? preset.width : preset.height)));
+      sizeSelect.appendChild(h("option", { value: key }, preset.label + " · " + (vs.sizes ? vs.sizes[key].width + " × " + vs.sizes[key].height : "—")));
     });
     sizeSelect.value = size;
     p.appendChild(h("div", { class: "row" }, h("label", { for: "mp4-size" }, "Video size"), sizeSelect));

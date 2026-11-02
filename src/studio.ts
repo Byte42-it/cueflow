@@ -8,8 +8,8 @@ import { ArticleError, catalogOverview, createArticle, deleteItem, readArticle, 
 import { Brief, loadBrief, updateBrief } from "./brief.ts";
 import { buildGuide, estimateStepDuration, renderGuideHtml, writeAtomic } from "./build.ts";
 import { checkLayout } from "./layout.ts";
-import { buildVideo, VIDEO_PRESETS, videoPreset } from "./video.ts";
-import { buildSlidesPdf } from "./pdf.ts";
+import { buildVideo, VIDEO_PRESETS, videoAspect, videoPreset } from "./video.ts";
+import { buildSlidesImages, buildSlidesPdf } from "./pdf.ts";
 import { buildShare } from "./share.ts";
 import { buildSite, loadSite, setSiteText, siteFile, syncSite } from "./site.ts";
 import { loadTheme } from "./theme.ts";
@@ -110,6 +110,14 @@ async function signature(kit: Kit): Promise<string> {
   return parts.join("|");
 }
 
+/** What the MP4 export can make of a guide: its aspect and the pixel size of each preset, or why it cannot. */
+function videoSizesOf(g: Guide) {
+  try {
+    const aspect = videoAspect(g);
+    return { aspect, sizes: Object.fromEntries(Object.keys(VIDEO_PRESETS).map((k) => { const p = videoPreset(k, aspect); return [k, { width: p.width, height: p.height }]; })) };
+  } catch (e) { return { error: e instanceof Error ? e.message : String(e) }; }
+}
+
 async function state(kit: Kit) {
   const guides = [];
   for (const id of await listGuides(kit)) {
@@ -118,7 +126,7 @@ async function state(kit: Kit) {
     // estimated lengths (ms) per language, as the player computes them for a silent build: the timeline is drawn from these
     const timing: Record<string, { narration: number; total: number }[]> = {};
     for (const lang of g.languages) timing[lang] = g.steps.map((s) => estimateStepDuration(s, lang));
-    guides.push({ id, title: g.title, languages: g.languages, scene: g.scene, vertical: g.vertical, format: g.format, viewport: orientedGuide(g).viewport, timing, avatar: g.player.avatar, steps: g.steps.map((s) => ({ id: s.id, title: s.title ?? null, narration: s.narration, avatar: s.avatar, shown: stepAvatar(kit, g, s), actions: s.actions.map((a) => ({ do: a.do, at: "at" in a ? a.at : 0, duration: "duration" in a ? a.duration : undefined })) })) });
+    guides.push({ id, title: g.title, languages: g.languages, scene: g.scene, vertical: g.vertical, videoSizes: videoSizesOf(g), format: g.format, viewport: orientedGuide(g).viewport, timing, avatar: g.player.avatar, steps: g.steps.map((s) => ({ id: s.id, title: s.title ?? null, narration: s.narration, avatar: s.avatar, shown: stepAvatar(kit, g, s), actions: s.actions.map((a) => ({ do: a.do, at: "at" in a ? a.at : 0, duration: "duration" in a ? a.duration : undefined })) })) });
   }
   return { videoPresets: VIDEO_PRESETS, avatar: kit.settings.avatar, kitRoot: kit.root, projectRoot: projectRoot(kit), outDir: kit.out, outDirShown: path.relative(projectRoot(kit), kit.out).split(path.sep).join("/") || ".", defaultOutDirShown: path.relative(projectRoot(kit), path.resolve(kit.root, defaultOutDir(kit))).split(path.sep).join("/"), brief: await loadBrief(kit), pending: (await pendingChanges(kit)).length, guides, scenes: await listScenes(kit), hasKey: Boolean(process.env.FANTASTICO_API_KEY), catalog: await catalogOverview(kit).catch((e) => ({ exists: false as const, error: e instanceof Error ? e.message : String(e) })) };
 }
@@ -481,6 +489,22 @@ async function handle(kit: Kit, req: IncomingMessage, res: ServerResponse, clien
     try {
       const r = await buildSlidesPdf(kit, String(b.guide), String(b.lang), (progress) => event({ progress }));
       event({ result: { url: `/out/${encodeURIComponent(r.name)}`, pages: r.pages } });
+    } catch (e) {
+      event({ error: e instanceof Error ? e.message : String(e) });
+    }
+    return void res.end();
+  }
+
+  if (p === "/api/export-images" && req.method === "POST") {
+    // slides only, one picture per slide for a carousel; streamed like the PDF: {guide, lang, format: "png"|"jpeg"}
+    const b = await readBody(req);
+    res.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "no-store", "x-accel-buffering": "no" });
+    const event = (value: unknown) => { if (!res.destroyed) res.write(JSON.stringify(value) + "\n"); };
+    try {
+      const format = b.format ?? "png";
+      if (format !== "png" && format !== "jpeg") throw new Error('format must be "png" or "jpeg"');
+      const r = await buildSlidesImages(kit, String(b.guide), String(b.lang), format, (progress) => event({ progress }));
+      event({ result: { folder: r.folder, width: r.width, height: r.height, format: r.format, count: r.files.length, files: r.files.map((f) => ({ name: f.name, url: f.url })) } });
     } catch (e) {
       event({ error: e instanceof Error ? e.message : String(e) });
     }

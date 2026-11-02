@@ -6,7 +6,7 @@ import { after, before, describe, it } from "node:test";
 import { pathToFileURL } from "node:url";
 import { buildGuide, guideBundle } from "../src/build.ts";
 import { loadGuide, openKit, type Kit } from "../src/kit.ts";
-import { buildSlidesPdf } from "../src/pdf.ts";
+import { buildSlidesImages, buildSlidesPdf } from "../src/pdf.ts";
 import { launchChromium } from "../src/preview.ts";
 import { Guide } from "../src/schema.ts";
 import { buildSite, siteDir } from "../src/site.ts";
@@ -91,6 +91,24 @@ describe("slides", () => {
     assert.equal(pdf.toString("latin1").match(/\/Type\s*\/Page\b/g)?.length, 2, "one page per slide, not one per press");
     await writeFile(path.join(dir, "guides", "film.json"), JSON.stringify({ ...deck, id: "film", format: "video" }));
     await assert.rejects(buildSlidesPdf(kit, "film", "it"), /is a video, not slides/);
+  });
+
+  it("exports one picture per slide at the exact viewport size, in order, PNG and JPEG", { skip: !process.env.CUEFLOW_TEST_BROWSER, timeout: 60000 }, async () => {
+    const guide = await loadGuide(kit, "deck");
+    for (const format of ["png", "jpeg"] as const) {
+      const r = await buildSlidesImages(kit, "deck", "it", format);
+      assert.deepEqual(r.files.map((f) => f.name), format === "png" ? ["01.png", "02.png"] : ["01.jpg", "02.jpg"]);
+      assert.equal(r.files[0]!.url, `/out/deck.it.slides/${r.files[0]!.name}`);
+      for (const f of r.files) {
+        const data = await readFile(f.file);
+        if (format === "png") {
+          assert.equal(data.subarray(1, 4).toString(), "PNG");
+          assert.equal(data.readUInt32BE(16), guide.viewport.width, "not doubled");
+          assert.equal(data.readUInt32BE(20), guide.viewport.height);
+        } else assert.deepEqual([...data.subarray(0, 3)], [0xff, 0xd8, 0xff]);
+      }
+    }
+    await assert.rejects(buildSlidesImages(kit, "deck", "it", "gif" as "png"), /png.*jpeg/);
   });
 
   it("advances one press at a time, in the page and in full screen", { skip: !process.env.CUEFLOW_TEST_BROWSER, timeout: 60000 }, async () => {

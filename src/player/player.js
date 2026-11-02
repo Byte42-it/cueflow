@@ -241,7 +241,25 @@
     /* the scene never sees a real pointer: its :hover rules answer to .cf-hover, which the hover action sets */
     function hoverable(css) { return css.replace(/:hover\b/g, ".cf-hover"); }
 
-    function loadScene(name) {
+    /* A dissolve between two scenes: the scene being left stays in its own iframe over the new one and fades out on the
+       step clock (tickTransition), so pausing and the recorder's frame-by-frame clock treat it like any other motion. */
+    var transit = null;
+    function endTransition() { if (transit) { transit.el.remove(); transit = null; } }
+    function tickTransition(t) {
+      if (!transit) return;
+      var p = Math.min(1, t / transit.dur);
+      transit.el.style.opacity = String(1 - easeFn("standard")(p));
+      if (p >= 1) endTransition();
+    }
+    function loadScene(name, fade) {
+      endTransition();
+      if (fade && !reduce && frame.contentDocument && frame.contentDocument.body) {
+        var prev = frame;
+        frame = prev.cloneNode(false);
+        frame.style.cssText = prev.style.cssText;
+        world.insertBefore(frame, prev);
+        transit = { el: prev, dur: fade };
+      }
       return new Promise(function (resolve) {
         frame.onload = function () { frame.onload = null; resolve(); };
         // the translated version of the screen, when the kit has one for this language
@@ -909,7 +927,11 @@
     async function enterStep(i, instant) {
       var st = steps[i];
       var sceneName = sceneStepIndex[i];
-      if (lang + "/" + sceneName !== curScene) { await loadScene(sceneName); cam = null; }
+      if (lang + "/" + sceneName !== curScene) {
+        var tr = st.transition, fade = !instant && !slides && tr && tr.effect !== "none" ? (tr.duration != null ? tr.duration : 500) : 0;
+        await loadScene(sceneName, fade);
+        cam = null;
+      }
       var text = st.narration[lang] || "";
       var url = audioUrl(i);
       var info = url ? await audioDuration(url) : { audio: null, ms: null };
@@ -979,6 +1001,7 @@
       last = ts;
       cur.t += dt * speed;
       tickCamera(cur.t);
+      tickTransition(cur.t);
       paintAvatar(cur.t, mouthLevel());
       runDue(cur, cur.t, { instant: false });
       progressBar();
@@ -1396,7 +1419,10 @@
       setRender: function (on) { render = !!on; if (cur) syncClip(cur.t); }, clipSettled: clipSettled,
       // one exact frame of the current step at `ms`, without the live clock: no 800 ms hold at play, no rAF jitter;
       // resolves once the narrator's clip shows that frame too
-      renderFrame: function (ms) { if (!cur) return Promise.resolve(); cur.t = ms; tickCamera(cur.t); paintAvatar(cur.t, 0); runDue(cur, cur.t, { instant: false }); progressBar(); return clipSettled(); },
+      renderFrame: function (ms) { if (!cur) return Promise.resolve(); cur.t = ms; tickCamera(cur.t); tickTransition(cur.t); paintAvatar(cur.t, 0); runDue(cur, cur.t, { instant: false }); progressBar(); return clipSettled(); },
+      // the recorder moves to the next step the way live playback does (the scene stays, the cursor stays, the camera
+      // glides), instead of `seek`, which reloads the scene and enters instantly: the previous step is finished first
+      renderAdvance: async function (i) { if (cur) runDue(cur, Infinity, { instant: false }); await enterStep(i, false); progressBar(); paintAvatar(0, 0); paintVeil(); return clipSettled(); },
       // slides: what a press of the space bar and of the back key do
       next: slideNext, previous: slidePrev, slides: slides,
       // for an editor that draws its own transport (Studio's timeline): where we are, and play/pause from outside

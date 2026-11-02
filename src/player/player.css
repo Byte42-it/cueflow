@@ -20,7 +20,7 @@ html:has(> .cf-page), .cf-page { margin: 0; background: var(--cf-bg); color: var
 .cf-app { width: 100%; outline: none; color: var(--cf-fg); font: var(--cf-font); }
 .cf-stage { position: relative; width: 100%; overflow: hidden; background: var(--cf-stage-bg); border-radius: var(--cf-stage-radius); box-shadow: var(--cf-stage-shadow); }
 .cf-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; } /* moved by the player on the step clock, no CSS transition: it pauses and seeks with the step */
-.cf-frame { display: block; border: 0; background: var(--cf-stage-bg); pointer-events: none; }
+.cf-frame { position: absolute; left: 0; top: 0; display: block; border: 0; background: var(--cf-stage-bg); pointer-events: none; }
 .cf-ring { position: absolute; border: 3px solid var(--cf-ring); border-radius: 8px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--cf-ring) 25%, transparent); opacity: 0; pointer-events: none; animation: cf-pulse 1s ease-in-out infinite; }
 .cf-ring.cf-glow { border-color: transparent; border-radius: 10px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--cf-ring) 70%, transparent), 0 0 18px 6px color-mix(in srgb, var(--cf-ring) 55%, transparent); animation: cf-glow 1.2s ease-in-out infinite; }
 /* spotlight: a clear window on the element, the rest of the scene under a veil (one huge shadow does the veil) */

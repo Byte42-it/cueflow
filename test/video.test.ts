@@ -105,6 +105,25 @@ it("exports a short animated tutorial as an MP4", { skip: !process.env.CUEFLOW_T
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+it("exports a 4:5 and a 1:1 MP4 at their own size, with the brand and captions off", { skip: !process.env.CUEFLOW_TEST_VIDEO, timeout: 120000 }, async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "cueflow-video-aspect-"));
+  try {
+    await mkdir(path.join(dir, "guides")); await mkdir(path.join(dir, "scenes"));
+    await writeFile(path.join(dir, "scenes", "screen.html"), '<html><body><button id="target">Hello</button></body></html>');
+    await writeFile(path.join(dir, "cueflow.json"), JSON.stringify({ voices: { default: { provider: "none" } } }));
+    const steps = [{ id: "a", narration: { en: "Hi" }, hold: 0, camera: { target: "#target" }, actions: [] }, { id: "b", narration: { en: "Bye" }, hold: 0, camera: { target: "body" }, actions: [] }];
+    const kit = openKit(dir);
+    for (const [id, w, h, size, expect] of [["four", 1080, 1350, "small", "480x600"], ["four", 1080, 1350, "large", "1080x1350"], ["sq", 1000, 1000, "medium", "720x720"]] as const) {
+      await writeFile(path.join(dir, "guides", id + ".json"), JSON.stringify({ id, title: id, scene: "screen", languages: ["en"], viewport: { width: w, height: h }, stage: { width: w, height: h }, player: { brand: "off", captions: "off" }, steps }));
+      const r = await buildVideo(kit, id, "en", undefined, { size });
+      const decoded = await promisify(execFile)(await resolveFFmpeg(), ["-i", r.file, "-f", "null", "-"]);
+      assert.match(decoded.stderr, new RegExp(expect));
+      assert.equal(r.name, `${id}.en.${size}.mp4`);
+    }
+    await writeFile(path.join(dir, "guides", "odd.json"), JSON.stringify({ id: "odd", title: "o", scene: "screen", languages: ["en"], stage: { width: 640, height: 400 }, steps }));
+    await assert.rejects(buildVideo(kit, "odd", "en"), /supports 16:9, 9:16, 4:5 and 1:1/);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
 
 it("keeps old tutorials unchanged and frames vertical tutorials without mutating saved dimensions", () => {
   const legacy = Guide.parse({ id: "old", title: "Old", scene: "screen" });

@@ -56,6 +56,12 @@ const RECENT_MS = 25_000; // seen this recently between two waits: still there
 
 type Waiter = { resolve: (t: AgentTask | null) => void; timer: NodeJS.Timeout; beat: NodeJS.Timeout };
 
+/** How long a tool may run through the door before it is given up: an hour, or CUEFLOW_AGENT_CALL_TIMEOUT_MS. */
+export function callTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+  const n = Number(env.CUEFLOW_AGENT_CALL_TIMEOUT_MS);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 2 ** 31 - 1) : 3600000;
+}
+
 export class AgentBridge {
   /** random, kept in the kit between runs: a web page cannot guess it, and the door only exists while Studio runs */
   readonly token: string;
@@ -89,7 +95,9 @@ export class AgentBridge {
 
   /** Calls a tool as the MCP server would; a picture is saved to a file whose path is returned. */
   async call(name: string, args: Record<string, unknown>) {
-    const res = (await (await this.tools()).callTool({ name, arguments: args })) as { isError?: boolean; content: { type: string; text?: string; data?: string; mimeType?: string }[] };
+    // the SDK gives a request 60 s by default and then answers with an error while the tool keeps working: a build with
+    // voices, a capture or a site with posters take longer, and a long tool call has no progress to reset the timer
+    const res = (await (await this.tools()).callTool({ name, arguments: args }, undefined, { timeout: callTimeoutMs() })) as { isError?: boolean; content: { type: string; text?: string; data?: string; mimeType?: string }[] };
     const out: { type: string; text?: string; file?: string }[] = [];
     for (const c of res.content ?? []) {
       if (c.type === "image" && c.data) {

@@ -193,6 +193,29 @@ Player model worth knowing before touching it:
 - Hidden words for screen readers (`.cf-sr`) are absolutely positioned: keep a positioned ancestor inside a scrolling
   row (`.cf-fact`, `.cf-rail` are), or they escape its clipping and widen the page.
 
+## Contract with an outside director (0.2.1)
+
+A director on the same machine produces videos and carousels through Studio's door and writes the kit's files directly
+(scenes, `shared/`, `theme/`, guide JSON). It has its own Fantastico key, apart from the kit's. It relies on these, all
+with the header `x-cueflow: studio` on mutating calls; **if any changes, say so in the release notes/commit** (there is
+no CHANGELOG file):
+- `GET /api/state`: `kitRoot`, `outDir`, and per guide `videoSizes` (`{aspect, sizes}` or `{error}`).
+- `POST /api/export-mp4` `{guide, lang, size: large|medium|small, progress?: true}` → NDJSON `{progress}` … `{result:{url,warnings}}`.
+  File `<out>/<guide>.<lang>.<size>.mp4`, name unchanged for every aspect. Shape comes from the guide's **stage** (portrait
+  if `vertical`): 16:9 (1920×1080 / 1280×720 / 854×480), 9:16 (swapped), 4:5 (1080×1350 / 720×900 / 480×600), 1:1
+  (1080² / 720² / 480²). Any other stage ratio is an error, never a crop. `player.brand: "off"`, `captions: "off"` are honoured.
+- `POST /api/export-pdf` `{guide, lang}` → NDJSON, result `{url, pages}`; slides only.
+- `POST /api/export-images` `{guide, lang, format: "png"|"jpeg"}` (default png) → same NDJSON; result
+  `{folder, width, height, format, count, files:[{name,url}]}` in slide order. Files `<out>/<guide>.<lang>.slides/01.png|01.jpg…`
+  (the folder is replaced as a whole), exactly the viewport's pixels (not ×2), same hidden chrome as the PDF; slides only.
+- `GET /out/*`: built files (also subfolders).
+- MP4 notes: steps after the first continue like live playback (`renderAdvance`: same scene, cursor and camera carry on;
+  the old `seek` per step reloaded the scene and made the camera jump). A step can carry `transition: {effect: fade|none,
+  duration}` (default fade 500 ms) used when its `scene` differs from the previous step's: a dissolve on the step clock,
+  in the player and the MP4; a `seek` into the middle of a dissolve shows the new scene complete.
+- The door (`/agent/call/<tool>`, MCP bridge) allows a tool 1 h (`CUEFLOW_AGENT_CALL_TIMEOUT_MS`); the SDK's 60 s default
+  cut `build_guide` with a slow voice (reproduced: error at 62.7 s while the build went on).
+
 ## Commands
 
 ```bash
