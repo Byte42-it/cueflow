@@ -47,6 +47,7 @@ and show them in the guide, or use another scene.
   fix the selector or the scene, do not work around it.
 - The narration is what is said AND shown as subtitles. Write it to be heard: short sentences, no parentheses.
 - Place actions as percentages of the narration (at: "40%") so they stay in sync whatever the voice or language.
+- Changing scene is a cut by default. For a dissolve put transition: { effect: "fade", duration: 500 } on the step that has the new scene; use it sparingly (a change of place, not every step).
 - Camera: frame only what matters. A camera action after anything shown or hidden that changes the layout.
 - Do not show or promise what the product does not do today.
 

@@ -924,6 +924,34 @@
       .then(function () { state.running = false; paintPdf(id, lang); });
   }
 
+  /* slides: one picture per slide, for a carousel */
+  var imgExports = {};
+  function paintImages(id, lang) {
+    var key = id + "|" + lang, box = $("#images-result"), state = imgExports[key];
+    if (!box || box.dataset.key !== key) return;
+    box.textContent = "";
+    var button = $("#export-images");
+    if (button) button.disabled = !!S.busy || !!(state && state.running);
+    if (!state) return;
+    if (state.running && state.progress) progressBar(box, state.progress);
+    if (state.error) { var e = h("div"); voiceError(e, new Error(state.error)); box.appendChild(e); }
+    if (state.result) {
+      var r = state.result;
+      box.appendChild(h("div", { class: "msg ok" }, "✓ " + r.count + " pictures, " + r.width + " × " + r.height + " (" + r.folder + ")."));
+      box.appendChild(h("div", { class: "row" }, r.files.map(function (f) { return h("a", { class: "btn", href: f.url, target: "_blank", rel: "noopener" }, f.name); })));
+    }
+  }
+  function runImages(id, lang, format) {
+    var key = id + "|" + lang;
+    if (imgExports[key] && imgExports[key].running) return;
+    var state = imgExports[key] = { running: true, progress: { percent: 0, phase: "Preparing…" } };
+    paintImages(id, lang);
+    streamed("/api/export-images", { guide: id, lang: lang, format: format }, function (pr) { state.progress = pr; paintImages(id, lang); })
+      .then(function (r) { state.result = r; })
+      .catch(function (e) { state.error = e.message; })
+      .then(function () { state.running = false; paintImages(id, lang); });
+  }
+
   // a POST whose answer is lines of {progress}, then {result} or {error}; resolves with the result
   async function streamed(path, body, onProgress) {
     S.ownSave = Date.now();
@@ -974,6 +1002,13 @@
       p.appendChild(h("button", { id: "export-pdf", class: "btn primary", disabled: !!busy || !!(pdfExports[id + "|" + S.lang] && pdfExports[id + "|" + S.lang].running), onclick: function () { runPdf(id, S.lang); } }, "Export PDF"));
       p.appendChild(h("div", { id: "pdf-result", class: "result", "data-key": id + "|" + S.lang }));
       paintPdf(id, S.lang);
+      p.appendChild(h("h3", null, "Pictures"));
+      p.appendChild(h("p", null, "In " + S.lang + ": one picture per slide, complete, at the exact size of the slide (for a carousel). Requires Chromium."));
+      var imgFormat = h("select", { id: "images-format" }, h("option", { value: "png" }, "PNG"), h("option", { value: "jpeg" }, "JPEG"));
+      p.appendChild(h("div", { class: "row" }, h("label", { for: "images-format" }, "Format"), imgFormat));
+      p.appendChild(h("button", { id: "export-images", class: "btn", disabled: !!busy || !!(imgExports[id + "|" + S.lang] && imgExports[id + "|" + S.lang].running), onclick: function () { runImages(id, S.lang, imgFormat.value); } }, "Export pictures"));
+      p.appendChild(h("div", { id: "images-result", class: "result", "data-key": id + "|" + S.lang }));
+      paintImages(id, S.lang);
       return;
     }
     if (external.length) p.appendChild(h("p", { class: "msg warn" }, "Building generates audio with the external voice chosen for this video (" + external.map(function (r) { return r.language + ": " + r.provider; }).join(", ") + "): the narration text is sent to that service, and it may cost. Texts already generated are not paid again."));
