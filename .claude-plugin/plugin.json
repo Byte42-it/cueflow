@@ -1,0 +1,10 @@
+{
+  "name": "cueflow",
+  "version": "0.2.1",
+  "description": "Build narrated, animated UI tutorials without recording video: scenes are HTML, guides are data, authored through an MCP server.",
+  "author": { "name": "Byte42" },
+  "homepage": "https://github.com/Byte42-it/cueflow#readme",
+  "repository": "https://github.com/Byte42-it/cueflow",
+  "license": "MIT",
+  "keywords": ["tutorial", "mcp", "documentation", "narration"]
+}

@@ -66,6 +66,9 @@
     "!examples/demo-kit/audio",
     "examples/themes",
     "assets/brand",
+    ".claude-plugin",
+    ".mcp.json",
+    "skills",
     "README.md",
     "LICENSE"
   ]

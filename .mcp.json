@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "cueflow": {
+      "command": "npx",
+      "args": ["-y", "@byte-42/cueflow", "mcp"]
+    }
+  }
+}

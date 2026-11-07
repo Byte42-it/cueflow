@@ -15,7 +15,7 @@ Decisions taken by the maintainers — do not re-litigate:
 - **Authoring goes through MCP**, with a human reviewing. The model must be able to *see* what it makes
   (`preview_frame`) and be corrected when it targets something that does not exist (selector validation = the
   equivalent of rejecting an illegal move in a chess lesson).
-- Name: **Cueflow**. npm package `@byte-42/cueflow` (the owner holds the npm organisation `byte-42`; `byte42` was not usable), bin `cueflow`; version in package.json only (`src/version.ts` reads it). `cueflow` alone opens Studio on the project in the current folder, `cueflow <folder>` on another one; no `.cueflow` found upwards = it is created.
+- Name: **Cueflow**. npm package `@byte-42/cueflow` (the owner holds the npm organisation `byte-42`; `byte42` was not usable), bin `cueflow`; version in package.json (`src/version.ts` reads it) **and** `.claude-plugin/plugin.json` (the Claude plugin; `test/plugin.test.ts` fails if they differ): bump both at every release. `cueflow` alone opens Studio on the project in the current folder, `cueflow <folder>` on another one; no `.cueflow` found upwards = it is created.
 - Scenes use the site's real CSS/fonts via `shared/`, with **fake data only** (privacy: never real client documents).
 - **Everything reusable on any site lives in Cueflow; anything specific to one product stays in that product's repo.**
   Target flow: the user adds the MCP server (a local stdio server, not a hosted link) → Claude first asks which site
