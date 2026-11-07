@@ -1,6 +1,6 @@
 {
   "name": "cueflow",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Build narrated, animated UI tutorials without recording video: scenes are HTML, guides are data, authored through an MCP server.",
   "icon": "./assets/brand/cueflow-icon.png",
   "author": {

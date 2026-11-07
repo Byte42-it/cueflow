@@ -237,27 +237,13 @@ Env: `OPENAI_API_KEY` (enables TTS), `CUEFLOW_TTS=none|openai|say|command`, `CUE
 Chromium build is not installed), `FANTASTICO_BASE_URL`, `FANTASTICO_MODELS_URL`, `FANTASTICO_PRODUCT`, `CUEFLOW_AVATAR_MODEL`, `CUEFLOW_PORTRAIT_MODEL`,
 `CUEFLOW_AVATAR_RESOLUTION`, `CUEFLOW_AVATAR_COMMAND` (+ `_FORMAT`) for the generated narrator.
 
-## Pending (2026-10-27): 0.1.53 is on `main` but NOT on npm yet (0.1.54, analytics, follows it)
+## Release notes worth keeping
 
-> **Whoever picks this up next — Luca first — publish it.** `3787555` (docs site layout: streaming-style home,
-> share/print dialogs, link cards, `backdrop`, `--cf-site-cta`) was merged and pushed, and the Academy
-> (academy.fantastico.cc) and SAUL (tutorial.saul-ai.it) sites were rebuilt with it, from a local checkout. npm still
-> serves 0.1.52, so any other kit rebuilt with the published package gets the old layout.
->
-> Publishing needs the npmjs credentials of the `byte-42` scope owner, which only Luca has (the token in a dev
-> machine's `~/.npmrc` is for the GitLab registry, `@byte42`, and is not valid on npmjs):
-> ```bash
-> git pull && npm ci && npm publish   # on main; prepack builds, access public is in package.json
-> npm view @byte-42/cueflow version   # must say the version in package.json
-> ```
-> Then delete this section.
->
-> Two facts learned on the way, worth keeping after it is gone:
-> - The audio cache key contains a hash of `FANTASTICO_API_KEY` (in the provider's fingerprint), so a cache made with
->   one key is invisible to a build with another: changing key regenerates (and pays for) every narration.
-> - Those two sites were rebuilt **without** regenerating audio: the narration already embedded in their published
->   pages was written back into the cache under the build's key, only where the kit's text was identical, and the build
->   ran with that same key, so a missing file would have failed instead of calling the paid service.
+- Publishing needs the npmjs credentials of the `byte-42` scope owner (Luca): `git pull && npm ci && npm publish` on main
+  (prepack builds, access public is in package.json), then `npm view @byte-42/cueflow version`. Bump `package.json`,
+  `.claude-plugin/plugin.json` and the pin in `.mcp.json` together (`test/plugin.test.ts` checks it).
+- The audio cache key contains a hash of `FANTASTICO_API_KEY` (in the provider's fingerprint), so a cache made with
+  one key is invisible to a build with another: changing key regenerates (and pays for) every narration.
 
 ## State (2026-10-14)
 

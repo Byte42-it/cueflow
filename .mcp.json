@@ -4,7 +4,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@byte-42/cueflow@0.2.1",
+        "@byte-42/cueflow@0.2.2",
         "mcp"
       ],
       "env": {
