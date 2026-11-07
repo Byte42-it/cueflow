@@ -15,7 +15,7 @@ Decisions taken by the maintainers — do not re-litigate:
 - **Authoring goes through MCP**, with a human reviewing. The model must be able to *see* what it makes
   (`preview_frame`) and be corrected when it targets something that does not exist (selector validation = the
   equivalent of rejecting an illegal move in a chess lesson).
-- Name: **Cueflow**. npm package `@byte-42/cueflow` (the owner holds the npm organisation `byte-42`; `byte42` was not usable), bin `cueflow`; version in package.json (`src/version.ts` reads it) **and** `.claude-plugin/plugin.json` and the pin in `.mcp.json` (the Claude plugin; `test/plugin.test.ts` fails if they differ): bump both at every release. `cueflow` alone opens Studio on the project in the current folder, `cueflow <folder>` on another one; no `.cueflow` found upwards = it is created.
+- Name: **Cueflow**. npm package `@byte-42/cueflow` (the owner holds the npm organisation `byte-42`; `byte42` was not usable), bin `cueflow`; version in package.json (`src/version.ts` reads it). `cueflow` alone opens Studio on the project in the current folder, `cueflow <folder>` on another one; no `.cueflow` found upwards = it is created.
 - Scenes use the site's real CSS/fonts via `shared/`, with **fake data only** (privacy: never real client documents).
 - **Everything reusable on any site lives in Cueflow; anything specific to one product stays in that product's repo.**
   Target flow: the user adds the MCP server (a local stdio server, not a hosted link) → Claude first asks which site
@@ -240,8 +240,12 @@ Chromium build is not installed), `FANTASTICO_BASE_URL`, `FANTASTICO_MODELS_URL`
 ## Release notes worth keeping
 
 - Publishing needs the npmjs credentials of the `byte-42` scope owner (Luca): `git pull && npm ci && npm publish` on main
-  (prepack builds, access public is in package.json), then `npm view @byte-42/cueflow version`. Bump `package.json`,
-  `.claude-plugin/plugin.json` and the pin in `.mcp.json` together (`test/plugin.test.ts` checks it).
+  (prepack builds, access public is in package.json), then `npm view @byte-42/cueflow version`.
+- **Claude plugin directory** (2026-11-07): it refuses local MCP servers, a package.json with a lockfile and any file that is
+  not text/JSON/YAML/PNG/JPEG/GIF/WebP/ICO, from organisations that are not Verified (we are not). So the plugin is
+  only `plugins/cueflow/` (manifest, icon, a skill that tells the user to `claude mcp add cueflow -- npx -y @byte-42/cueflow mcp`),
+  submitted with "Plugin path" = `plugins/cueflow`; its version is its own. If the form still scans the whole repo, move that folder
+  to a repo of its own. Do not add code or a `.mcp.json` to it.
 - The audio cache key contains a hash of `FANTASTICO_API_KEY` (in the provider's fingerprint), so a cache made with
   one key is invisible to a build with another: changing key regenerates (and pays for) every narration.
 

@@ -1,0 +1,11 @@
+{
+  "name": "cueflow",
+  "version": "0.1.0",
+  "description": "Make narrated, animated UI tutorials without recording video. A skill that drives the Cueflow MCP server (installed separately).",
+  "icon": "./.claude-plugin/icon.png",
+  "author": { "name": "Byte42" },
+  "homepage": "https://github.com/Byte42-it/cueflow#readme",
+  "repository": "https://github.com/Byte42-it/cueflow",
+  "license": "MIT",
+  "keywords": ["tutorial", "mcp", "documentation", "narration"]
+}
