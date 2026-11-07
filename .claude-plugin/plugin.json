@@ -3,9 +3,25 @@
   "version": "0.2.1",
   "description": "Build narrated, animated UI tutorials without recording video: scenes are HTML, guides are data, authored through an MCP server.",
   "icon": "./assets/brand/cueflow-icon.png",
-  "author": { "name": "Byte42" },
+  "author": {
+    "name": "Byte42"
+  },
   "homepage": "https://github.com/Byte42-it/cueflow#readme",
   "repository": "https://github.com/Byte42-it/cueflow",
   "license": "MIT",
-  "keywords": ["tutorial", "mcp", "documentation", "narration"]
+  "keywords": [
+    "tutorial",
+    "mcp",
+    "documentation",
+    "narration"
+  ],
+  "userConfig": {
+    "FANTASTICO_API_KEY": {
+      "type": "string",
+      "title": "Fantastico API key",
+      "description": "Optional. Only for an external voice or a talking narrator; leave empty to use the browser's voice. It can also go in the kit's .env.",
+      "sensitive": true,
+      "required": false
+    }
+  }
 }

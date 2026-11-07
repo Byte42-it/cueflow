@@ -49,6 +49,8 @@ const USAGE = `cueflow — narrated UI walkthroughs from static HTML scenes
 
 // Optional local secrets (FANTASTICO_API_KEY…): .env in the current folder, then the kit's; real env vars win over both.
 const loadEnv = (file: string) => { try { process.loadEnvFile(file); } catch {} };
+// The Claude plugin hands the key over as an environment variable, empty when the person left it blank: that must not hide the .env.
+if (process.env.FANTASTICO_API_KEY === "") delete process.env.FANTASTICO_API_KEY;
 loadEnv(".env");
 
 const { values, positionals } = parseArgs({
