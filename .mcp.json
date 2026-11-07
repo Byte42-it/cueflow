@@ -2,7 +2,7 @@
   "mcpServers": {
     "cueflow": {
       "command": "npx",
-      "args": ["-y", "@byte-42/cueflow", "mcp"]
+      "args": ["-y", "@byte-42/cueflow@0.2.1", "mcp"]
     }
   }
 }
